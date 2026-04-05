@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { WS_EVENTS } from '@corp/shared-constants';
+import { WS_EVENTS } from '../constants/ws-events';
 import { getExistingSocket } from '../socket/socket';
 
 export function useTypingIndicator(chatId: string) {

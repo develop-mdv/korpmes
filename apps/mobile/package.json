@@ -31,9 +31,7 @@
     "expo-notifications": "~0.29.0",
     "expo-file-system": "~18.0.0",
     "expo-av": "~15.0.0",
-    "react-native-webrtc": "^118.0.0",
-    "@corp/shared-types": "workspace:*",
-    "@corp/shared-constants": "workspace:*"
+    "react-native-webrtc": "^118.0.0"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",

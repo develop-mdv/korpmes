@@ -1,5 +1,5 @@
 import { Socket } from 'socket.io-client';
-import { WS_EVENTS } from '@corp/shared-constants';
+import { WS_EVENTS } from '../constants/ws-events';
 import { useChatStore } from '../stores/chat.store';
 import { useMessageStore } from '../stores/message.store';
 import { useNotificationStore } from '../stores/notification.store';
