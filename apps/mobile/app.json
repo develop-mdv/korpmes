@@ -25,17 +25,10 @@
         "backgroundColor": "#4F46E5"
       },
       "package": "com.corpmessenger.app",
-      "permissions": ["CAMERA", "RECORD_AUDIO", "READ_EXTERNAL_STORAGE"]
+      "permissions": ["CAMERA", "RECORD_AUDIO", "READ_EXTERNAL_STORAGE", "android.permission.CAMERA", "android.permission.RECORD_AUDIO", "android.permission.MODIFY_AUDIO_SETTINGS", "android.permission.ACCESS_NETWORK_STATE", "android.permission.CHANGE_NETWORK_STATE", "android.permission.INTERNET"]
     },
     "plugins": [
-      "expo-notifications",
-      [
-        "react-native-webrtc",
-        {
-          "cameraPermission": "Camera access for video calls",
-          "microphonePermission": "Microphone access for audio calls"
-        }
-      ]
+      "expo-notifications"
     ]
   }
 }
