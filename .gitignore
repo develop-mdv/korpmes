@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build
+dist/
+build/
+.turbo/
+.next/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+coverage/
+
+# Mobile
+android/app/build/
+ios/Pods/
+ios/build/
+*.apk
+*.ipa
+.expo/
+
+# Logs
+*.log
+npm-debug.log*
+
+# MinIO data
+minio-data/

@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "CorpMessenger",
+    "slug": "corpmessenger",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "backgroundColor": "#4F46E5"
+    },
+    "updates": {
+      "fallbackToCacheTimeout": 0
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.corpmessenger.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Camera access for video calls and photo messages",
+        "NSMicrophoneUsageDescription": "Microphone access for audio calls and voice messages"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#4F46E5"
+      },
+      "package": "com.corpmessenger.app",
+      "permissions": ["CAMERA", "RECORD_AUDIO", "READ_EXTERNAL_STORAGE"]
+    },
+    "plugins": [
+      "expo-notifications",
+      [
+        "react-native-webrtc",
+        {
+          "cameraPermission": "Camera access for video calls",
+          "microphonePermission": "Microphone access for audio calls"
+        }
+      ]
+    ]
+  }
+}

@@ -1,0 +1,42 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.Permission = exports.OrgRole = void 0;
+var OrgRole;
+(function (OrgRole) {
+    OrgRole["OWNER"] = "OWNER";
+    OrgRole["ADMIN"] = "ADMIN";
+    OrgRole["MANAGER"] = "MANAGER";
+    OrgRole["EMPLOYEE"] = "EMPLOYEE";
+    OrgRole["GUEST"] = "GUEST";
+})(OrgRole || (exports.OrgRole = OrgRole = {}));
+var Permission;
+(function (Permission) {
+    Permission["CHAT_CREATE"] = "CHAT_CREATE";
+    Permission["CHAT_DELETE"] = "CHAT_DELETE";
+    Permission["CHAT_MANAGE_MEMBERS"] = "CHAT_MANAGE_MEMBERS";
+    Permission["MESSAGE_DELETE_OWN"] = "MESSAGE_DELETE_OWN";
+    Permission["MESSAGE_DELETE_ANY"] = "MESSAGE_DELETE_ANY";
+    Permission["MESSAGE_EDIT_OWN"] = "MESSAGE_EDIT_OWN";
+    Permission["MESSAGE_PIN"] = "MESSAGE_PIN";
+    Permission["FILE_UPLOAD"] = "FILE_UPLOAD";
+    Permission["FILE_DELETE_OWN"] = "FILE_DELETE_OWN";
+    Permission["FILE_DELETE_ANY"] = "FILE_DELETE_ANY";
+    Permission["TASK_CREATE"] = "TASK_CREATE";
+    Permission["TASK_ASSIGN"] = "TASK_ASSIGN";
+    Permission["TASK_DELETE"] = "TASK_DELETE";
+    Permission["MEMBER_INVITE"] = "MEMBER_INVITE";
+    Permission["MEMBER_REMOVE"] = "MEMBER_REMOVE";
+    Permission["MEMBER_CHANGE_ROLE"] = "MEMBER_CHANGE_ROLE";
+    Permission["ORG_UPDATE"] = "ORG_UPDATE";
+    Permission["ORG_DELETE"] = "ORG_DELETE";
+    Permission["ORG_VIEW_AUDIT"] = "ORG_VIEW_AUDIT";
+    Permission["DEPARTMENT_MANAGE"] = "DEPARTMENT_MANAGE";
+    Permission["CALL_INITIATE"] = "CALL_INITIATE";
+    Permission["CALL_MANAGE"] = "CALL_MANAGE";
+    Permission["CHANNEL_CREATE"] = "CHANNEL_CREATE";
+    Permission["CHANNEL_DELETE"] = "CHANNEL_DELETE";
+    Permission["EXPORT_DATA"] = "EXPORT_DATA";
+    Permission["GUEST_INVITE"] = "GUEST_INVITE";
+    Permission["VIEW_ALL_MEMBERS"] = "VIEW_ALL_MEMBERS";
+})(Permission || (exports.Permission = Permission = {}));
+//# sourceMappingURL=rbac.js.map

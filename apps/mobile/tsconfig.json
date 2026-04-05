@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@corp/shared-types": ["../../packages/shared-types/src"],
+      "@corp/shared-constants": ["../../packages/shared-constants/src"]
+    }
+  },
+  "include": ["src", "App.tsx", "index.ts"],
+  "exclude": ["node_modules"]
+}

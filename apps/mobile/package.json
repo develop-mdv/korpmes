@@ -1,0 +1,42 @@
+{
+  "name": "@corp/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "build": "echo 'Mobile build via EAS'",
+    "lint": "eslint src --ext ts,tsx",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "expo": "~52.0.0",
+    "expo-status-bar": "~2.0.0",
+    "react": "^19.0.0",
+    "react-native": "~0.76.0",
+    "@react-navigation/native": "^7.0.0",
+    "@react-navigation/native-stack": "^7.0.0",
+    "@react-navigation/bottom-tabs": "^7.0.0",
+    "react-native-screens": "~4.4.0",
+    "react-native-safe-area-context": "~5.0.0",
+    "react-native-gesture-handler": "~2.21.0",
+    "react-native-reanimated": "~3.16.0",
+    "@react-native-async-storage/async-storage": "~2.1.0",
+    "zustand": "^5.0.0",
+    "axios": "^1.7.0",
+    "socket.io-client": "^4.8.0",
+    "date-fns": "^4.1.0",
+    "expo-image-picker": "~16.0.0",
+    "expo-notifications": "~0.29.0",
+    "expo-file-system": "~18.0.0",
+    "expo-av": "~15.0.0",
+    "react-native-webrtc": "^118.0.0",
+    "@corp/shared-types": "workspace:*",
+    "@corp/shared-constants": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "typescript": "^5.7.0"
+  }
+}
