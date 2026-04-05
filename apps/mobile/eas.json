@@ -12,10 +12,7 @@
       "android": {
         "buildType": "apk"
       },
-      "distribution": "internal",
-      "env": {
-        "EAS_BUILD_EXPERIMENTAL_WORKSPACE": "1"
-      }
+      "distribution": "internal"
     },
     "production": {
       "autoIncrement": true
