@@ -39,9 +39,7 @@
         "android.permission.INTERNET"
       ]
     },
-    "plugins": [
-      "expo-notifications"
-    ],
+    "plugins": [],
     "extra": {
       "eas": {
         "projectId": "b710febb-6318-44b4-8f73-c874d82bc097"
