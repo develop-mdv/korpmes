@@ -5,12 +5,11 @@
  */
 
 export function useWebRTC() {
-  const noop = async () => {};
   return {
-    startCall: noop,
-    handleOffer: noop,
-    handleAnswer: noop,
-    handleIceCandidate: noop,
+    startCall: async (_callId: string, _targetUserId: string, _type: 'AUDIO' | 'VIDEO') => {},
+    handleOffer: async (_callId: string, _fromUserId: string, _sdp: string, _type: 'AUDIO' | 'VIDEO') => {},
+    handleAnswer: async (_sdp: string) => {},
+    handleIceCandidate: async (_candidate: unknown) => {},
     toggleMute: () => {},
     toggleVideo: () => {},
     cleanup: () => {},

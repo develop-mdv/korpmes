@@ -8,7 +8,7 @@ import { useCallStore, type ActiveCall } from '../stores/call.store';
 type WebRTCHandlers = {
   handleOffer: (callId: string, fromUserId: string, sdp: string, type: 'AUDIO' | 'VIDEO') => Promise<void>;
   handleAnswer: (sdp: string) => Promise<void>;
-  handleIceCandidate: (candidate: RTCIceCandidateInit) => Promise<void>;
+  handleIceCandidate: (candidate: Record<string, unknown>) => Promise<void>;
 };
 
 let webRTCHandlers: WebRTCHandlers | null = null;
@@ -99,7 +99,7 @@ export function setupSocketListeners(socket: Socket) {
 
   socket.on(
     WS_EVENTS.CALL_ICE_CANDIDATE,
-    (data: { callId: string; candidate: RTCIceCandidateInit }) => {
+    (data: { callId: string; candidate: Record<string, unknown> }) => {
       const { activeCall } = useCallStore.getState();
       if (!activeCall || activeCall.id !== data.callId) return;
       webRTCHandlers?.handleIceCandidate(data.candidate);

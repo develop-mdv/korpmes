@@ -4,8 +4,9 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/api$/, '') || (__DEV
 
 let socket: Socket | null = null;
 
-export function getSocket(token: string): Socket {
+export function getSocket(token?: string): Socket {
   if (socket?.connected) return socket;
+  if (!token) throw new Error('Socket not connected and no token provided');
 
   socket = io(API_URL, {
     auth: { token },
