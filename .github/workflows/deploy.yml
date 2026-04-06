@@ -27,27 +27,20 @@ jobs:
             export DEBIAN_FRONTEND=noninteractive
             apt-get update -qq
 
-            # Install Docker if missing
             if ! command -v docker &>/dev/null; then
-              echo "Installing Docker..."
               curl -fsSL https://get.docker.com | sh
-              systemctl enable docker
-              systemctl start docker
+              systemctl enable docker && systemctl start docker
             else
               echo "Docker already installed: $(docker --version)"
             fi
 
-            # Install Docker Compose plugin if missing
             if ! docker compose version &>/dev/null; then
-              echo "Installing Docker Compose plugin..."
               apt-get install -y -qq docker-compose-plugin
             else
               echo "Docker Compose already installed: $(docker compose version)"
             fi
 
-            # Install certbot if missing (no nginx needed — tasktracker-nginx-1 handles 80/443)
             if ! command -v certbot &>/dev/null; then
-              echo "Installing certbot..."
               apt-get install -y -qq certbot
             else
               echo "Certbot already installed: $(certbot --version)"
@@ -56,36 +49,32 @@ jobs:
             echo "=== [2/8] Cloning / updating repository ==="
             DEPLOY_DIR="/opt/korpmes"
             if [ -d "$DEPLOY_DIR/.git" ]; then
-              echo "Repository exists, pulling latest..."
               cd "$DEPLOY_DIR"
               git fetch origin
               git reset --hard origin/main
+              echo "Repository updated"
             else
-              echo "Cloning repository..."
               git clone https://github.com/${{ github.repository }}.git "$DEPLOY_DIR"
-              cd "$DEPLOY_DIR"
+              echo "Repository cloned"
             fi
 
             echo "=== [3/8] Setting up shared Docker network ==="
-            # Create shared network so tasktracker-nginx-1 can reach corp_web by hostname
             docker network create shared-web 2>/dev/null || echo "Network shared-web already exists"
             docker network connect shared-web tasktracker-nginx-1 2>/dev/null || echo "tasktracker-nginx-1 already on shared-web"
 
             echo "=== [4/8] Writing .env file ==="
-            cat > "$DEPLOY_DIR/.env" <<EOF
+            cat > "$DEPLOY_DIR/.env" <<ENVEOF
             JWT_ACCESS_SECRET=${{ secrets.JWT_ACCESS_SECRET }}
             JWT_REFRESH_SECRET=${{ secrets.JWT_REFRESH_SECRET }}
             NODE_ENV=production
             APP_URL=https://korpmes.ru
             WEB_URL=https://korpmes.ru
             CORS_ORIGINS=https://korpmes.ru
-            EOF
+            ENVEOF
             chmod 600 "$DEPLOY_DIR/.env"
 
             echo "=== [5/8] Obtaining SSL certificate for korpmes.ru ==="
-            # Use existing certbot webroot served by tasktracker-nginx-1
             CERTBOT_WEBROOT="/var/lib/docker/volumes/tasktracker_certbot_webroot/_data"
-
             if [ -f "/etc/letsencrypt/live/korpmes.ru/fullchain.pem" ]; then
               echo "Certificate already exists, renewing if needed..."
               certbot renew --quiet
@@ -100,7 +89,6 @@ jobs:
                 --email ${{ github.event.inputs.admin_email }}
             fi
 
-            # Copy certs where tasktracker-nginx-1 can read them (mounted at /etc/nginx/certs)
             NGINX_CERTS_DIR="/root/TaskTracker/nginx/certs/live/korpmes.ru"
             mkdir -p "$NGINX_CERTS_DIR"
             cp /etc/letsencrypt/live/korpmes.ru/fullchain.pem "$NGINX_CERTS_DIR/"
@@ -110,64 +98,18 @@ jobs:
 
             echo "=== [6/8] Adding korpmes.ru blocks to tasktracker nginx config ==="
             NGINX_CONF="/root/TaskTracker/nginx/active.conf"
-
+            BLOCKS_FILE="$DEPLOY_DIR/infrastructure/nginx/korpmes-server-blocks.conf"
             if grep -q "korpmes.ru" "$NGINX_CONF"; then
               echo "korpmes.ru already in nginx config, skipping"
             else
-              # Strip the last closing } (which closes the http{} block),
-              # append our server blocks inside http{}, then close it again.
-              head -n -1 "$NGINX_CONF" > /tmp/korpmes_nginx_patch.conf
-              cat >> /tmp/korpmes_nginx_patch.conf <<'KORPMES_NGINX'
-
-# ─── korpmes.ru ───────────────────────────────────────────────────────────
-server {
-    listen 80;
-    server_name korpmes.ru www.korpmes.ru;
-
-    location /.well-known/acme-challenge/ {
-        root /var/lib/docker/volumes/tasktracker_certbot_webroot/_data;
-    }
-
-    location / {
-        return 301 https://$host$request_uri;
-    }
-}
-
-server {
-    listen 443 ssl;
-    http2 on;
-    server_name korpmes.ru www.korpmes.ru;
-
-    ssl_certificate     /etc/nginx/certs/live/korpmes.ru/fullchain.pem;
-    ssl_certificate_key /etc/nginx/certs/live/korpmes.ru/privkey.pem;
-    ssl_protocols       TLSv1.2 TLSv1.3;
-    ssl_ciphers         HIGH:!aNULL:!MD5;
-    ssl_session_cache   shared:SSL:10m;
-    ssl_session_timeout 10m;
-
-    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-    add_header X-Frame-Options "SAMEORIGIN" always;
-    add_header X-Content-Type-Options "nosniff" always;
-
-    location / {
-        proxy_pass         http://corp_web;
-        proxy_http_version 1.1;
-        proxy_set_header   Upgrade $http_upgrade;
-        proxy_set_header   Connection "upgrade";
-        proxy_set_header   Host $host;
-        proxy_set_header   X-Real-IP $remote_addr;
-        proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header   X-Forwarded-Proto $scheme;
-        proxy_read_timeout 86400;
-    }
-}
-} # ← closes http {}
-KORPMES_NGINX
-              mv /tmp/korpmes_nginx_patch.conf "$NGINX_CONF"
+              # Insert server blocks before the last } which closes http{}
+              head -n -1 "$NGINX_CONF" > /tmp/nginx_patched.conf
+              cat "$BLOCKS_FILE" >> /tmp/nginx_patched.conf
+              echo "}" >> /tmp/nginx_patched.conf
+              mv /tmp/nginx_patched.conf "$NGINX_CONF"
               echo "korpmes.ru server blocks added"
             fi
 
-            # Validate and reload nginx inside the existing container
             docker exec tasktracker-nginx-1 nginx -t
             docker exec tasktracker-nginx-1 nginx -s reload
             echo "tasktracker-nginx-1 reloaded"
@@ -177,20 +119,18 @@ KORPMES_NGINX
             docker compose pull --quiet postgres redis minio coturn
             docker compose up -d --build
 
-            # Certbot renewal cron: renew cert, copy to nginx certs dir, reload container
             if ! crontab -l 2>/dev/null | grep -q "certbot renew"; then
               (crontab -l 2>/dev/null; echo "0 3 * * * certbot renew --quiet && cp /etc/letsencrypt/live/korpmes.ru/*.pem /root/TaskTracker/nginx/certs/live/korpmes.ru/ && docker exec tasktracker-nginx-1 nginx -s reload") | crontab -
               echo "Certbot renewal cron added"
             fi
 
             echo "=== [8/8] Running database migrations ==="
-            echo "Waiting for API to be ready..."
             for i in $(seq 1 30); do
               if docker compose exec -T api wget -qO- http://localhost:3000/api/health 2>/dev/null | grep -q "ok"; then
                 echo "API is ready"
                 break
               fi
-              echo "Attempt $i/30: API not ready yet, waiting 5s..."
+              echo "Attempt $i/30: waiting 5s..."
               sleep 5
             done
 
@@ -199,9 +139,7 @@ KORPMES_NGINX
               -d dist/database/typeorm.datasource.js \
               || echo "WARNING: Migrations failed or no pending migrations"
 
-            echo ""
             echo "=== Deployment complete ==="
             docker compose ps
-            echo ""
             echo "Web: https://korpmes.ru"
             echo "API: https://korpmes.ru/api"
