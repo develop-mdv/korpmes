@@ -1,0 +1,64 @@
+name: CD — Auto Deploy on Push
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/api/**'
+      - 'apps/web/**'
+      - 'packages/**'
+      - 'docker-compose.yml'
+      - 'infrastructure/docker/**'
+
+jobs:
+  deploy:
+    name: Rolling Update (api + web)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy updated containers
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          command_timeout: 20m
+          script: |
+            set -euo pipefail
+            DEPLOY_DIR="/opt/korpmes"
+
+            if [ ! -d "$DEPLOY_DIR" ]; then
+              echo "ERROR: $DEPLOY_DIR not found. Run the Deploy workflow first."
+              exit 1
+            fi
+
+            echo "=== Pulling latest code ==="
+            cd "$DEPLOY_DIR"
+            git fetch origin
+            git reset --hard origin/main
+
+            echo "=== Rebuilding api and web containers ==="
+            docker compose build --no-cache api web
+
+            echo "=== Restarting api and web (zero-touch for databases) ==="
+            docker compose up -d --no-deps api web
+
+            echo "=== Waiting for API to be healthy ==="
+            for i in $(seq 1 24); do
+              if docker compose exec -T api wget -qO- http://localhost:3000/api/health 2>/dev/null | grep -q "ok"; then
+                echo "API healthy after ${i}x5s"
+                break
+              fi
+              echo "Attempt $i/24..."
+              sleep 5
+            done
+
+            echo "=== Running pending migrations ==="
+            docker compose exec -T api node node_modules/.bin/typeorm \
+              migration:run \
+              -d dist/database/typeorm.datasource.js \
+              || echo "No pending migrations"
+
+            echo "=== Status ==="
+            docker compose ps
