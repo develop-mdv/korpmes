@@ -1,6 +1,6 @@
 import { io, Socket } from 'socket.io-client';
 
-const API_URL = __DEV__ ? 'http://10.0.2.2:3000' : 'https://api.corpmessenger.com';
+const API_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/api$/, '') || (__DEV__ ? 'http://10.0.2.2:3000' : 'https://korpmes.ru');
 
 let socket: Socket | null = null;
 
