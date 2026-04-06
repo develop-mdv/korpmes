@@ -30,5 +30,5 @@ echo "" >> /tmp/nginx_patched.conf
 cat "$BLOCKS_FILE" >> /tmp/nginx_patched.conf
 echo "}" >> /tmp/nginx_patched.conf
 
-mv /tmp/nginx_patched.conf "$NGINX_CONF"
+cp /tmp/nginx_patched.conf "$NGINX_CONF"
 echo "Nginx config patched: korpmes.ru blocks inserted inside http{}"
