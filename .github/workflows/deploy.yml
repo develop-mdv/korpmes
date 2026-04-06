@@ -96,27 +96,64 @@ jobs:
             cp /etc/letsencrypt/live/korpmes.ru/chain.pem    "$NGINX_CERTS_DIR/" 2>/dev/null || true
             echo "Certs copied to $NGINX_CERTS_DIR"
 
-            echo "=== [6/8] Patching tasktracker nginx config with korpmes.ru ==="
+            echo "=== [6/8] Patching nginx and restarting ==="
             NGINX_CONF="/root/TaskTracker/nginx/active.conf"
             BLOCKS_FILE="$DEPLOY_DIR/infrastructure/nginx/korpmes-server-blocks.conf"
+            PATCH_SCRIPT="$DEPLOY_DIR/infrastructure/nginx/patch-nginx.sh"
 
-            # Build the patched config into /tmp/nginx_patched.conf
-            bash "$DEPLOY_DIR/infrastructure/nginx/patch-nginx.sh" "$NGINX_CONF" "$BLOCKS_FILE"
+            # Ensure LF endings on scripts from the repo
+            sed -i 's/\r$//' "$PATCH_SCRIPT"
 
-            # Write directly into the container to bypass any bind-mount inode mismatch
-            # (previous runs using mv may have replaced the inode on the host while the
-            # container still holds a bind-mount reference to the original inode)
-            docker exec -i tasktracker-nginx-1 sh -c 'cat > /etc/nginx/nginx.conf' < /tmp/nginx_patched.conf
-            echo "Config written into container"
+            # Backup current config for rollback
+            cp "$NGINX_CONF" "${NGINX_CONF}.bak"
 
-            docker exec tasktracker-nginx-1 nginx -t
-            docker exec tasktracker-nginx-1 nginx -s reload
-            echo "tasktracker-nginx-1 reloaded"
+            # Patch the config on the host filesystem
+            bash "$PATCH_SCRIPT" "$NGINX_CONF" "$BLOCKS_FILE"
+
+            # Show what we produced for debugging
+            echo "--- Patched config tail ---"
+            tail -5 "$NGINX_CONF"
+            echo "---"
+
+            # Validate using a temp container with the same nginx image
+            NGINX_IMAGE=$(docker inspect --format '{{.Config.Image}}' tasktracker-nginx-1)
+            echo "Validating with image: $NGINX_IMAGE"
+
+            if docker run --rm \
+              --add-host app:127.0.0.1 \
+              --add-host corp_web:127.0.0.1 \
+              -v "$NGINX_CONF:/etc/nginx/nginx.conf:ro" \
+              -v /root/TaskTracker/nginx/certs:/etc/nginx/certs:ro \
+              "$NGINX_IMAGE" nginx -t 2>&1; then
+              echo "Config validation PASSED"
+            else
+              echo "Config validation FAILED — restoring backup"
+              cp "${NGINX_CONF}.bak" "$NGINX_CONF"
+              exit 1
+            fi
+
+            # Restart container so Docker re-creates the bind mount
+            # (previous deploys used mv which broke the inode link)
+            docker restart tasktracker-nginx-1
+            sleep 3
+
+            if docker ps --filter "name=tasktracker-nginx-1" --filter "status=running" -q | grep -q .; then
+              echo "tasktracker-nginx-1 is running"
+            else
+              echo "tasktracker-nginx-1 failed to start — restoring backup"
+              cp "${NGINX_CONF}.bak" "$NGINX_CONF"
+              docker restart tasktracker-nginx-1
+              sleep 3
+              exit 1
+            fi
 
             echo "=== [7/8] Starting Docker services ==="
             cd "$DEPLOY_DIR"
             docker compose pull --quiet postgres redis minio coturn
             docker compose up -d --build
+
+            # Re-connect nginx to shared-web after our services are up
+            docker network connect shared-web tasktracker-nginx-1 2>/dev/null || true
 
             if ! crontab -l 2>/dev/null | grep -q "certbot renew"; then
               (crontab -l 2>/dev/null; echo "0 3 * * * certbot renew --quiet && cp /etc/letsencrypt/live/korpmes.ru/*.pem /root/TaskTracker/nginx/certs/live/korpmes.ru/ && docker exec tasktracker-nginx-1 nginx -s reload") | crontab -
