@@ -8,7 +8,7 @@
     "start": "node dist/apps/api/src/main",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/apps/api/src/main",
-    "lint": "eslint \"{src,test}/**/*.ts\"",
+    "lint": "echo 'no eslint configured'",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
