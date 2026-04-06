@@ -99,7 +99,15 @@ jobs:
             echo "=== [6/8] Patching tasktracker nginx config with korpmes.ru ==="
             NGINX_CONF="/root/TaskTracker/nginx/active.conf"
             BLOCKS_FILE="$DEPLOY_DIR/infrastructure/nginx/korpmes-server-blocks.conf"
+
+            # Build the patched config into /tmp/nginx_patched.conf
             bash "$DEPLOY_DIR/infrastructure/nginx/patch-nginx.sh" "$NGINX_CONF" "$BLOCKS_FILE"
+
+            # Write directly into the container to bypass any bind-mount inode mismatch
+            # (previous runs using mv may have replaced the inode on the host while the
+            # container still holds a bind-mount reference to the original inode)
+            docker exec -i tasktracker-nginx-1 sh -c 'cat > /etc/nginx/nginx.conf' < /tmp/nginx_patched.conf
+            echo "Config written into container"
 
             docker exec tasktracker-nginx-1 nginx -t
             docker exec tasktracker-nginx-1 nginx -s reload
