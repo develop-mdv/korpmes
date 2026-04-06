@@ -96,19 +96,10 @@ jobs:
             cp /etc/letsencrypt/live/korpmes.ru/chain.pem    "$NGINX_CERTS_DIR/" 2>/dev/null || true
             echo "Certs copied to $NGINX_CERTS_DIR"
 
-            echo "=== [6/8] Adding korpmes.ru blocks to tasktracker nginx config ==="
+            echo "=== [6/8] Patching tasktracker nginx config with korpmes.ru ==="
             NGINX_CONF="/root/TaskTracker/nginx/active.conf"
             BLOCKS_FILE="$DEPLOY_DIR/infrastructure/nginx/korpmes-server-blocks.conf"
-            if grep -q "korpmes.ru" "$NGINX_CONF"; then
-              echo "korpmes.ru already in nginx config, skipping"
-            else
-              # Insert server blocks before the last } which closes http{}
-              head -n -1 "$NGINX_CONF" > /tmp/nginx_patched.conf
-              cat "$BLOCKS_FILE" >> /tmp/nginx_patched.conf
-              echo "}" >> /tmp/nginx_patched.conf
-              mv /tmp/nginx_patched.conf "$NGINX_CONF"
-              echo "korpmes.ru server blocks added"
-            fi
+            bash "$DEPLOY_DIR/infrastructure/nginx/patch-nginx.sh" "$NGINX_CONF" "$BLOCKS_FILE"
 
             docker exec tasktracker-nginx-1 nginx -t
             docker exec tasktracker-nginx-1 nginx -s reload
