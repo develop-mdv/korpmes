@@ -295,7 +295,7 @@ export function SettingsPage() {
       </section>
 
       <Modal
-        isOpen={twoFAOpen}
+        open={twoFAOpen}
         onClose={() => setTwoFAOpen(false)}
         title={twoFAEnabled ? 'Disable Two-Factor Authentication' : 'Set Up Two-Factor Authentication'}
       >

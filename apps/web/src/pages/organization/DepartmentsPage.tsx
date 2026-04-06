@@ -183,7 +183,7 @@ export function DepartmentsPage() {
       )}
 
       <Modal
-        isOpen={modalOpen}
+        open={modalOpen}
         onClose={() => setModalOpen(false)}
         title={editTarget ? 'Edit Department' : parentTarget ? `Add sub-department to "${parentTarget.name}"` : 'New Department'}
       >
