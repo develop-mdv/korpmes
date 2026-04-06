@@ -102,8 +102,8 @@ services:
       --realm=corpmessenger
       --user=turnuser:turnpassword
       --fingerprint
-      --no-tlsv1
-      --no-tlsv1_1
+      --min-port=49152
+      --max-port=49200
 
 volumes:
   postgres_data:
