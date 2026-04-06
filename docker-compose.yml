@@ -82,8 +82,9 @@ services:
       dockerfile: infrastructure/docker/web.Dockerfile
     container_name: corp_web
     restart: unless-stopped
-    ports:
-      - '127.0.0.1:${WEB_PORT:-8080}:80'
+    networks:
+      - default
+      - shared-web
     depends_on:
       - api
 
@@ -111,3 +112,7 @@ volumes:
   postgres_data:
   redis_data:
   minio_data:
+
+networks:
+  shared-web:
+    external: true
