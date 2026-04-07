@@ -40,8 +40,8 @@ jobs:
 
             echo "=== Patching .env with TURN/WebRTC settings ==="
             # Add TURN vars if not already present (idempotent)
-            grep -q "^SERVER_PUBLIC_IP=" .env 2>/dev/null || echo "SERVER_PUBLIC_IP=${{ secrets.SERVER_PUBLIC_IP }}" >> .env
-            grep -q "^TURN_URL=" .env 2>/dev/null || echo "TURN_URL=turn:${{ secrets.SERVER_PUBLIC_IP }}:3478" >> .env
+            grep -q "^SERVER_PUBLIC_IP=" .env 2>/dev/null || echo "SERVER_PUBLIC_IP=${{ secrets.SERVER_HOST }}" >> .env
+            grep -q "^TURN_URL=" .env 2>/dev/null || echo "TURN_URL=turn:${{ secrets.SERVER_HOST }}:3478" >> .env
             grep -q "^TURN_USERNAME=" .env 2>/dev/null || echo "TURN_USERNAME=${TURN_USERNAME:-turnuser}" >> .env
             grep -q "^TURN_PASSWORD=" .env 2>/dev/null || echo "TURN_PASSWORD=${TURN_PASSWORD:-turnpassword}" >> .env
 
