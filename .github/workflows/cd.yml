@@ -38,11 +38,21 @@ jobs:
             git fetch origin
             git reset --hard origin/main
 
+            echo "=== Patching .env with TURN/WebRTC settings ==="
+            # Add TURN vars if not already present (idempotent)
+            grep -q "^SERVER_PUBLIC_IP=" .env 2>/dev/null || echo "SERVER_PUBLIC_IP=${{ secrets.SERVER_PUBLIC_IP }}" >> .env
+            grep -q "^TURN_URL=" .env 2>/dev/null || echo "TURN_URL=turn:${{ secrets.SERVER_PUBLIC_IP }}:3478" >> .env
+            grep -q "^TURN_USERNAME=" .env 2>/dev/null || echo "TURN_USERNAME=${TURN_USERNAME:-turnuser}" >> .env
+            grep -q "^TURN_PASSWORD=" .env 2>/dev/null || echo "TURN_PASSWORD=${TURN_PASSWORD:-turnpassword}" >> .env
+
             echo "=== Rebuilding api and web containers ==="
             docker compose build --no-cache api web
 
             echo "=== Restarting api and web (zero-touch for databases) ==="
             docker compose up -d --no-deps api web
+
+            echo "=== Restarting coturn if docker-compose.yml changed ==="
+            docker compose up -d --no-deps coturn
 
             echo "=== Waiting for API to be healthy ==="
             for i in $(seq 1 24); do
