@@ -42,7 +42,8 @@
       ]
     },
     "plugins": [
-      "expo-notifications"
+      "expo-notifications",
+      "react-native-incall-manager"
     ],
     "extra": {
       "eas": {

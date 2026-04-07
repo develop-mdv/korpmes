@@ -6,6 +6,7 @@ import {
   mediaDevices,
 } from 'react-native-webrtc';
 import type { MediaStream } from 'react-native-webrtc';
+import InCallManager from 'react-native-incall-manager';
 import { useCallStore } from '../stores/call.store';
 import { getExistingSocket } from '../socket/socket';
 import { getIceServers } from '../api/calls.api';
@@ -75,6 +76,8 @@ export function useWebRTC() {
       })) as MediaStream;
 
       useCallStore.getState().setLocalStream(stream);
+      InCallManager.start({ media: type === 'VIDEO' ? 'video' : 'audio' });
+      InCallManager.setSpeakerphoneOn(type === 'VIDEO');
 
       const pc = await createPC();
       stream.getTracks().forEach((t) => pc.addTrack(t, stream));
@@ -98,6 +101,8 @@ export function useWebRTC() {
       })) as MediaStream;
 
       useCallStore.getState().setLocalStream(stream);
+      InCallManager.start({ media: type === 'VIDEO' ? 'video' : 'audio' });
+      InCallManager.setSpeakerphoneOn(type === 'VIDEO');
 
       const pc = await createPC();
       stream.getTracks().forEach((t) => pc.addTrack(t, stream));
@@ -162,6 +167,7 @@ export function useWebRTC() {
     pcRef.current = null;
     pendingCandidates.current = [];
     remoteDescSet.current = false;
+    InCallManager.stop();
     useCallStore.getState().endCall();
   }, []);
 

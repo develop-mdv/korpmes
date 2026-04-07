@@ -13,10 +13,19 @@ interface VideoTileProps {
 
 function VideoTile({ stream, label, isLocal, isScreenShare, style }: VideoTileProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
     if (videoRef.current && stream) {
       videoRef.current.srcObject = stream;
+      videoRef.current.play().catch(() => {});
+    }
+  }, [stream]);
+
+  useEffect(() => {
+    if (audioRef.current && stream) {
+      audioRef.current.srcObject = stream;
+      audioRef.current.play().catch(() => {});
     }
   }, [stream]);
 
@@ -40,6 +49,10 @@ function VideoTile({ stream, label, isLocal, isScreenShare, style }: VideoTilePr
         <div style={styles.avatarBox}>
           <Avatar name={label} size="lg" />
         </div>
+      )}
+      {/* Hidden audio element for audio-only remote streams */}
+      {!isLocal && !hasVideo && stream && (
+        <audio ref={audioRef} autoPlay />
       )}
       <span style={styles.label}>
         {isScreenShare ? '🖥 Screen' : isLocal ? 'You' : label}
