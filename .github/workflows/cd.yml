@@ -9,6 +9,7 @@ on:
       - 'packages/**'
       - 'docker-compose.yml'
       - 'infrastructure/docker/**'
+      - '.github/workflows/**'
 
 jobs:
   deploy:
