@@ -18,6 +18,7 @@
 import { getSocket } from '@/socket/socket';
 import { useCallStore } from '@/stores/call.store';
 import { useAuthStore } from '@/stores/auth.store';
+import { getIceServers } from '@/api/calls.api';
 
 // ─── Per-peer state ───────────────────────────────────────────────────────────
 
@@ -29,6 +30,21 @@ interface PeerState {
 
 const peers = new Map<string, PeerState>();
 let currentCallId: string | null = null;
+let cachedIceServers: RTCIceServer[] | null = null;
+
+async function resolveIceServers(): Promise<RTCIceServer[]> {
+  if (cachedIceServers) return cachedIceServers;
+  try {
+    const res = await getIceServers();
+    cachedIceServers = res.iceServers;
+    return cachedIceServers;
+  } catch {
+    return [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+    ];
+  }
+}
 
 function log(msg: string, ...args: unknown[]) {
   console.log(`[Call] ${msg}`, ...args);
@@ -40,17 +56,12 @@ function store() {
 
 // ─── PeerConnection ──────────────────────────────────────────────────────────
 
-function createPC(targetUserId: string): RTCPeerConnection {
+async function createPC(targetUserId: string): Promise<RTCPeerConnection> {
   // Close existing PC for this user if any
   peers.get(targetUserId)?.pc.close();
 
-  const conn = new RTCPeerConnection({
-    iceServers: [
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' },
-      { urls: 'stun:stun2.l.google.com:19302' },
-    ],
-  });
+  const iceServers = await resolveIceServers();
+  const conn = new RTCPeerConnection({ iceServers });
 
   const state: PeerState = { pc: conn, remoteDescSet: false, pendingCandidates: [] };
   peers.set(targetUserId, state);
@@ -120,7 +131,7 @@ async function getMedia(type: 'audio' | 'video'): Promise<MediaStream> {
 // ─── Internal: send offer to a peer ─────────────────────────────────────────
 
 async function sendOfferTo(targetUserId: string, stream: MediaStream): Promise<void> {
-  const conn = createPC(targetUserId);
+  const conn = await createPC(targetUserId);
 
   // Add local tracks (and replace video track with screen if sharing)
   const { isScreenSharing, screenStream } = store();
@@ -239,7 +250,7 @@ export async function onCallOffer(data: {
   if (!activeCall || data.callId !== activeCall.id) return;
 
   currentCallId = data.callId;
-  const conn = createPC(data.fromUserId);
+  const conn = await createPC(data.fromUserId);
   const peerState = peers.get(data.fromUserId)!;
 
   let stream = localStream;
@@ -393,6 +404,7 @@ export function cleanup(): void {
     closePeer(userId);
   }
   currentCallId = null;
+  cachedIceServers = null;
   store().endCall();
 }
 

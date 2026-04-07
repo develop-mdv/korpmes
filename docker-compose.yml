@@ -65,6 +65,9 @@ services:
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change-me-in-production}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-me-in-production}
       APP_PORT: 3000
+      TURN_URL: turn:${SERVER_PUBLIC_IP:-localhost}:3478
+      TURN_USERNAME: ${TURN_USERNAME:-turnuser}
+      TURN_PASSWORD: ${TURN_PASSWORD:-turnpassword}
     depends_on:
       postgres:
         condition: service_healthy
@@ -86,24 +89,14 @@ services:
       - api
 
   coturn:
-    image: coturn/coturn:latest
+    image: coturn/coturn:4.6.2
     container_name: corp_coturn
     restart: unless-stopped
     ports:
-      - '3478:3478'
-      - '3478:3478/udp'
-      - '5349:5349'
-      - '5349:5349/udp'
-      - '49152-49200:49152-49200/udp'
-    command: >
-      -n
-      --log-file=stdout
-      --lt-cred-mech
-      --realm=corpmessenger
-      --user=turnuser:turnpassword
-      --fingerprint
-      --min-port=49152
-      --max-port=49200
+      - "3478:3478"
+      - "3478:3478/udp"
+      - "49152-49200:49152-49200/udp"
+    command: "-n --log-file=stdout --no-tls --no-dtls --listening-ip=0.0.0.0 --listening-port=3478 --external-ip=${SERVER_PUBLIC_IP} --lt-cred-mech --realm=corpmessenger --user=${TURN_USERNAME:-turnuser}:${TURN_PASSWORD:-turnpassword} --fingerprint --min-port=49152 --max-port=49200"
 
 volumes:
   postgres_data:

@@ -40,3 +40,11 @@ export function getCallHistory(chatId: string): Promise<CallData[]> {
 export function getAllCallHistory(): Promise<CallData[]> {
   return apiClient.get('/calls/history/all').then((r) => r.data);
 }
+
+export interface IceServersConfig {
+  iceServers: RTCIceServer[];
+}
+
+export function getIceServers(): Promise<IceServersConfig> {
+  return apiClient.get('/calls/ice-servers').then((r) => r.data);
+}

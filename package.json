@@ -16,7 +16,8 @@
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
     "db:migrate": "turbo db:migrate",
-    "prepare": "husky"
+    "prepare": "husky",
+    "postinstall": "pnpm --filter @corp/shared-types build && pnpm --filter @corp/shared-validation build"
   },
   "devDependencies": {
     "turbo": "^2.3.0",

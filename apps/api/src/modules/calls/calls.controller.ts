@@ -9,6 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CallsService } from './calls.service';
@@ -17,16 +18,17 @@ import { WebSocketService } from '../websocket/websocket.service';
 import { ChatsService } from '../chats/chats.service';
 
 @ApiTags('Calls')
-@ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
 @Controller('calls')
 export class CallsController {
   constructor(
     private readonly callsService: CallsService,
     private readonly wsService: WebSocketService,
     private readonly chatsService: ChatsService,
+    private readonly configService: ConfigService,
   ) {}
 
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @Post()
   async initiate(
     @CurrentUser() user: { id: string },
@@ -51,21 +53,45 @@ export class CallsController {
     return call;
   }
 
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @Get('history')
   async getHistory(@Query('chatId') chatId: string) {
     return this.callsService.getHistory(chatId);
   }
 
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @Get('history/all')
   async getAllHistory(@CurrentUser() user: { id: string }) {
     return this.callsService.getHistoryForUser(user.id);
   }
 
+  // Public — TURN credentials are not user-specific; no auth needed
+  @Get('ice-servers')
+  getIceServers() {
+    const turnUrl = this.configService.get<string>('TURN_URL');
+    const username = this.configService.get<string>('TURN_USERNAME');
+    const credential = this.configService.get<string>('TURN_PASSWORD');
+
+    return {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        ...(turnUrl ? [{ urls: turnUrl, username, credential }] : []),
+      ],
+    };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @Get(':id')
   async getCallInfo(@Param('id') id: string) {
     return this.callsService.getById(id);
   }
 
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @Patch(':id/answer')
   async answer(
     @Param('id') id: string,
@@ -93,6 +119,8 @@ export class CallsController {
     return call;
   }
 
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @Patch(':id/reject')
   async reject(
     @Param('id') id: string,
@@ -109,6 +137,8 @@ export class CallsController {
     return call;
   }
 
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @Patch(':id/hangup')
   async hangup(
     @Param('id') id: string,

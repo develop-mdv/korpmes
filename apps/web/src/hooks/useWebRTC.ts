@@ -1,22 +1,22 @@
 import { useRef, useCallback } from 'react';
 import { useCallStore } from '@/stores/call.store';
 import { getSocket } from '@/socket/socket';
-
-const ICE_SERVERS: RTCConfiguration = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-  ],
-};
+import { getIceServers } from '@/api/calls.api';
 
 export function useWebRTC() {
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const store = useCallStore;
 
-  const getOrCreatePC = useCallback((targetUserId: string): RTCPeerConnection => {
+  const getOrCreatePC = useCallback(async (targetUserId: string): Promise<RTCPeerConnection> => {
     if (pcRef.current) return pcRef.current;
 
-    const pc = new RTCPeerConnection(ICE_SERVERS);
+    let iceServers: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
+    try {
+      const res = await getIceServers();
+      iceServers = res.iceServers;
+    } catch { /* fallback already set */ }
+
+    const pc = new RTCPeerConnection({ iceServers });
     pcRef.current = pc;
 
     pc.onicecandidate = (event) => {
@@ -55,7 +55,7 @@ export function useWebRTC() {
     });
     store.getState().setLocalStream(stream);
 
-    const pc = getOrCreatePC(targetUserId);
+    const pc = await getOrCreatePC(targetUserId);
     stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
     const offer = await pc.createOffer();
@@ -76,7 +76,7 @@ export function useWebRTC() {
     });
     store.getState().setLocalStream(stream);
 
-    const pc = getOrCreatePC(fromUserId);
+    const pc = await getOrCreatePC(fromUserId);
     stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
     await pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp }));
