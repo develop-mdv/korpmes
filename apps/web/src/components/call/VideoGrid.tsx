@@ -13,7 +13,6 @@ interface VideoTileProps {
 
 function VideoTile({ stream, label, isLocal, isScreenShare, style }: VideoTileProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const audioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
     if (videoRef.current && stream) {
@@ -22,37 +21,29 @@ function VideoTile({ stream, label, isLocal, isScreenShare, style }: VideoTilePr
     }
   }, [stream]);
 
-  useEffect(() => {
-    if (audioRef.current && stream) {
-      audioRef.current.srcObject = stream;
-      audioRef.current.play().catch(() => {});
-    }
-  }, [stream]);
-
   const hasVideo =
     !!stream && stream.getVideoTracks().some((t) => t.enabled && t.readyState !== 'ended');
 
   return (
     <div style={{ ...styles.tile, ...style }}>
-      {hasVideo ? (
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted={isLocal}
-          style={{
-            ...styles.video,
-            transform: isLocal && !isScreenShare ? 'scaleX(-1)' : 'none',
-          }}
-        />
-      ) : (
+      {/* Always in DOM so srcObject is set when stream first arrives;
+          hidden until video tracks are active. Also plays audio for
+          remote streams (muted={false}) even when display:none. */}
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted={isLocal}
+        style={{
+          ...styles.video,
+          display: hasVideo ? 'block' : 'none',
+          transform: isLocal && !isScreenShare ? 'scaleX(-1)' : 'none',
+        }}
+      />
+      {!hasVideo && (
         <div style={styles.avatarBox}>
           <Avatar name={label} size="lg" />
         </div>
-      )}
-      {/* Hidden audio element for audio-only remote streams */}
-      {!isLocal && !hasVideo && stream && (
-        <audio ref={audioRef} autoPlay />
       )}
       <span style={styles.label}>
         {isScreenShare ? '🖥 Screen' : isLocal ? 'You' : label}

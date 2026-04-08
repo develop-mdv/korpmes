@@ -122,8 +122,8 @@ async function getMedia(type: 'audio' | 'video'): Promise<MediaStream> {
   log('Requesting media, type:', type);
   try {
     return await navigator.mediaDevices.getUserMedia({ audio: true, video: type === 'video' });
-  } catch {
-    log('getUserMedia failed, falling back to audio-only');
+  } catch (err) {
+    log('getUserMedia failed with video, falling back to audio-only. Error:', err);
     return navigator.mediaDevices.getUserMedia({ audio: true, video: false });
   }
 }
