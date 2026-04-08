@@ -117,6 +117,15 @@ export function setupSocketListeners(socket: Socket) {
     if (!activeCall || activeCall.id !== data.callId) return;
     useCallStore.getState().endCall();
   });
+
+  socket.on(WS_EVENTS.CALL_VIDEO_MODE, (data: { callId: string; fromUserId: string; videoEnabled: boolean }) => {
+    const { activeCall } = useCallStore.getState();
+    if (!activeCall || activeCall.id !== data.callId) return;
+    useCallStore.getState().setActiveCall({
+      ...activeCall,
+      type: data.videoEnabled ? 'VIDEO' : 'AUDIO',
+    });
+  });
 }
 
 export function removeSocketListeners(socket: Socket) {
@@ -133,4 +142,5 @@ export function removeSocketListeners(socket: Socket) {
   socket.off(WS_EVENTS.CALL_ICE_CANDIDATE);
   socket.off(WS_EVENTS.CALL_HANGUP);
   socket.off(WS_EVENTS.CALL_REJECT);
+  socket.off(WS_EVENTS.CALL_VIDEO_MODE);
 }

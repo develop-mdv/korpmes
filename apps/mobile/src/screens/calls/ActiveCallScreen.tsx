@@ -39,7 +39,7 @@ function formatDuration(seconds: number): string {
 
 export function ActiveCallScreen({ navigation }: Props) {
   const { activeCall, localStream, remoteStream, isMuted, isVideoOff } = useCallStore();
-  const { startCall, handleOffer, handleAnswer, handleIceCandidate, toggleMute, toggleVideo, cleanup } = useWebRTC();
+  const { startCall, handleOffer, handleAnswer, handleIceCandidate, toggleMute, toggleVideo, upgradeToVideo, downgradeToAudio, cleanup } = useWebRTC();
   const durationRef = useRef(0);
 
   // Register WebRTC handlers so socket events can delegate here
@@ -196,11 +196,25 @@ export function ActiveCallScreen({ navigation }: Props) {
                 icon={isMuted ? '🔇' : '🎤'}
                 onPress={toggleMute}
               />
+              {!isVideo && (
+                <ControlButton
+                  label="Video"
+                  icon="📹"
+                  onPress={upgradeToVideo}
+                />
+              )}
               {isVideo && (
                 <ControlButton
                   label={isVideoOff ? 'Start Video' : 'Stop Video'}
                   icon={isVideoOff ? '📷' : '🎥'}
                   onPress={toggleVideo}
+                />
+              )}
+              {isVideo && (
+                <ControlButton
+                  label="Audio"
+                  icon="🔊"
+                  onPress={downgradeToAudio}
                 />
               )}
               <ControlButton

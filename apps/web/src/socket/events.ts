@@ -150,6 +150,12 @@ export function setupSocketListeners(socket: Socket): () => void {
     'call:screen-share-stop': (data: { callId: string; fromUserId: string }) => {
       console.log('[Call] Remote screen share stopped by', data.fromUserId);
     },
+
+    'call:video-mode': (data: { callId: string; fromUserId: string; videoEnabled: boolean }) => {
+      const { activeCall } = useCallStore.getState();
+      if (!activeCall || data.callId !== activeCall.id) return;
+      useCallStore.getState().setCallType(data.videoEnabled ? 'video' : 'audio');
+    },
   };
 
   for (const [event, handler] of Object.entries(handlers)) {

@@ -18,10 +18,12 @@ interface CallState {
   remoteStream: unknown | null;
   isMuted: boolean;
   isVideoOff: boolean;
+  connectionQuality: 'good' | 'fair' | 'poor';
 
   setActiveCall: (call: ActiveCall | null) => void;
   setLocalStream: (stream: unknown | null) => void;
   setRemoteStream: (stream: unknown | null) => void;
+  setConnectionQuality: (quality: 'good' | 'fair' | 'poor') => void;
   toggleMute: () => void;
   toggleVideo: () => void;
   endCall: () => void;
@@ -33,6 +35,7 @@ export const useCallStore = create<CallState>((set) => ({
   remoteStream: null,
   isMuted: false,
   isVideoOff: false,
+  connectionQuality: 'good',
 
   setActiveCall: (call) => set({ activeCall: call, isMuted: false, isVideoOff: false }),
 
@@ -40,10 +43,12 @@ export const useCallStore = create<CallState>((set) => ({
 
   setRemoteStream: (stream) => set({ remoteStream: stream }),
 
+  setConnectionQuality: (quality) => set({ connectionQuality: quality }),
+
   toggleMute: () => set((state) => ({ isMuted: !state.isMuted })),
 
   toggleVideo: () => set((state) => ({ isVideoOff: !state.isVideoOff })),
 
   endCall: () =>
-    set({ activeCall: null, localStream: null, remoteStream: null, isMuted: false, isVideoOff: false }),
+    set({ activeCall: null, localStream: null, remoteStream: null, isMuted: false, isVideoOff: false, connectionQuality: 'good' }),
 }));

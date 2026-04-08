@@ -17,6 +17,7 @@ export const WS_EVENTS = {
   CALL_PARTICIPANT_JOINED: 'call:participant-joined',
   CALL_SCREEN_SHARE: 'call:screen-share',
   CALL_SCREEN_SHARE_STOP: 'call:screen-share-stop',
+  CALL_VIDEO_MODE: 'call:video-mode',
   CHAT_CREATED: 'chat:created',
   CHAT_UPDATED: 'chat:updated',
   MEMBER_ADDED: 'member:added',

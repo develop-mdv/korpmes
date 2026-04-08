@@ -18,6 +18,7 @@ interface CallState {
   isMuted: boolean;
   isVideoOff: boolean;
   isScreenSharing: boolean;
+  connectionQuality: Record<string, 'good' | 'fair' | 'poor'>;
 
   setActiveCall: (call: Call | null) => void;
   setLocalStream: (stream: MediaStream | null) => void;
@@ -25,6 +26,8 @@ interface CallState {
   removeRemoteStream: (userId: string) => void;
   setScreenStream: (stream: MediaStream | null) => void;
   setScreenSharing: (sharing: boolean) => void;
+  setConnectionQuality: (userId: string, quality: 'good' | 'fair' | 'poor') => void;
+  setCallType: (type: 'audio' | 'video') => void;
   toggleMute: () => void;
   toggleVideo: () => void;
   endCall: () => void;
@@ -38,6 +41,7 @@ export const useCallStore = create<CallState>()((set, get) => ({
   isMuted: false,
   isVideoOff: false,
   isScreenSharing: false,
+  connectionQuality: {},
 
   setActiveCall: (activeCall) => set({ activeCall }),
 
@@ -57,6 +61,16 @@ export const useCallStore = create<CallState>()((set, get) => ({
   setScreenStream: (screenStream) => set({ screenStream }),
 
   setScreenSharing: (isScreenSharing) => set({ isScreenSharing }),
+
+  setConnectionQuality: (userId, quality) =>
+    set((state) => ({
+      connectionQuality: { ...state.connectionQuality, [userId]: quality },
+    })),
+
+  setCallType: (type) => {
+    const { activeCall } = get();
+    if (activeCall) set({ activeCall: { ...activeCall, type } });
+  },
 
   toggleMute: () => {
     const { localStream, isMuted } = get();
@@ -90,6 +104,7 @@ export const useCallStore = create<CallState>()((set, get) => ({
       isMuted: false,
       isVideoOff: false,
       isScreenSharing: false,
+      connectionQuality: {},
     });
   },
 }));

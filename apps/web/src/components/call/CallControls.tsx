@@ -43,7 +43,21 @@ export function CallControls({ onHangup, callType }: CallControlsProps) {
         </svg>
       </button>
 
-      {/* Video toggle — только для видео-звонков */}
+      {/* Upgrade to video — only for audio calls */}
+      {callType === 'audio' && (
+        <button
+          style={styles.btn}
+          onClick={() => callManager.upgradeToVideo()}
+          title="Включить видео"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polygon points="23 7 16 12 23 17 23 7" />
+            <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+          </svg>
+        </button>
+      )}
+
+      {/* Video toggle — only for video calls */}
       {callType === 'video' && (
         <button
           style={{ ...styles.btn, ...(isVideoOff ? styles.active : {}) }}
@@ -67,7 +81,7 @@ export function CallControls({ onHangup, callType }: CallControlsProps) {
         </button>
       )}
 
-      {/* Screen share — только для видео-звонков */}
+      {/* Screen share — only for video calls */}
       {callType === 'video' && (
         <button
           style={{ ...styles.btn, ...(isScreenSharing ? styles.active : {}) }}
@@ -91,6 +105,22 @@ export function CallControls({ onHangup, callType }: CallControlsProps) {
                 <line x1="12" y1="3" x2="12" y2="13" />
               </>
             )}
+          </svg>
+        </button>
+      )}
+
+      {/* Downgrade to audio — only for video calls */}
+      {callType === 'video' && (
+        <button
+          style={styles.btn}
+          onClick={() => callManager.downgradeToAudio()}
+          title="Переключить на аудио"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" />
+            <path d="M19 10v2a7 7 0 01-14 0v-2" />
+            <line x1="12" y1="19" x2="12" y2="23" />
+            <line x1="8" y1="23" x2="16" y2="23" />
           </svg>
         </button>
       )}
