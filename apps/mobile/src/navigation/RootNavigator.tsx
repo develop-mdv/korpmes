@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuthStore } from '../stores/auth.store';
 import { useCallStore } from '../stores/call.store';
+import { useSocket } from '../hooks/useSocket';
 import { AuthStack } from './AuthStack';
 import { AppTabs } from './AppTabs';
 import { ActiveCallScreen } from '../screens/calls/ActiveCallScreen';
@@ -36,6 +37,7 @@ export function RootNavigator() {
  * the Stack is already rendered.
  */
 function AppTabsWithCallGuard({ navigation }: { navigation: any }) {
+  useSocket(); // Connect socket when authenticated
   const activeCall = useCallStore((state) => state.activeCall);
 
   useEffect(() => {

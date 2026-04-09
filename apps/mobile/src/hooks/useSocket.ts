@@ -1,60 +1,32 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useCallback } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
-import { io, type Socket } from 'socket.io-client';
 import { useAuthStore } from '../stores/auth.store';
-import { useChatStore } from '../stores/chat.store';
-import { useMessageStore } from '../stores/message.store';
+import {
+  getSocket,
+  disconnectSocket,
+  getExistingSocket,
+} from '../socket/socket';
+import { setupSocketListeners, removeSocketListeners } from '../socket/events';
 
-const SOCKET_URL = process.env.EXPO_PUBLIC_WS_URL || 'http://localhost:3000';
-
-export function useSocket(): { emit: (event: string, data?: unknown) => void; socket: any } {
-  const socketRef = useRef<Socket | null>(null);
+/**
+ * Single socket hook — delegates to the shared singleton in socket.ts
+ * so that call signaling and chat events share the same connection.
+ */
+export function useSocket() {
   const token = useAuthStore((state) => state.token);
-  const updateChat = useChatStore((state) => state.updateChat);
-  const addMessage = useMessageStore((state) => state.addMessage);
 
   const connect = useCallback(() => {
-    if (!token || socketRef.current?.connected) return;
-
-    const socket = io(SOCKET_URL, {
-      auth: { token },
-      transports: ['websocket'],
-      reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 1000,
-    });
-
-    socket.on('connect', () => {
-      console.log('[Socket] Connected');
-    });
-
-    socket.on('disconnect', (reason) => {
-      console.log('[Socket] Disconnected:', reason);
-    });
-
-    socket.on('new_message', (message) => {
-      addMessage(message.chatId, message);
-      updateChat(message.chatId, {
-        lastMessage: {
-          content: message.content,
-          senderName: message.senderName,
-          createdAt: message.createdAt,
-        },
-      });
-    });
-
-    socket.on('chat_updated', (chat) => {
-      updateChat(chat.id, chat);
-    });
-
-    socketRef.current = socket;
-  }, [token, addMessage, updateChat]);
+    if (!token) return;
+    const socket = getSocket(token);
+    setupSocketListeners(socket);
+  }, [token]);
 
   const disconnect = useCallback(() => {
-    if (socketRef.current) {
-      socketRef.current.disconnect();
-      socketRef.current = null;
+    const socket = getExistingSocket();
+    if (socket) {
+      removeSocketListeners(socket);
     }
+    disconnectSocket();
   }, []);
 
   useEffect(() => {
@@ -65,7 +37,7 @@ export function useSocket(): { emit: (event: string, data?: unknown) => void; so
   useEffect(() => {
     const handleAppStateChange = (nextState: AppStateStatus) => {
       if (nextState === 'active') {
-        if (!socketRef.current?.connected) {
+        if (!getExistingSocket()?.connected) {
           connect();
         }
       } else if (nextState === 'background') {
@@ -78,8 +50,8 @@ export function useSocket(): { emit: (event: string, data?: unknown) => void; so
   }, [connect, disconnect]);
 
   const emit = useCallback((event: string, data?: unknown) => {
-    socketRef.current?.emit(event, data);
+    getExistingSocket()?.emit(event, data);
   }, []);
 
-  return { emit, socket: socketRef.current };
+  return { emit, socket: getExistingSocket() };
 }

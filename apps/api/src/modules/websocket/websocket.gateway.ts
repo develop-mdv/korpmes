@@ -360,6 +360,18 @@ export class WebSocketGatewayHandler
     });
   }
 
+  @SubscribeMessage(WS_EVENTS.CALL_VIDEO_MODE)
+  handleVideoMode(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: { callId: string; targetUserId: string; videoEnabled: boolean },
+  ): void {
+    this.server.to(`user:${payload.targetUserId}`).emit(WS_EVENTS.CALL_VIDEO_MODE, {
+      callId: payload.callId,
+      fromUserId: client.data.userId,
+      videoEnabled: payload.videoEnabled,
+    });
+  }
+
   private extractTokenFromHeader(authorization?: string): string | null {
     if (!authorization) return null;
     const [type, token] = authorization.split(' ');
