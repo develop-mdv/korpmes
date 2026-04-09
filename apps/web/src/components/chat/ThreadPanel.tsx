@@ -20,7 +20,7 @@ export function ThreadPanel({ parentMessage, replies, onClose, onSendReply }: Th
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <h3 style={styles.title}>Thread</h3>
+        <h3 style={styles.title}>Тред</h3>
         <button style={styles.closeBtn} onClick={onClose}>&times;</button>
       </div>
 
@@ -29,7 +29,7 @@ export function ThreadPanel({ parentMessage, replies, onClose, onSendReply }: Th
       </div>
 
       <div style={styles.divider}>
-        <span>{replies.length} {replies.length === 1 ? 'reply' : 'replies'}</span>
+        <span>{replies.length} {replies.length === 1 ? 'ответ' : 'ответов'}</span>
       </div>
 
       <div style={styles.replies}>
@@ -44,9 +44,9 @@ export function ThreadPanel({ parentMessage, replies, onClose, onSendReply }: Th
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-          placeholder="Reply..."
+          placeholder="Ответить..."
         />
-        <button style={styles.sendBtn} onClick={handleSend}>Send</button>
+        <button style={styles.sendBtn} onClick={handleSend}>Отправить</button>
       </div>
     </div>
   );

@@ -1,5 +1,3 @@
-import React from 'react';
-
 interface TypingIndicatorProps {
   typingUsers: string[];
 }
@@ -7,28 +5,21 @@ interface TypingIndicatorProps {
 export function TypingIndicator({ typingUsers }: TypingIndicatorProps) {
   if (typingUsers.length === 0) return null;
 
-  const text =
+  const label =
     typingUsers.length === 1
-      ? `${typingUsers[0]} is typing`
+      ? `${typingUsers[0]} печатает`
       : typingUsers.length === 2
-        ? `${typingUsers[0]} and ${typingUsers[1]} are typing`
-        : `${typingUsers[0]} and ${typingUsers.length - 1} others are typing`;
+        ? `${typingUsers[0]} и ${typingUsers[1]} печатают`
+        : `${typingUsers[0]} и ещё ${typingUsers.length - 1} печатают`;
 
   return (
-    <div style={styles.container}>
-      <span style={styles.text}>{text}</span>
-      <span style={styles.dots}>
-        <span style={styles.dot}>.</span>
-        <span style={{ ...styles.dot, animationDelay: '0.2s' }}>.</span>
-        <span style={{ ...styles.dot, animationDelay: '0.4s' }}>.</span>
+    <div className="typing-indicator">
+      <span>{label}</span>
+      <span className="typing-indicator__dots">
+        <span className="typing-indicator__dot" />
+        <span className="typing-indicator__dot" style={{ animationDelay: '0.15s' }} />
+        <span className="typing-indicator__dot" style={{ animationDelay: '0.3s' }} />
       </span>
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  container: { padding: '4px 16px', fontSize: 12, color: 'var(--color-text-tertiary)', display: 'flex', alignItems: 'center', gap: 2, minHeight: 20 },
-  text: {},
-  dots: { display: 'inline-flex' },
-  dot: { animation: 'typingDot 1s infinite' },
-};

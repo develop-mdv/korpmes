@@ -1,4 +1,4 @@
-import { CSSProperties, ReactNode, useEffect } from 'react';
+import { ReactNode, useEffect } from 'react';
 
 interface ModalProps {
   open: boolean;
@@ -7,73 +7,32 @@ interface ModalProps {
   children: ReactNode;
 }
 
-const backdropStyle: CSSProperties = {
-  position: 'fixed',
-  inset: 0,
-  backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  zIndex: 1000,
-};
-
-const cardStyle: CSSProperties = {
-  backgroundColor: 'var(--color-surface)',
-  borderRadius: 'var(--radius-lg)',
-  boxShadow: 'var(--shadow-lg)',
-  padding: 24,
-  minWidth: 400,
-  maxWidth: 560,
-  width: '90%',
-  maxHeight: '85vh',
-  overflow: 'auto',
-  position: 'relative',
-};
-
-const headerStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  marginBottom: 20,
-};
-
-const titleStyle: CSSProperties = {
-  fontSize: 18,
-  fontWeight: 600,
-  color: 'var(--color-text)',
-};
-
-const closeButtonStyle: CSSProperties = {
-  background: 'none',
-  border: 'none',
-  fontSize: 20,
-  color: 'var(--color-text-tertiary)',
-  cursor: 'pointer',
-  padding: 4,
-  lineHeight: 1,
-};
-
 export function Modal({ open, onClose, title, children }: ModalProps) {
   useEffect(() => {
-    if (open) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
+    if (!open) return undefined;
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleEscape);
+
     return () => {
       document.body.style.overflow = '';
+      window.removeEventListener('keydown', handleEscape);
     };
-  }, [open]);
+  }, [open, onClose]);
 
   if (!open) return null;
 
   return (
-    <div style={backdropStyle} onClick={onClose}>
-      <div style={cardStyle} onClick={(e) => e.stopPropagation()}>
-        <div style={headerStyle}>
-          <h2 style={titleStyle}>{title}</h2>
-          <button style={closeButtonStyle} onClick={onClose} aria-label="Close">
-            &#x2715;
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="lux-panel modal-card" onClick={(event) => event.stopPropagation()}>
+        <div className="modal-card__header">
+          <h2 className="modal-card__title">{title}</h2>
+          <button className="modal-card__close" onClick={onClose} aria-label="Close">
+            ×
           </button>
         </div>
         {children}

@@ -60,11 +60,11 @@ export function TopBar({ title }: TopBarProps) {
       <input
         style={searchStyle}
         type="text"
-        placeholder="Search..."
+        placeholder="Поиск..."
         onFocus={() => navigate('/search')}
         readOnly
       />
-      <button style={notifBtnStyle} aria-label="Notifications">
+      <button style={notifBtnStyle} aria-label="Уведомления">
         <span>&#x1F514;</span>
         {unreadCount > 0 && (
           <span style={{ position: 'absolute', top: -4, right: -4 }}>

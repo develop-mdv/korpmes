@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, KeyboardEvent } from 'react';
+import { KeyboardEvent, useCallback, useRef, useState } from 'react';
 
 interface MessageInputProps {
   onSend: (content: string) => void;
@@ -7,7 +7,7 @@ interface MessageInputProps {
   disabled?: boolean;
 }
 
-export function MessageInput({ onSend, onTyping, onAttach, disabled }: MessageInputProps) {
+export function MessageInput({ onSend, onTyping, onAttach, disabled = false }: MessageInputProps) {
   const [text, setText] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -15,71 +15,68 @@ export function MessageInput({ onSend, onTyping, onAttach, disabled }: MessageIn
   const handleSend = useCallback(() => {
     const trimmed = text.trim();
     if (!trimmed) return;
+
     onSend(trimmed);
     setText('');
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-    }
-  }, [text, onSend]);
 
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
+    if (textareaRef.current) {
+      textareaRef.current.style.height = '48px';
+    }
+  }, [onSend, text]);
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
       handleSend();
     }
   };
 
-  const handleInput = (value: string) => {
+  const resizeInput = (value: string) => {
     setText(value);
     onTyping?.();
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 120) + 'px';
-    }
-  };
 
-  const handleFileClick = () => fileInputRef.current?.click();
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      onAttach?.(e.target.files);
-      e.target.value = '';
-    }
+    if (!textareaRef.current) return;
+    textareaRef.current.style.height = '48px';
+    textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 150)}px`;
   };
 
   return (
-    <div style={styles.container}>
-      <button style={styles.attachBtn} onClick={handleFileClick} title="Attach file">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
+    <div className="composer">
+      <button className="composer__attach" onClick={() => fileInputRef.current?.click()} title="Прикрепить файл">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
         </svg>
       </button>
-      <input ref={fileInputRef} type="file" multiple style={{ display: 'none' }} onChange={handleFileChange} />
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        style={{ display: 'none' }}
+        onChange={(event) => {
+          if (event.target.files && event.target.files.length > 0) {
+            onAttach?.(event.target.files);
+            event.target.value = '';
+          }
+        }}
+      />
+
       <textarea
         ref={textareaRef}
-        style={styles.textarea}
+        className="composer__input"
         value={text}
-        onChange={(e) => handleInput(e.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder="Type a message..."
         rows={1}
+        placeholder="Напишите сообщение..."
         disabled={disabled}
+        onChange={(event) => resizeInput(event.target.value)}
+        onKeyDown={handleKeyDown}
       />
-      <button
-        style={{ ...styles.sendBtn, opacity: text.trim() ? 1 : 0.4 }}
-        onClick={handleSend}
-        disabled={!text.trim() || disabled}
-      >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+
+      <button className="composer__send" onClick={handleSend} disabled={!text.trim() || disabled} title="Отправить">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z" />
         </svg>
       </button>
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  container: { display: 'flex', alignItems: 'flex-end', gap: 8, padding: '12px 16px', background: 'var(--color-surface)' },
-  attachBtn: { width: 36, height: 36, borderRadius: 'var(--radius-md)', border: 'none', background: 'transparent', color: 'var(--color-text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  textarea: { flex: 1, resize: 'none', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: '10px 14px', fontSize: 14, fontFamily: 'inherit', lineHeight: 1.5, maxHeight: 120, outline: 'none', color: 'var(--color-text)', background: 'var(--color-bg-secondary)' },
-  sendBtn: { width: 36, height: 36, borderRadius: 'var(--radius-md)', border: 'none', background: 'var(--color-primary)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-};
