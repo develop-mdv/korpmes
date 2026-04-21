@@ -13,7 +13,7 @@ import { useCallStore } from '../../stores/call.store';
 import { useWebRTC } from '../../hooks/useWebRTC';
 import { setWebRTCHandlers } from '../../socket/events';
 import * as callsApi from '../../api/calls.api';
-import { getSocket } from '../../socket/socket';
+import { getExistingSocket } from '../../socket/socket';
 import type { RootStackParamList } from '../../navigation/types';
 
 // RTCView is from react-native-webrtc — imported lazily to avoid crash if not installed
@@ -76,11 +76,15 @@ export function ActiveCallScreen({ navigation }: Props) {
   useEffect(() => {
     if (!activeCall) return;
 
-    const socket = getSocket();
+    const socket = getExistingSocket();
+    if (!socket) {
+      return;
+    }
 
     const onCallAccepted = (data: { callId: string; userId: string }) => {
       if (data.callId !== activeCall.id) return;
-      useCallStore.getState().setActiveCall({ ...activeCall, status: 'ACTIVE' });
+      // Status is already flipped to ACTIVE by socket/events.ts.
+      // Here we only kick off the WebRTC offer from the caller side.
       startCall(activeCall.id, data.userId, activeCall.type);
     };
 
@@ -112,8 +116,8 @@ export function ActiveCallScreen({ navigation }: Props) {
       } catch {
         // best-effort
       }
-      const myId = useCallStore.getState().activeCall?.participantId ?? '';
-      getSocket().emit('call:hangup', {
+      const socket = getExistingSocket();
+      socket?.emit('call:hangup', {
         callId: activeCall.id,
         targetUserId: activeCall.participantId,
       });
@@ -138,7 +142,6 @@ export function ActiveCallScreen({ navigation }: Props) {
     } catch {
       // best-effort
     }
-    getSocket().emit('call:reject', { callId: activeCall.id });
     cleanup();
   };
 

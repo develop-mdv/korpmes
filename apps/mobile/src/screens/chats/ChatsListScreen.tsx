@@ -12,6 +12,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ChatListItem } from '../../components/ChatListItem';
 import { EmptyState } from '../../components/EmptyState';
 import { useChatStore } from '../../stores/chat.store';
+import { useOrganizationStore } from '../../stores/organization.store';
 import * as chatsApi from '../../api/chats.api';
 import type { ChatStackParamList } from '../../navigation/types';
 
@@ -21,22 +22,38 @@ export function ChatsListScreen({ navigation }: Props) {
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const { chats, setChats, setLoading, isLoading } = useChatStore();
+  const currentOrg = useOrganizationStore((state) => state.currentOrg);
+  const organizations = useOrganizationStore((state) => state.organizations);
+  const isOrganizationLoading = useOrganizationStore((state) => state.isLoading);
 
   const fetchChats = useCallback(async () => {
+    if (!currentOrg?.id) {
+      setChats([]);
+      return;
+    }
+
     try {
       setLoading(true);
-      const data = await chatsApi.getChats();
+      const data = await chatsApi.getChats(currentOrg.id);
       setChats(data);
     } catch (err) {
       console.error('Failed to fetch chats:', err);
     } finally {
       setLoading(false);
     }
-  }, [setChats, setLoading]);
+  }, [currentOrg?.id, setChats, setLoading]);
 
   useEffect(() => {
-    fetchChats();
-  }, [fetchChats]);
+    if (currentOrg?.id) {
+      void fetchChats();
+      return;
+    }
+
+    if (!isOrganizationLoading) {
+      setChats([]);
+      setLoading(false);
+    }
+  }, [currentOrg?.id, fetchChats, isOrganizationLoading, setChats, setLoading]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -84,10 +101,14 @@ export function ChatsListScreen({ navigation }: Props) {
           />
         )}
         ListEmptyComponent={
-          !isLoading ? (
+          !isLoading && !isOrganizationLoading ? (
             <EmptyState
-              title="No chats yet"
-              description="Start a new conversation by tapping the button below"
+              title={organizations.length > 0 ? 'No chats yet' : 'No organization found'}
+              description={
+                organizations.length > 0
+                  ? 'Start a new conversation by tapping the button below'
+                  : 'Your account is not attached to any organization yet.'
+              }
             />
           ) : null
         }

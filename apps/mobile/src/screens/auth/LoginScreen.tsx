@@ -20,6 +20,8 @@ type Props = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 export function LoginScreen({ navigation }: Props) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [twoFactorCode, setTwoFactorCode] = useState('');
+  const [requiresTwoFactor, setRequiresTwoFactor] = useState(false);
   const { login, isLoading } = useAuth();
 
   const handleLogin = useCallback(async () => {
@@ -28,12 +30,25 @@ export function LoginScreen({ navigation }: Props) {
       return;
     }
 
+    if (requiresTwoFactor && twoFactorCode.trim().length !== 6) {
+      Alert.alert('Validation Error', 'Please enter the 6-digit verification code');
+      return;
+    }
+
     try {
-      await login(email.trim(), password);
+      const result = await login(
+        email.trim(),
+        password,
+        requiresTwoFactor ? twoFactorCode.trim() : undefined,
+      );
+      if (result.requiresTwoFactor) {
+        setRequiresTwoFactor(true);
+        Alert.alert('Two-Factor Authentication', 'Enter the 6-digit code from your authenticator app');
+      }
     } catch (err: any) {
       Alert.alert('Login Failed', err.message);
     }
-  }, [email, password, login]);
+  }, [email, password, login, requiresTwoFactor, twoFactorCode]);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -78,6 +93,24 @@ export function LoginScreen({ navigation }: Props) {
             />
           </View>
 
+          {requiresTwoFactor ? (
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>2FA Code</Text>
+              <TextInput
+                style={styles.input}
+                value={twoFactorCode}
+                onChangeText={setTwoFactorCode}
+                placeholder="123456"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="number-pad"
+                autoCapitalize="none"
+                autoCorrect={false}
+                maxLength={6}
+                editable={!isLoading}
+              />
+            </View>
+          ) : null}
+
           <Pressable
             style={[styles.button, isLoading && styles.buttonDisabled]}
             onPress={handleLogin}
@@ -86,9 +119,9 @@ export function LoginScreen({ navigation }: Props) {
             {isLoading ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
-              <Text style={styles.buttonText}>Sign In</Text>
-            )}
-          </Pressable>
+                <Text style={styles.buttonText}>{requiresTwoFactor ? 'Verify Code' : 'Sign In'}</Text>
+              )}
+            </Pressable>
 
           <View style={styles.links}>
             <Pressable onPress={() => navigation.navigate('ForgotPassword')}>

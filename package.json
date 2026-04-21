@@ -2,6 +2,10 @@
   "name": "corpmessenger",
   "version": "0.1.0",
   "private": true,
+  "workspaces": [
+    "apps/mobile",
+    "packages/*"
+  ],
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
@@ -17,7 +21,7 @@
     "docker:down": "docker compose down",
     "db:migrate": "turbo db:migrate",
     "prepare": "husky",
-    "postinstall": "if [ -d packages/shared-types/src ]; then pnpm --filter @corp/shared-types build; fi && if [ -d packages/shared-validation/src ]; then pnpm --filter @corp/shared-validation build; fi"
+    "postinstall": "node scripts/postinstall.js"
   },
   "devDependencies": {
     "turbo": "^2.3.0",

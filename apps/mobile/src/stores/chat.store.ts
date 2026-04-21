@@ -21,7 +21,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
   isLoading: false,
   totalUnread: 0,
   setChats: (chats) => {
-    const totalUnread = chats.reduce((sum, c) => sum + c.unreadCount, 0);
+    const totalUnread = chats.reduce((sum, c) => sum + (c.unreadCount ?? 0), 0);
     set({ chats, totalUnread });
   },
   setActiveChat: (activeChat) => set({ activeChat }),
@@ -30,21 +30,21 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     const chats = get().chats.map((c) =>
       c.id === chatId ? { ...c, ...updates } : c,
     );
-    const totalUnread = chats.reduce((sum, c) => sum + c.unreadCount, 0);
+    const totalUnread = chats.reduce((sum, c) => sum + (c.unreadCount ?? 0), 0);
     set({ chats, totalUnread });
   },
   addChat: (chat) => {
     const chats = [chat, ...get().chats];
-    const totalUnread = chats.reduce((sum, c) => sum + c.unreadCount, 0);
+    const totalUnread = chats.reduce((sum, c) => sum + (c.unreadCount ?? 0), 0);
     set({ chats, totalUnread });
   },
   removeChat: (chatId) => {
     const chats = get().chats.filter((c) => c.id !== chatId);
-    const totalUnread = chats.reduce((sum, c) => sum + c.unreadCount, 0);
+    const totalUnread = chats.reduce((sum, c) => sum + (c.unreadCount ?? 0), 0);
     set({ chats, totalUnread });
   },
   computeTotalUnread: () => {
-    const totalUnread = get().chats.reduce((sum, c) => sum + c.unreadCount, 0);
+    const totalUnread = get().chats.reduce((sum, c) => sum + (c.unreadCount ?? 0), 0);
     set({ totalUnread });
   },
 }));

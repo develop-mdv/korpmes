@@ -15,8 +15,34 @@ import { useAuthStore } from '../../stores/auth.store';
 import * as messagesApi from '../../api/messages.api';
 import type { ChatStackParamList } from '../../navigation/types';
 import type { Message } from '../../api/messages.api';
+import { getExistingSocket } from '../../socket/socket';
+import { WS_EVENTS } from '../../constants/ws-events';
 
 type Props = NativeStackScreenProps<ChatStackParamList, 'Thread'>;
+const REQUEST_TIMEOUT_MS = 15000;
+
+function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  message: string,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      reject(new Error(message));
+    }, timeoutMs);
+
+    promise.then(
+      (value) => {
+        clearTimeout(timeoutId);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timeoutId);
+        reject(error);
+      },
+    );
+  });
+}
 
 export function ThreadScreen({ route, navigation }: Props) {
   const { chatId, parentMessageId, parentContent } = route.params;
@@ -32,7 +58,11 @@ export function ThreadScreen({ route, navigation }: Props) {
   const fetchReplies = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await messagesApi.getThreadMessages(chatId, parentMessageId);
+      const data = await withTimeout(
+        messagesApi.getThreadMessages(parentMessageId),
+        REQUEST_TIMEOUT_MS,
+        'Loading thread timed out',
+      );
       setReplies(data.messages);
     } catch (err) {
       console.error('Failed to fetch thread:', err);
@@ -45,11 +75,47 @@ export function ThreadScreen({ route, navigation }: Props) {
     fetchReplies();
   }, [fetchReplies]);
 
+  useEffect(() => {
+    const socket = getExistingSocket();
+    if (!socket?.connected) {
+      return;
+    }
+
+    const handleIncomingMessage = (rawMessage: any) => {
+      const message = messagesApi.normalizeMessage(rawMessage);
+      if (message.chatId !== chatId || message.parentMessageId !== parentMessageId) {
+        return;
+      }
+
+      setReplies((prev) => {
+        if (prev.some((item) => item.id === message.id)) {
+          return prev;
+        }
+        return [message, ...prev];
+      });
+    };
+
+    socket.emit('chat:join', { chatId });
+    socket.on(WS_EVENTS.MESSAGE_NEW, handleIncomingMessage);
+
+    return () => {
+      socket.off(WS_EVENTS.MESSAGE_NEW, handleIncomingMessage);
+    };
+  }, [chatId, parentMessageId]);
+
   const handleSend = useCallback(
     async (text: string) => {
       try {
-        const msg = await messagesApi.sendThreadReply(chatId, parentMessageId, text);
-        setReplies((prev) => [msg, ...prev]);
+        const socket = getExistingSocket();
+        if (!socket?.connected) {
+          throw new Error('Socket is not connected');
+        }
+
+        socket.emit(WS_EVENTS.MESSAGE_SEND, {
+          chatId,
+          content: text,
+          parentMessageId,
+        });
       } catch (err) {
         console.error('Failed to send reply:', err);
       }

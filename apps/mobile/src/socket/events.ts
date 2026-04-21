@@ -4,6 +4,9 @@ import { useChatStore } from '../stores/chat.store';
 import { useMessageStore } from '../stores/message.store';
 import { useNotificationStore } from '../stores/notification.store';
 import { useCallStore, type ActiveCall } from '../stores/call.store';
+import { useAuthStore } from '../stores/auth.store';
+import { normalizeMessage } from '../api/messages.api';
+import { normalizeChatFromSocket } from '../api/chats.api';
 
 type WebRTCHandlers = {
   handleOffer: (callId: string, fromUserId: string, sdp: string, type: 'AUDIO' | 'VIDEO') => Promise<void>;
@@ -20,17 +23,47 @@ export function setWebRTCHandlers(handlers: WebRTCHandlers) {
 export function setupSocketListeners(socket: Socket) {
   // ─── Messages ──────────────────────────────────────────────────────────────
 
-  socket.on(WS_EVENTS.MESSAGE_NEW, (data: { chatId: string; message: any }) => {
-    useMessageStore.getState().addMessage(data.chatId, data.message);
-    useChatStore.getState().updateChat(data.chatId, { lastMessage: data.message });
+  socket.on(WS_EVENTS.MESSAGE_NEW, (rawMessage: any) => {
+    const message = normalizeMessage(rawMessage);
+    useMessageStore.getState().addMessage(message.chatId, message);
+    useChatStore.getState().updateChat(message.chatId, {
+      lastMessage: {
+        content: message.content,
+        senderName: message.senderName,
+        createdAt: message.createdAt,
+      },
+    });
   });
 
-  socket.on(WS_EVENTS.MESSAGE_EDIT, (data: { chatId: string; messageId: string; content: string }) => {
-    useMessageStore.getState().updateMessage(data.chatId, data.messageId, { content: data.content });
+  socket.on(WS_EVENTS.MESSAGE_EDIT, (data: { chatId: string; messageId: string; content: string; editedAt?: string }) => {
+    useMessageStore.getState().updateMessage(data.chatId, data.messageId, {
+      content: data.content,
+      isEdited: true,
+      updatedAt: data.editedAt || new Date().toISOString(),
+    });
   });
 
   socket.on(WS_EVENTS.MESSAGE_DELETE, (data: { chatId: string; messageId: string }) => {
     useMessageStore.getState().removeMessage(data.chatId, data.messageId);
+  });
+
+  socket.on(
+    WS_EVENTS.MESSAGE_READ,
+    (data: { chatId: string; userId: string; messageId: string }) => {
+      const selfId = useAuthStore.getState().user?.id;
+      if (data.userId === selfId) {
+        useChatStore.getState().updateChat(data.chatId, { unreadCount: 0 });
+      }
+    },
+  );
+
+  // ─── Chats ─────────────────────────────────────────────────────────────────
+
+  socket.on(WS_EVENTS.CHAT_CREATED, (chat: any) => {
+    if (!chat?.id) return;
+    const existing = useChatStore.getState().chats.find((c) => c.id === chat.id);
+    if (existing) return;
+    useChatStore.getState().addChat(normalizeChatFromSocket(chat));
   });
 
   // ─── Notifications ─────────────────────────────────────────────────────────
@@ -61,12 +94,16 @@ export function setupSocketListeners(socket: Socket) {
       participants: string[];
       callerName?: string;
     }) => {
+      const relatedChat = useChatStore
+        .getState()
+        .chats.find((chat) => chat.id === data.chatId);
+
       const incomingCall: ActiveCall = {
         id: data.callId,
         chatId: data.chatId,
         type: data.type.toUpperCase() as 'AUDIO' | 'VIDEO',
         status: 'RINGING',
-        participantName: data.callerName ?? 'Unknown',
+        participantName: data.callerName ?? relatedChat?.name ?? 'Unknown',
         participantId: data.initiatorId,
         isIncoming: true,
         initiatorId: data.initiatorId,
@@ -126,12 +163,24 @@ export function setupSocketListeners(socket: Socket) {
       type: data.videoEnabled ? 'VIDEO' : 'AUDIO',
     });
   });
+
+  // Group-call stub: backend emits this when a new participant answers.
+  // Mobile currently supports 1:1 only, so we just log and keep the UI stable
+  // instead of letting the event fall through as "unhandled" noise.
+  socket.on(WS_EVENTS.CALL_PARTICIPANT_JOINED, (data: { callId: string; userId: string }) => {
+    const { activeCall } = useCallStore.getState();
+    if (!activeCall || activeCall.id !== data.callId) return;
+    // Full mesh P2P on mobile is not yet implemented (web-only for now).
+    // See mvp_remaining #14 — tracked for the next phase.
+  });
 }
 
 export function removeSocketListeners(socket: Socket) {
   socket.off(WS_EVENTS.MESSAGE_NEW);
   socket.off(WS_EVENTS.MESSAGE_EDIT);
   socket.off(WS_EVENTS.MESSAGE_DELETE);
+  socket.off(WS_EVENTS.MESSAGE_READ);
+  socket.off(WS_EVENTS.CHAT_CREATED);
   socket.off(WS_EVENTS.NOTIFICATION_NEW);
   socket.off(WS_EVENTS.TYPING_START);
   socket.off(WS_EVENTS.TYPING_STOP);
@@ -143,4 +192,5 @@ export function removeSocketListeners(socket: Socket) {
   socket.off(WS_EVENTS.CALL_HANGUP);
   socket.off(WS_EVENTS.CALL_REJECT);
   socket.off(WS_EVENTS.CALL_VIDEO_MODE);
+  socket.off(WS_EVENTS.CALL_PARTICIPANT_JOINED);
 }

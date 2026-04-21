@@ -14,6 +14,7 @@ import { Avatar } from '../../components/Avatar';
 import { apiClient } from '../../api/client';
 import * as chatsApi from '../../api/chats.api';
 import { useChatStore } from '../../stores/chat.store';
+import { useOrganizationStore } from '../../stores/organization.store';
 import type { ChatStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<ChatStackParamList, 'NewChat'>;
@@ -34,6 +35,7 @@ export function NewChatScreen({ navigation }: Props) {
   const [isSearching, setIsSearching] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const addChat = useChatStore((state) => state.addChat);
+  const currentOrg = useOrganizationStore((state) => state.currentOrg);
 
   const handleSearch = useCallback(async (query: string) => {
     setSearchQuery(query);
@@ -75,12 +77,18 @@ export function NewChatScreen({ navigation }: Props) {
       return;
     }
 
+    if (!currentOrg?.id) {
+      Alert.alert('Error', 'Organization is still loading. Please try again in a moment.');
+      return;
+    }
+
     try {
       setIsCreating(true);
       const chat = await chatsApi.createChat({
-        type: isGroup ? 'group' : 'direct',
+        type: isGroup ? 'GROUP' : 'PERSONAL',
         name: isGroup ? groupName.trim() : undefined,
         memberIds: selectedMembers.map((m) => m.id),
+        organizationId: currentOrg.id,
       });
       addChat(chat);
       navigation.replace('ChatView', { chatId: chat.id });
@@ -89,7 +97,7 @@ export function NewChatScreen({ navigation }: Props) {
     } finally {
       setIsCreating(false);
     }
-  }, [selectedMembers, groupName, addChat, navigation]);
+  }, [currentOrg?.id, selectedMembers, groupName, addChat, navigation]);
 
   const isSelected = useCallback(
     (userId: string) => selectedMembers.some((m) => m.id === userId),

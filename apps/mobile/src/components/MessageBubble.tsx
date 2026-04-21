@@ -23,7 +23,10 @@ export const MessageBubble = memo(function MessageBubble({
   replyCount,
   onOpenThread,
 }: MessageBubbleProps) {
-  const time = format(new Date(createdAt), 'HH:mm');
+  const parsedDate = new Date(createdAt);
+  const time = Number.isNaN(parsedDate.getTime())
+    ? ''
+    : format(parsedDate, 'HH:mm');
   const hasThread = (replyCount ?? 0) > 0 || onOpenThread !== undefined;
 
   const bubbleContent = (
@@ -40,9 +43,11 @@ export const MessageBubble = memo(function MessageBubble({
             edited
           </Text>
         )}
-        <Text style={[styles.time, isOwn ? styles.metaOwn : styles.metaOther]}>
-          {time}
-        </Text>
+        {time ? (
+          <Text style={[styles.time, isOwn ? styles.metaOwn : styles.metaOther]}>
+            {time}
+          </Text>
+        ) : null}
       </View>
     </View>
   );

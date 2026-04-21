@@ -90,4 +90,17 @@ export class ChatsController {
   getMembers(@Param('id', ParseUUIDPipe) id: string) {
     return this.chatsService.getMembers(id);
   }
+
+  @Post(':id/read')
+  @ApiOperation({
+    summary: 'Mark chat as read up to the given message (or the latest message if omitted)',
+  })
+  async markAsRead(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: any,
+    @Body() body: { messageId?: string } = {},
+  ) {
+    await this.chatsService.updateLastReadMessage(id, user.id, body.messageId ?? null);
+    return { success: true };
+  }
 }

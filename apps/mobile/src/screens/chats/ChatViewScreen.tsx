@@ -1,11 +1,14 @@
-import React, { useEffect, useCallback, useRef } from 'react';
+import React, { useEffect, useCallback, useRef, useLayoutEffect, useState } from 'react';
 import {
+  Alert,
   View,
   FlatList,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Pressable,
+  Text,
 } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { MessageBubble } from '../../components/MessageBubble';
@@ -13,49 +16,203 @@ import { MessageInput } from '../../components/MessageInput';
 import { EmptyState } from '../../components/EmptyState';
 import { useMessageStore } from '../../stores/message.store';
 import { useAuthStore } from '../../stores/auth.store';
+import { useChatStore } from '../../stores/chat.store';
+import { useCallStore } from '../../stores/call.store';
 import * as messagesApi from '../../api/messages.api';
+import * as callsApi from '../../api/calls.api';
 import * as chatsApi from '../../api/chats.api';
 import type { ChatStackParamList } from '../../navigation/types';
 import type { Message } from '../../api/messages.api';
+import { getExistingSocket } from '../../socket/socket';
+import { WS_EVENTS } from '../../constants/ws-events';
 
 type Props = NativeStackScreenProps<ChatStackParamList, 'ChatView'>;
+const PAGE_SIZE = 20;
+const REQUEST_TIMEOUT_MS = 15000;
+const EMPTY_MESSAGES: Message[] = [];
+
+function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  message: string,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      reject(new Error(message));
+    }, timeoutMs);
+
+    promise.then(
+      (value) => {
+        clearTimeout(timeoutId);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timeoutId);
+        reject(error);
+      },
+    );
+  });
+}
 
 export function ChatViewScreen({ route, navigation }: Props) {
   const { chatId } = route.params;
   const flatListRef = useRef<FlatList<Message>>(null);
   const userId = useAuthStore((state) => state.user?.id);
-  const messages = useMessageStore((state) => state.messages[chatId] || []);
+  const chat = useChatStore((state) => state.chats.find((item) => item.id === chatId));
+  const activeCall = useCallStore((state) => state.activeCall);
+  const setActiveCall = useCallStore((state) => state.setActiveCall);
+  const messages = useMessageStore((state) => state.messages[chatId] ?? EMPTY_MESSAGES);
   const hasMore = useMessageStore((state) => state.hasMore[chatId] ?? true);
   const cursor = useMessageStore((state) => state.cursors[chatId]);
-  const isLoading = useMessageStore((state) => state.isLoading);
-  const { setMessages, appendMessages, addMessage, setLoading } = useMessageStore();
+  const setMessages = useMessageStore((state) => state.setMessages);
+  const appendMessages = useMessageStore((state) => state.appendMessages);
+  const updateChat = useChatStore((state) => state.updateChat);
+  const [initialLoading, setInitialLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const canStartDirectCall =
+    !!chat &&
+    chat.type === 'PERSONAL' &&
+    !!chat.members.find((member) => member.userId !== userId);
+
+  const handleInitiateCall = useCallback(
+    async (type: 'AUDIO' | 'VIDEO') => {
+      if (!chat) {
+        return;
+      }
+
+      if (activeCall) {
+        Alert.alert('Call in progress', 'Finish the current call before starting a new one.');
+        return;
+      }
+
+      if (chat.type !== 'PERSONAL') {
+        Alert.alert(
+          'Unsupported chat',
+          'Mobile currently supports calls only in direct chats.',
+        );
+        return;
+      }
+
+      const otherMember = chat.members.find((member) => member.userId !== userId);
+      if (!otherMember) {
+        Alert.alert('Call unavailable', 'Could not determine the other participant.');
+        return;
+      }
+
+      try {
+        const call = await callsApi.initiateCall(chatId, type);
+        setActiveCall({
+          id: call.id,
+          chatId,
+          type,
+          status: 'RINGING',
+          participantName: chat.name,
+          participantId: otherMember.userId,
+          isIncoming: false,
+          initiatorId: userId || '',
+        });
+      } catch (error) {
+        console.error('Failed to initiate call:', error);
+        Alert.alert('Call failed', 'Could not start the call. Please try again.');
+      }
+    },
+    [activeCall, chat, chatId, setActiveCall, userId],
+  );
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      title: chat?.name || 'Chat',
+      headerRight: canStartDirectCall
+        ? () => (
+            <View style={styles.headerActions}>
+              <Pressable
+                style={styles.headerButton}
+                onPress={() => {
+                  void handleInitiateCall('AUDIO');
+                }}
+              >
+                <Text style={styles.headerButtonText}>Call</Text>
+              </Pressable>
+              <Pressable
+                style={styles.headerButton}
+                onPress={() => {
+                  void handleInitiateCall('VIDEO');
+                }}
+              >
+                <Text style={styles.headerButtonText}>Video</Text>
+              </Pressable>
+            </View>
+          )
+        : undefined,
+    });
+  }, [canStartDirectCall, chat?.name, handleInitiateCall, navigation]);
+
+  useEffect(() => {
+    const socket = getExistingSocket();
+    if (!socket?.connected) {
+      return;
+    }
+
+    socket.emit('chat:join', { chatId });
+  }, [chatId]);
 
   const fetchMessages = useCallback(async () => {
+    const existingMessages = useMessageStore.getState().messages[chatId] || [];
+    const showFullScreenLoader = existingMessages.length === 0;
+
+    if (showFullScreenLoader) {
+      setInitialLoading(true);
+    }
+    setLoadError(null);
+
     try {
-      setLoading(true);
-      const data = await messagesApi.getMessages(chatId);
+      const data = await withTimeout(
+        messagesApi.getMessages(chatId, undefined, PAGE_SIZE),
+        REQUEST_TIMEOUT_MS,
+        'Loading messages timed out',
+      );
       setMessages(chatId, data.messages, data.hasMore, data.nextCursor);
-      await chatsApi.markChatAsRead(chatId);
+
+      // Reset unread counter locally and tell the backend we've read up to
+      // the newest message. Fire-and-forget; if this fails, the next
+      // message:read emission from another client will correct state.
+      const newest = data.messages[0];
+      if (newest) {
+        updateChat(chatId, { unreadCount: 0 });
+        chatsApi.markChatAsRead(chatId, newest.id).catch(() => undefined);
+      }
     } catch (err) {
       console.error('Failed to fetch messages:', err);
+      setLoadError('Could not load messages. Please try opening the chat again.');
+      if (showFullScreenLoader) {
+        setMessages(chatId, [], false, undefined);
+      }
     } finally {
-      setLoading(false);
+      if (showFullScreenLoader) {
+        setInitialLoading(false);
+      }
     }
-  }, [chatId, setMessages, setLoading]);
+  }, [chatId, setMessages]);
 
   const loadMore = useCallback(async () => {
-    if (!hasMore || isLoading) return;
+    if (!hasMore || loadingMore || !cursor) return;
 
     try {
-      setLoading(true);
-      const data = await messagesApi.getMessages(chatId, cursor);
+      setLoadingMore(true);
+      const data = await withTimeout(
+        messagesApi.getMessages(chatId, cursor, PAGE_SIZE),
+        REQUEST_TIMEOUT_MS,
+        'Loading older messages timed out',
+      );
       appendMessages(chatId, data.messages, data.hasMore, data.nextCursor);
     } catch (err) {
       console.error('Failed to load more messages:', err);
     } finally {
-      setLoading(false);
+      setLoadingMore(false);
     }
-  }, [chatId, cursor, hasMore, isLoading, appendMessages, setLoading]);
+  }, [appendMessages, chatId, cursor, hasMore, loadingMore]);
 
   useEffect(() => {
     fetchMessages();
@@ -64,13 +221,17 @@ export function ChatViewScreen({ route, navigation }: Props) {
   const handleSend = useCallback(
     async (text: string) => {
       try {
-        const message = await messagesApi.sendMessage({ chatId, content: text });
-        addMessage(chatId, message);
+        const socket = getExistingSocket();
+        if (!socket?.connected) {
+          throw new Error('Socket is not connected');
+        }
+
+        socket.emit(WS_EVENTS.MESSAGE_SEND, { chatId, content: text });
       } catch (err) {
         console.error('Failed to send message:', err);
       }
     },
-    [chatId, addMessage],
+    [chatId],
   );
 
   const renderMessage = useCallback(
@@ -107,29 +268,46 @@ export function ChatViewScreen({ route, navigation }: Props) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
-      <FlatList
-        ref={flatListRef}
-        data={messages}
-        keyExtractor={(item) => item.id}
-        renderItem={renderMessage}
-        inverted
-        contentContainerStyle={styles.listContent}
-        onEndReached={loadMore}
-        onEndReachedThreshold={0.3}
-        ListEmptyComponent={
-          !isLoading ? (
+      {initialLoading && messages.length === 0 ? (
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color="#4F46E5" />
+        </View>
+      ) : (
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          keyExtractor={(item) => item.id}
+          renderItem={renderMessage}
+          inverted
+          contentContainerStyle={styles.listContent}
+          ListEmptyComponent={
             <EmptyState
-              title="No messages yet"
-              description="Send a message to start the conversation"
+              title={loadError ? 'Could not load messages' : 'No messages yet'}
+              description={
+                loadError || 'Send a message to start the conversation'
+              }
             />
-          ) : null
-        }
-        ListFooterComponent={
-          isLoading ? (
-            <ActivityIndicator style={styles.loader} color="#4F46E5" />
-          ) : null
-        }
-      />
+          }
+          ListFooterComponent={
+            hasMore && cursor ? (
+              <View style={styles.paginationContainer}>
+                {loadingMore ? (
+                  <ActivityIndicator style={styles.loader} color="#4F46E5" />
+                ) : (
+                  <Pressable
+                    style={styles.paginationButton}
+                    onPress={() => {
+                      void loadMore();
+                    }}
+                  >
+                    <Text style={styles.paginationButtonText}>Load older messages</Text>
+                  </Pressable>
+                )}
+              </View>
+            ) : null
+          }
+        />
+      )}
       <MessageInput onSend={handleSend} onAttach={() => {}} />
     </KeyboardAvoidingView>
   );
@@ -140,10 +318,46 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
+  centered: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   listContent: {
     paddingVertical: 8,
+    flexGrow: 1,
   },
   loader: {
     paddingVertical: 16,
+  },
+  paginationContainer: {
+    alignItems: 'center',
+    paddingVertical: 16,
+  },
+  paginationButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 16,
+    backgroundColor: '#EEF2FF',
+  },
+  paginationButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#4338CA',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  headerButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: '#EEF2FF',
+  },
+  headerButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#4338CA',
   },
 });
