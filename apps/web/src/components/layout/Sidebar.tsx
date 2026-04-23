@@ -177,7 +177,7 @@ export function Sidebar() {
           <NavLink
             key={item.path}
             to={item.path}
-            className={({ isActive }) => clsx('sidebar-shell__nav-item', isActive && 'is-active')}
+            className={({ isActive }: { isActive: boolean }) => clsx('sidebar-shell__nav-item', isActive && 'is-active')}
           >
             <span className="sidebar-shell__nav-icon">{item.icon}</span>
             <span className="sidebar-shell__nav-label">

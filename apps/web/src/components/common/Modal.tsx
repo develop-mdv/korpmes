@@ -9,10 +9,14 @@ interface ModalProps {
 
 export function Modal({ open, onClose, title, children }: ModalProps) {
   useEffect(() => {
-    if (!open) return undefined;
+    if (!open) {
+      return undefined;
+    }
 
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') {
+        onClose();
+      }
     };
 
     document.body.style.overflow = 'hidden';
@@ -24,14 +28,16 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
     };
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!open) {
+    return null;
+  }
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="lux-panel modal-card" onClick={(event) => event.stopPropagation()}>
         <div className="modal-card__header">
           <h2 className="modal-card__title">{title}</h2>
-          <button className="modal-card__close" onClick={onClose} aria-label="Close">
+          <button className="modal-card__close" onClick={onClose} aria-label="Закрыть">
             ×
           </button>
         </div>
