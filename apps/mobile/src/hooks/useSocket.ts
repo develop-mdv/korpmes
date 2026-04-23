@@ -12,7 +12,7 @@ import { setupSocketListeners, removeSocketListeners } from '../socket/events';
  * Single socket hook — delegates to the shared singleton in socket.ts
  * so that call signaling and chat events share the same connection.
  */
-export function useSocket() {
+export function useSocket(): { emit: (event: string, data?: unknown) => void } {
   const token = useAuthStore((state) => state.token);
 
   const connect = useCallback(() => {
@@ -53,5 +53,5 @@ export function useSocket() {
     getExistingSocket()?.emit(event, data);
   }, []);
 
-  return { emit, socket: getExistingSocket() };
+  return { emit };
 }

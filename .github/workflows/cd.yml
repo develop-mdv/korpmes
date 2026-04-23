@@ -36,7 +36,20 @@ jobs:
 
             echo "=== Pulling latest code ==="
             cd "$DEPLOY_DIR"
-            git fetch origin
+            # Retry git fetch to survive transient GitHub 5xx / RPC failures
+            fetch_ok=0
+            for attempt in 1 2 3 4 5; do
+              if git fetch --prune origin; then
+                fetch_ok=1
+                break
+              fi
+              echo "git fetch failed (attempt ${attempt}/5), retrying in $((attempt * 5))s..."
+              sleep $((attempt * 5))
+            done
+            if [ "$fetch_ok" -ne 1 ]; then
+              echo "ERROR: git fetch origin failed after 5 attempts"
+              exit 1
+            fi
             git reset --hard origin/main
 
             echo "=== Patching .env with TURN/WebRTC settings ==="

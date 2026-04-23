@@ -25,6 +25,8 @@ export function RegisterScreen({ navigation }: Props) {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const { register, isLoading } = useAuth();
+  const e164PhonePattern = /^\+[1-9]\d{1,14}$/;
+  const strongPasswordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*])/;
 
   const handleRegister = useCallback(async () => {
     if (!firstName.trim() || !lastName.trim() || !email.trim() || !password.trim()) {
@@ -34,6 +36,22 @@ export function RegisterScreen({ navigation }: Props) {
 
     if (password.length < 8) {
       Alert.alert('Validation Error', 'Password must be at least 8 characters');
+      return;
+    }
+
+    if (!strongPasswordPattern.test(password)) {
+      Alert.alert(
+        'Validation Error',
+        'Password must include uppercase, lowercase, digit and one special character: !@#$%^&*',
+      );
+      return;
+    }
+
+    if (phone.trim() && !e164PhonePattern.test(phone.trim())) {
+      Alert.alert(
+        'Validation Error',
+        'Phone number must be in international format, for example +79991234567',
+      );
       return;
     }
 
@@ -48,7 +66,7 @@ export function RegisterScreen({ navigation }: Props) {
     } catch (err: any) {
       Alert.alert('Registration Failed', err.message);
     }
-  }, [firstName, lastName, email, phone, password, register]);
+  }, [firstName, lastName, email, phone, password, register, strongPasswordPattern]);
 
   return (
     <SafeAreaView style={styles.safe}>

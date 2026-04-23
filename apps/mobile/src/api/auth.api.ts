@@ -3,6 +3,7 @@ import { apiClient } from './client';
 export interface LoginPayload {
   email: string;
   password: string;
+  twoFactorCode?: string;
 }
 
 export interface RegisterPayload {
@@ -14,7 +15,9 @@ export interface RegisterPayload {
 }
 
 export interface AuthResponse {
-  token: string;
+  accessToken: string;
+  refreshToken: string;
+  requiresTwoFactor?: boolean;
   user: {
     id: string;
     email: string;

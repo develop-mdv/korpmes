@@ -41,10 +41,6 @@
         "android.permission.INTERNET"
       ]
     },
-    "plugins": [
-      "expo-notifications",
-      "react-native-incall-manager"
-    ],
     "extra": {
       "eas": {
         "projectId": "b710febb-6318-44b4-8f73-c874d82bc097"

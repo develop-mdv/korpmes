@@ -5,9 +5,10 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull } from 'typeorm';
+import { Repository, IsNull, MoreThan } from 'typeorm';
 import { Chat, ChatType } from './entities/chat.entity';
 import { ChatMember } from './entities/chat-member.entity';
+import { Message } from '../messages/entities/message.entity';
 import { CreateChatDto } from './dto/create-chat.dto';
 import { UpdateChatDto } from './dto/update-chat.dto';
 
@@ -18,6 +19,8 @@ export class ChatsService {
     private readonly chatRepo: Repository<Chat>,
     @InjectRepository(ChatMember)
     private readonly chatMemberRepo: Repository<ChatMember>,
+    @InjectRepository(Message)
+    private readonly messageRepo: Repository<Message>,
   ) {}
 
   async create(userId: string, dto: CreateChatDto): Promise<Chat> {
@@ -79,7 +82,10 @@ export class ChatsService {
     return chat;
   }
 
-  async findUserChats(userId: string, orgId: string): Promise<Chat[]> {
+  async findUserChats(
+    userId: string,
+    orgId: string,
+  ): Promise<Array<Chat & { unreadCount: number }>> {
     const memberships = await this.chatMemberRepo.find({
       where: {
         userId,
@@ -88,11 +94,14 @@ export class ChatsService {
       relations: ['chat'],
     });
 
-    const chatIds = memberships
-      .map((m) => m.chat)
-      .filter((chat) => chat && chat.organizationId === orgId)
-      .map((chat) => chat.id);
+    const membershipByChatId = new Map<string, ChatMember>();
+    for (const m of memberships) {
+      if (m.chat && m.chat.organizationId === orgId) {
+        membershipByChatId.set(m.chat.id, m);
+      }
+    }
 
+    const chatIds = Array.from(membershipByChatId.keys());
     if (chatIds.length === 0) return [];
 
     // Load chats with members and their user details
@@ -101,10 +110,41 @@ export class ChatsService {
       relations: ['members', 'members.user'],
     });
 
-    return chats.sort((a, b) => {
+    const withUnread = await Promise.all(
+      chats.map(async (chat) => {
+        const membership = membershipByChatId.get(chat.id);
+        const unreadCount = await this.countUnreadForMember(chat.id, membership);
+        return Object.assign(chat, { unreadCount });
+      }),
+    );
+
+    return withUnread.sort((a, b) => {
       const aTime = a.lastMessageAt?.getTime() ?? a.createdAt.getTime();
       const bTime = b.lastMessageAt?.getTime() ?? b.createdAt.getTime();
       return bTime - aTime;
+    });
+  }
+
+  private async countUnreadForMember(
+    chatId: string,
+    membership?: ChatMember,
+  ): Promise<number> {
+    if (!membership) return 0;
+
+    if (!membership.lastReadMessageId) {
+      return this.messageRepo.count({ where: { chatId } });
+    }
+
+    const lastRead = await this.messageRepo.findOne({
+      where: { id: membership.lastReadMessageId },
+      select: ['id', 'createdAt'],
+    });
+    if (!lastRead) {
+      return this.messageRepo.count({ where: { chatId } });
+    }
+
+    return this.messageRepo.count({
+      where: { chatId, createdAt: MoreThan(lastRead.createdAt) },
     });
   }
 
@@ -174,8 +214,19 @@ export class ChatsService {
   async updateLastReadMessage(
     chatId: string,
     userId: string,
-    messageId: string,
+    messageId: string | null,
   ): Promise<void> {
+    if (!messageId) {
+      // Fallback: treat "mark read" without explicit id as read up to newest.
+      const latest = await this.messageRepo.findOne({
+        where: { chatId },
+        order: { createdAt: 'DESC' },
+        select: ['id'],
+      });
+      if (!latest) return;
+      messageId = latest.id;
+    }
+
     await this.chatMemberRepo.update(
       { chatId, userId },
       { lastReadMessageId: messageId },
@@ -184,15 +235,9 @@ export class ChatsService {
 
   async getUnreadCount(chatId: string, userId: string): Promise<number> {
     const member = await this.chatMemberRepo.findOne({
-      where: { chatId, userId },
+      where: { chatId, userId, leftAt: IsNull() },
     });
-    if (!member || !member.lastReadMessageId) {
-      return 0;
-    }
-    // Unread count would require a messages table query.
-    // This is a placeholder that returns 0; the messages module
-    // should provide the actual count via a cross-module call.
-    return 0;
+    return this.countUnreadForMember(chatId, member ?? undefined);
   }
 
   private async findPersonalChat(

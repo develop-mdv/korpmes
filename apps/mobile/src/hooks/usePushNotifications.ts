@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 import { useNotificationStore } from '../stores/notification.store';
 import { apiClient } from '../api/client';
 
@@ -17,13 +18,21 @@ export function usePushNotifications() {
   const responseListener = useRef<Notifications.Subscription | null>(null);
   const { setPushToken, addNotification } = useNotificationStore();
 
-  const registerForPushNotifications = useCallback(async () => {
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
+  const projectId =
+    Constants.expoConfig?.extra?.eas?.projectId ??
+    Constants.easConfig?.projectId;
 
-    if (existingStatus !== 'granted') {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
+  const registerForPushNotifications = useCallback(async () => {
+    // `NotificationPermissionsStatus` extends `PermissionResponse` from
+    // expo-modules-core, but under pnpm hoisting that transitive type is
+    // invisible to tsc in this package, so we narrow the shape locally.
+    type PermStatus = { status: string };
+    const existing = (await Notifications.getPermissionsAsync()) as PermStatus;
+    let finalStatus = existing.status;
+
+    if (finalStatus !== 'granted') {
+      const req = (await Notifications.requestPermissionsAsync()) as PermStatus;
+      finalStatus = req.status;
     }
 
     if (finalStatus !== 'granted') {
@@ -39,13 +48,15 @@ export function usePushNotifications() {
       });
     }
 
-    const tokenData = await Notifications.getExpoPushTokenAsync();
+    const tokenData = await Notifications.getExpoPushTokenAsync(
+      projectId ? { projectId } : undefined,
+    );
     const token = tokenData.data;
 
     setPushToken(token);
 
     try {
-      await apiClient.post('/notifications/register-token', {
+      await apiClient.post('/notifications/push-token', {
         token,
         platform: Platform.OS,
       });
