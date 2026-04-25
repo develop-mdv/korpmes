@@ -196,10 +196,17 @@ export function setupSocketListeners(socket: Socket): () => void {
     'call:screen-share': (data: { callId: string; fromUserId: string }) => {
       // Remote participant started screen sharing — their video track will update via ontrack
       console.log('[Call] Remote screen share started by', data.fromUserId);
+      useCallStore.getState().setScreenSharing(true);
+      useCallStore.getState().setScreenSharerId(data.fromUserId);
     },
 
     'call:screen-share-stop': (data: { callId: string; fromUserId: string }) => {
       console.log('[Call] Remote screen share stopped by', data.fromUserId);
+      const current = useCallStore.getState().screenSharerId;
+      if (current === data.fromUserId) {
+        useCallStore.getState().setScreenSharing(false);
+        useCallStore.getState().setScreenSharerId(null);
+      }
     },
 
     'call:video-mode': (data: { callId: string; fromUserId: string; videoEnabled: boolean }) => {

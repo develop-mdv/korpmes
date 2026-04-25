@@ -3,16 +3,26 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  UnauthorizedException,
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
 import { Repository } from 'typeorm';
 import * as crypto from 'crypto';
 import * as sharp from 'sharp';
 import { v4 as uuidv4 } from 'uuid';
 import { ALL_ALLOWED_TYPES, MAX_FILE_SIZE_BYTES } from '@corp/shared-constants';
 import { File } from './entities/file.entity';
-import { StorageService } from './storage/storage.service';
+import { StorageService, type StorageObject } from './storage/storage.service';
+
+export type DownloadKind = 'file' | 'thumbnail';
+
+interface DownloadTokenPayload {
+  fileId: string;
+  kind: DownloadKind;
+}
 
 @Injectable()
 export class FilesService {
@@ -22,7 +32,51 @@ export class FilesService {
     @InjectRepository(File)
     private readonly fileRepository: Repository<File>,
     private readonly storageService: StorageService,
+    private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
   ) {}
+
+  private buildPublicUrl(path: string): string {
+    const explicit = this.configService.get<string>('APP_PUBLIC_URL');
+    if (explicit) {
+      return `${explicit.replace(/\/$/, '')}${path}`;
+    }
+    const appUrl = this.configService.get<string>('APP_URL');
+    if (appUrl) {
+      return `${appUrl.replace(/\/$/, '')}/api${path}`;
+    }
+    const port = this.configService.get<string>('APP_PORT', '3000');
+    return `http://localhost:${port}/api${path}`;
+  }
+
+  private signDownloadToken(payload: DownloadTokenPayload): string {
+    return this.jwtService.sign(payload, { expiresIn: '1h' });
+  }
+
+  verifyDownloadToken(token: string): DownloadTokenPayload {
+    try {
+      const decoded = this.jwtService.verify<DownloadTokenPayload>(token);
+      if (!decoded?.fileId || (decoded.kind !== 'file' && decoded.kind !== 'thumbnail')) {
+        throw new Error('invalid payload');
+      }
+      return decoded;
+    } catch {
+      throw new UnauthorizedException('Invalid or expired download token');
+    }
+  }
+
+  async openFileStream(id: string, kind: DownloadKind): Promise<{
+    object: StorageObject;
+    filename: string;
+  }> {
+    const file = await this.findById(id);
+    const key = kind === 'thumbnail' ? file.thumbnailKey : file.storageKey;
+    if (!key) {
+      throw new NotFoundException('Requested file content is not available');
+    }
+    const object = await this.storageService.getObject(key);
+    return { object, filename: file.originalName };
+  }
 
   async upload(
     file: Express.Multer.File,
@@ -119,13 +173,15 @@ export class FilesService {
   async getDownloadUrl(id: string, userId: string): Promise<string> {
     const file = await this.findById(id);
     // TODO: verify user is a member of the organization
-    return this.storageService.getSignedUrl(file.storageKey);
+    const token = this.signDownloadToken({ fileId: file.id, kind: 'file' });
+    return this.buildPublicUrl(`/files/${file.id}/raw?token=${token}`);
   }
 
   async getThumbnailUrl(id: string): Promise<string | null> {
     const file = await this.findById(id);
     if (!file.thumbnailKey) return null;
-    return this.storageService.getSignedUrl(file.thumbnailKey);
+    const token = this.signDownloadToken({ fileId: file.id, kind: 'thumbnail' });
+    return this.buildPublicUrl(`/files/${file.id}/thumbnail?token=${token}`);
   }
 
   async delete(id: string, userId: string): Promise<void> {

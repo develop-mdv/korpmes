@@ -81,10 +81,13 @@ export function CallOverlay() {
 
   // ── Active call UI ───────────────────────────────────────────────────────────
   const participantCount = (activeCall.participants?.length ?? 0);
+  const cardStyle: React.CSSProperties = isScreenSharing
+    ? { ...s.activeCard, maxWidth: 1280, height: '90vh' }
+    : s.activeCard;
 
   return (
     <div style={s.overlay}>
-      <div style={s.activeCard}>
+      <div style={cardStyle}>
         <div style={s.videoArea}>
           <VideoGrid
             localStream={localStream}
@@ -129,6 +132,7 @@ const s: Record<string, React.CSSProperties> = {
     background: '#111827', borderRadius: 16,
     width: '92%', maxWidth: 960, height: '82vh',
     display: 'flex', flexDirection: 'column', overflow: 'hidden',
+    transition: 'max-width 0.2s, height 0.2s',
   },
   videoArea: { flex: 1, overflow: 'hidden' },
   bar: {

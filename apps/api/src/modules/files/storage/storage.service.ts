@@ -1,3 +1,11 @@
+import type { Readable } from 'stream';
+
+export interface StorageObject {
+  stream: Readable;
+  contentType: string;
+  contentLength: number;
+}
+
 export abstract class StorageService {
   abstract upload(
     key: string,
@@ -7,6 +15,8 @@ export abstract class StorageService {
   ): Promise<void>;
 
   abstract getSignedUrl(key: string, expiresIn?: number): Promise<string>;
+
+  abstract getObject(key: string): Promise<StorageObject>;
 
   abstract delete(key: string): Promise<void>;
 

@@ -15,6 +15,7 @@ import { setWebRTCHandlers } from '../../socket/events';
 import * as callsApi from '../../api/calls.api';
 import { getExistingSocket } from '../../socket/socket';
 import type { RootStackParamList } from '../../navigation/types';
+import { QualityIndicator } from '../../components/calls/QualityIndicator';
 
 // RTCView is from react-native-webrtc — imported lazily to avoid crash if not installed
 let RTCView: React.ComponentType<{
@@ -38,8 +39,8 @@ function formatDuration(seconds: number): string {
 }
 
 export function ActiveCallScreen({ navigation }: Props) {
-  const { activeCall, localStream, remoteStream, isMuted, isVideoOff } = useCallStore();
-  const { startCall, handleOffer, handleAnswer, handleIceCandidate, toggleMute, toggleVideo, upgradeToVideo, downgradeToAudio, cleanup } = useWebRTC();
+  const { activeCall, localStream, remoteStream, isMuted, isVideoOff, connectionQuality, audioOutput } = useCallStore();
+  const { startCall, handleOffer, handleAnswer, handleIceCandidate, toggleMute, toggleVideo, toggleAudioOutput, upgradeToVideo, downgradeToAudio, cleanup } = useWebRTC();
   const durationRef = useRef(0);
 
   // Register WebRTC handlers so socket events can delegate here
@@ -169,6 +170,13 @@ export function ActiveCallScreen({ navigation }: Props) {
         <View style={styles.audioBackground} />
       )}
 
+      {/* Quality indicator overlay (video mode) */}
+      {isVideo && isActive && (
+        <View style={styles.qualityOverlay}>
+          <QualityIndicator quality={connectionQuality} />
+        </View>
+      )}
+
       <SafeAreaView style={styles.overlay}>
         {/* Header */}
         <View style={styles.header}>
@@ -178,6 +186,12 @@ export function ActiveCallScreen({ navigation }: Props) {
             {isRinging && !isIncoming && 'Calling…'}
             {isActive && formatDuration(duration)}
           </Text>
+          {!isVideo && isActive && (
+            <View style={styles.qualityRow}>
+              <Text style={styles.qualityLabel}>Connection</Text>
+              <QualityIndicator quality={connectionQuality} size="md" />
+            </View>
+          )}
         </View>
 
         {/* Local video (PiP) */}
@@ -198,6 +212,11 @@ export function ActiveCallScreen({ navigation }: Props) {
                 label={isMuted ? 'Unmute' : 'Mute'}
                 icon={isMuted ? '🔇' : '🎤'}
                 onPress={toggleMute}
+              />
+              <ControlButton
+                label={audioOutput === 'speaker' ? 'Speaker' : 'Earpiece'}
+                icon={audioOutput === 'speaker' ? '🔊' : '📞'}
+                onPress={toggleAudioOutput}
               />
               {!isVideo && (
                 <ControlButton
@@ -328,5 +347,25 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#FFFFFF',
     marginTop: 4,
+  },
+  qualityOverlay: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 60 : 24,
+    left: 16,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 6,
+    zIndex: 10,
+  },
+  qualityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 16,
+  },
+  qualityLabel: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 13,
   },
 });

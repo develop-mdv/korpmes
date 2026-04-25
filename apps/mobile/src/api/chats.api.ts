@@ -7,6 +7,7 @@ export interface Chat {
   type: 'PERSONAL' | 'GROUP' | 'CHANNEL' | 'PROJECT';
   organizationId: string;
   avatarUrl?: string;
+  isSelf: boolean;
   lastMessage?: {
     content: string;
     senderName: string;
@@ -51,7 +52,17 @@ interface ChatApiResponse {
   updatedAt: string;
 }
 
+function isSelfChat(chat: ChatApiResponse, currentUserId?: string): boolean {
+  if (!currentUserId || chat.type !== 'PERSONAL') return false;
+  const members = chat.members ?? [];
+  return members.length === 1 && members[0].userId === currentUserId;
+}
+
 function getChatDisplayName(chat: ChatApiResponse, currentUserId?: string): string {
+  if (isSelfChat(chat, currentUserId)) {
+    return 'Saved Messages';
+  }
+
   if (chat.name?.trim()) {
     return chat.name.trim();
   }
@@ -81,6 +92,10 @@ function getChatDisplayName(chat: ChatApiResponse, currentUserId?: string): stri
 }
 
 function getChatAvatarUrl(chat: ChatApiResponse, currentUserId?: string): string | undefined {
+  if (isSelfChat(chat, currentUserId)) {
+    return undefined;
+  }
+
   if (chat.avatarUrl) {
     return chat.avatarUrl;
   }
@@ -104,6 +119,7 @@ function normalizeChat(chat: ChatApiResponse): Chat {
     type: chat.type,
     organizationId: chat.organizationId,
     avatarUrl: getChatAvatarUrl(chat, currentUserId),
+    isSelf: isSelfChat(chat, currentUserId),
     lastMessage: chat.lastMessage,
     unreadCount: chat.unreadCount ?? 0,
     memberCount: chat.members?.length ?? 0,

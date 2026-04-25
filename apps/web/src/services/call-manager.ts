@@ -15,6 +15,7 @@ import { getSocket } from '@/socket/socket';
 import { useCallStore } from '@/stores/call.store';
 import { useAuthStore } from '@/stores/auth.store';
 import { getIceServers } from '@/api/calls.api';
+import { activeSpeakerDetector } from '@/services/active-speaker';
 
 // ─── Per-peer state ───────────────────────────────────────────────────────────
 
@@ -238,6 +239,11 @@ async function createPC(targetUserId: string): Promise<RTCPeerConnection> {
     if (e.streams?.[0]) {
       log('<- Remote track from', targetUserId, 'kind:', e.track.kind);
       store().addRemoteStream(targetUserId, e.streams[0]);
+      const me = myUserId();
+      if (me) {
+        const { localStream, remoteStreams } = store();
+        activeSpeakerDetector.update(localStream, remoteStreams);
+      }
     }
   };
 
@@ -265,6 +271,11 @@ async function createPC(targetUserId: string): Promise<RTCPeerConnection> {
       applyBandwidthConstraints(conn);
       // Start stats monitoring if not running
       if (!statsInterval) startStatsMonitor();
+      const me = myUserId();
+      if (me) {
+        const { localStream, remoteStreams } = store();
+        activeSpeakerDetector.start(me, localStream, remoteStreams);
+      }
     } else if (conn.connectionState === 'disconnected') {
       // Give 5 seconds to recover before attempting reconnect
       const timer = setTimeout(() => {
@@ -687,6 +698,7 @@ export async function startScreenShare(): Promise<void> {
 
     setScreenStream(screenStream);
     setScreenSharing(true);
+    store().setScreenSharerId(myUserId() ?? null);
 
     // When user stops via browser UI
     screenTrack.onended = () => stopScreenShare();
@@ -723,6 +735,7 @@ export async function stopScreenShare(): Promise<void> {
   screenStream.getTracks().forEach((t) => t.stop());
   setScreenStream(null);
   setScreenSharing(false);
+  store().setScreenSharerId(null);
 
   if (activeCall) {
     const me = myUserId();
@@ -744,6 +757,7 @@ export async function stopScreenShare(): Promise<void> {
 export function cleanup(): void {
   log('cleanup: closing', peers.size, 'peer connections');
   stopStatsMonitor();
+  activeSpeakerDetector.stop();
   for (const [userId] of reconnectTimers) {
     clearTimeout(reconnectTimers.get(userId));
   }

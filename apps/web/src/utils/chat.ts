@@ -1,6 +1,14 @@
 import type { Chat } from '@/stores/chat.store';
 
+export function isSelfChat(chat: Chat, currentUserId?: string): boolean {
+  if (!currentUserId || chat.type !== 'PERSONAL') return false;
+  const members = chat.members ?? [];
+  return members.length === 1 && members[0].userId === currentUserId;
+}
+
 export function getChatDisplayName(chat: Chat, currentUserId?: string): string {
+  if (isSelfChat(chat, currentUserId)) return 'Saved Messages';
+
   if (chat.name) return chat.name;
 
   // For PERSONAL chats, show the other person's name

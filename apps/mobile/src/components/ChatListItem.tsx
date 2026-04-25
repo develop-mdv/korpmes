@@ -11,7 +11,21 @@ interface ChatListItemProps {
   lastMessage?: string;
   lastMessageTime?: string;
   unreadCount: number;
+  isSelf?: boolean;
   onPress: (chatId: string) => void;
+}
+
+function SelfChatAvatar({ size = 48 }: { size?: number }) {
+  return (
+    <View
+      style={[
+        styles.selfAvatar,
+        { width: size, height: size, borderRadius: size / 2 },
+      ]}
+    >
+      <Text style={[styles.selfAvatarIcon, { fontSize: size * 0.5 }]}>🔖</Text>
+    </View>
+  );
 }
 
 export const ChatListItem = memo(function ChatListItem({
@@ -21,6 +35,7 @@ export const ChatListItem = memo(function ChatListItem({
   lastMessage,
   lastMessageTime,
   unreadCount,
+  isSelf,
   onPress,
 }: ChatListItemProps) {
   const timeLabel = lastMessageTime
@@ -32,7 +47,11 @@ export const ChatListItem = memo(function ChatListItem({
       style={({ pressed }) => [styles.container, pressed && styles.pressed]}
       onPress={() => onPress(id)}
     >
-      <Avatar uri={avatarUrl} name={name} size={48} />
+      {isSelf ? (
+        <SelfChatAvatar size={48} />
+      ) : (
+        <Avatar uri={avatarUrl} name={name} size={48} />
+      )}
       <View style={styles.textContainer}>
         <Text style={styles.name} numberOfLines={1}>
           {name}
@@ -86,5 +105,13 @@ const styles = StyleSheet.create({
   time: {
     fontSize: 12,
     color: '#9CA3AF',
+  },
+  selfAvatar: {
+    backgroundColor: '#4F46E5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selfAvatarIcon: {
+    color: '#FFFFFF',
   },
 });

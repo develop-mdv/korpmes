@@ -4,7 +4,28 @@ import { Badge } from '@/components/common/Badge';
 import { formatDistanceToNow } from 'date-fns';
 import type { Chat } from '@/stores/chat.store';
 import { useAuthStore } from '@/stores/auth.store';
-import { getChatDisplayName } from '@/utils/chat';
+import { getChatDisplayName, isSelfChat } from '@/utils/chat';
+
+function SelfChatAvatar({ size = 40 }: { size?: number }) {
+  const style: CSSProperties = {
+    width: size,
+    height: size,
+    borderRadius: '50%',
+    backgroundColor: 'var(--color-primary)',
+    color: '#fff',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  };
+  return (
+    <div style={style} aria-label="Saved Messages">
+      <svg width={size * 0.5} height={size * 0.5} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+      </svg>
+    </div>
+  );
+}
 
 interface ChatListItemProps {
   chat: Chat;
@@ -65,6 +86,7 @@ export function ChatListItem({ chat, isActive, unreadCount, onClick }: ChatListI
   const timeStr = lastMsg?.createdAt
     ? formatDistanceToNow(new Date(lastMsg.createdAt), { addSuffix: true })
     : '';
+  const isSelf = isSelfChat(chat, currentUserId);
 
   return (
     <div
@@ -77,7 +99,11 @@ export function ChatListItem({ chat, isActive, unreadCount, onClick }: ChatListI
         if (!isActive) (e.currentTarget as HTMLDivElement).style.backgroundColor = 'transparent';
       }}
     >
-      <Avatar name={getChatDisplayName(chat, currentUserId)} size="md" />
+      {isSelf ? (
+        <SelfChatAvatar size={40} />
+      ) : (
+        <Avatar name={getChatDisplayName(chat, currentUserId)} size="md" />
+      )}
       <div style={infoStyle}>
         <div style={nameStyle}>{getChatDisplayName(chat, currentUserId)}</div>
         {lastMsg && (
