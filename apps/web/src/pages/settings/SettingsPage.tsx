@@ -3,6 +3,8 @@ import { Avatar } from '@/components/common/Avatar';
 import { Modal } from '@/components/common/Modal';
 import { useAuthStore } from '@/stores/auth.store';
 import { useUIStore } from '@/stores/ui.store';
+import { useSettingsStore } from '@/stores/settings.store';
+import { requestDesktopPermission } from '@/services/desktop-notifications.service';
 import * as usersApi from '@/api/users.api';
 import * as authApi from '@/api/auth.api';
 
@@ -208,6 +210,85 @@ function TwoFAModal({
   );
 }
 
+// ─── Notifications Section ───────────────────────────────────────────────────
+
+function NotificationsSection() {
+  const {
+    soundEnabled,
+    desktopNotifsEnabled,
+    titleFlashEnabled,
+    setSoundEnabled,
+    setDesktopNotifsEnabled,
+    setTitleFlashEnabled,
+  } = useSettingsStore();
+  const [perm, setPerm] = useState<NotificationPermission>(
+    typeof Notification !== 'undefined' ? Notification.permission : 'denied',
+  );
+
+  const handleRequestPermission = async () => {
+    const result = await requestDesktopPermission();
+    setPerm(result);
+  };
+
+  const Toggle = ({
+    label,
+    description,
+    value,
+    onChange,
+  }: {
+    label: string;
+    description: string;
+    value: boolean;
+    onChange: (v: boolean) => void;
+  }) => (
+    <div style={styles.securityRow}>
+      <div style={{ flex: 1 }}>
+        <div style={styles.securityLabel}>{label}</div>
+        <div style={styles.securityDesc}>{description}</div>
+      </div>
+      <button
+        style={{ ...styles.primaryBtn, ...(value ? {} : { background: 'var(--color-border)', color: 'var(--color-text-secondary)' }) }}
+        onClick={() => onChange(!value)}
+      >
+        {value ? 'On' : 'Off'}
+      </button>
+    </div>
+  );
+
+  return (
+    <section style={styles.section}>
+      <h2 style={styles.sectionTitle}>Notifications</h2>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 16 }}>
+        <Toggle
+          label="Sound"
+          description="Play a short sound for new messages and a ringtone for incoming calls."
+          value={soundEnabled}
+          onChange={setSoundEnabled}
+        />
+        <Toggle
+          label="Desktop notifications"
+          description={
+            perm === 'granted'
+              ? 'System pop-ups when the chat is inactive or the tab is blurred.'
+              : 'Grant browser permission to enable desktop pop-ups.'
+          }
+          value={desktopNotifsEnabled && perm === 'granted'}
+          onChange={(v) => {
+            setDesktopNotifsEnabled(v);
+            if (v && perm !== 'granted') void handleRequestPermission();
+          }}
+        />
+        <Toggle
+          label="Title flash"
+          description="Briefly flash the browser tab title when a new message arrives."
+          value={titleFlashEnabled}
+          onChange={setTitleFlashEnabled}
+        />
+      </div>
+    </section>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export function SettingsPage() {
@@ -274,6 +355,9 @@ export function SettingsPage() {
           ))}
         </div>
       </section>
+
+      {/* Notifications */}
+      <NotificationsSection />
 
       {/* Security */}
       <section style={styles.section}>

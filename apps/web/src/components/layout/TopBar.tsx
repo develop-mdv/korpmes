@@ -64,7 +64,11 @@ export function TopBar({ title }: TopBarProps) {
         onFocus={() => navigate('/search')}
         readOnly
       />
-      <button style={notifBtnStyle} aria-label="Notifications">
+      <button
+        style={notifBtnStyle}
+        aria-label="Notifications"
+        onClick={() => navigate('/notifications')}
+      >
         <span>&#x1F514;</span>
         {unreadCount > 0 && (
           <span style={{ position: 'absolute', top: -4, right: -4 }}>

@@ -6,6 +6,7 @@ import { CallControls } from './CallControls';
 import { VideoGrid } from './VideoGrid';
 import * as callsApi from '@/api/calls.api';
 import * as callManager from '@/services/call-manager';
+import { audio } from '@/services/audio.service';
 
 export function CallOverlay() {
   const { activeCall, localStream, remoteStreams, screenStream, isScreenSharing } = useCallStore();
@@ -26,6 +27,7 @@ export function CallOverlay() {
   if (!activeCall) return null;
 
   const handleAccept = async () => {
+    audio.stopRinging();
     try {
       await callManager.acceptCall();
       await callsApi.answerCall(activeCall.id);
@@ -36,11 +38,14 @@ export function CallOverlay() {
   };
 
   const handleDecline = async () => {
+    audio.stopRinging();
     try { await callsApi.rejectCall(activeCall.id); } catch { /* ignore */ }
     callManager.hangup();
   };
 
   const handleHangup = async () => {
+    audio.stopRinging();
+    audio.playCallEnded();
     try { await callsApi.hangupCall(activeCall.id); } catch { /* ignore */ }
     callManager.hangup();
   };

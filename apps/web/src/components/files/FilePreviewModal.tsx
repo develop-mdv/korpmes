@@ -60,10 +60,27 @@ function TextPreview({ url }: { url: string }) {
   );
 }
 
+function isPubliclyReachable(url: string): boolean {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== 'https:') return false;
+    const host = u.hostname;
+    if (host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0') return false;
+    // RFC1918 private ranges
+    if (/^10\./.test(host)) return false;
+    if (/^192\.168\./.test(host)) return false;
+    if (/^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host)) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function FilePreviewModal({ file, signedUrl, onClose }: Props) {
   const cat = getCategory(file.mimeType);
+  const officeReachable = isPubliclyReachable(signedUrl);
 
-  // MS Office Online viewer URL (requires public HTTPS URL — works in production with MinIO behind HTTPS)
+  // MS Office Online viewer needs a publicly reachable HTTPS URL — falls back gracefully on localhost/dev.
   const officeViewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(signedUrl)}`;
 
   const handleBackdropClick = (e: React.MouseEvent) => {
@@ -127,13 +144,27 @@ export function FilePreviewModal({ file, signedUrl, onClose }: Props) {
             />
           )}
 
-          {cat === 'office' && (
+          {cat === 'office' && officeReachable && (
             <iframe
               src={officeViewerUrl}
               title={file.originalName}
               style={styles.frame}
               sandbox="allow-scripts allow-same-origin allow-forms"
             />
+          )}
+
+          {cat === 'office' && !officeReachable && (
+            <div style={styles.unknownBox}>
+              <span style={styles.unknownIcon}>📊</span>
+              <p style={styles.unknownText}>
+                Предпросмотр Word/Excel/PowerPoint доступен только в продакшене
+                (Microsoft Office Online не может открыть файл с локального
+                адреса). Скачай файл, чтобы посмотреть.
+              </p>
+              <a href={signedUrl} download={file.originalName} style={styles.dlLink}>
+                ↓ Скачать {file.originalName}
+              </a>
+            </div>
           )}
 
           {cat === 'text' && <TextPreview url={signedUrl} />}

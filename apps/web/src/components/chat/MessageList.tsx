@@ -1,4 +1,4 @@
-import { CSSProperties, useRef, useEffect, useCallback } from 'react';
+import { CSSProperties, useRef, useEffect, useCallback, useState } from 'react';
 import { MessageBubble } from './MessageBubble';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { format, isSameDay } from 'date-fns';
@@ -11,6 +11,15 @@ interface MessageListProps {
   currentUserId: string;
   isGroupChat: boolean;
 }
+
+const wrapperStyle: CSSProperties = {
+  position: 'relative',
+  flex: 1,
+  display: 'flex',
+  flexDirection: 'column',
+  minHeight: 0,
+  height: '100%',
+};
 
 const containerStyle: CSSProperties = {
   flex: 1,
@@ -37,10 +46,30 @@ const dateLabelStyle: CSSProperties = {
   borderRadius: 'var(--radius-full)',
 };
 
+const jumpBtnStyle: CSSProperties = {
+  position: 'absolute',
+  right: 20,
+  bottom: 16,
+  width: 44,
+  height: 44,
+  borderRadius: '50%',
+  border: 'none',
+  background: 'var(--color-surface)',
+  color: 'var(--color-text)',
+  boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  zIndex: 10,
+};
+
 export function MessageList({ messages, hasMore, onLoadMore, currentUserId, isGroupChat }: MessageListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const prevHeightRef = useRef(0);
   const isAtBottomRef = useRef(true);
+  const lastOwnIdRef = useRef<string | null>(null);
+  const [showJumpBtn, setShowJumpBtn] = useState(false);
 
   const scrollToBottom = useCallback(() => {
     if (containerRef.current) {
@@ -49,16 +78,33 @@ export function MessageList({ messages, hasMore, onLoadMore, currentUserId, isGr
   }, []);
 
   useEffect(() => {
+    if (messages.length === 0) return;
+    const last = messages[messages.length - 1];
+
+    // Always jump down for the user's own messages, even if scrolled up.
+    if (last.senderId === currentUserId && last.id !== lastOwnIdRef.current) {
+      lastOwnIdRef.current = last.id;
+      scrollToBottom();
+      setShowJumpBtn(false);
+      isAtBottomRef.current = true;
+      return;
+    }
+
     if (isAtBottomRef.current) {
       scrollToBottom();
+    } else {
+      setShowJumpBtn(true);
     }
-  }, [messages.length, scrollToBottom]);
+  }, [messages, currentUserId, scrollToBottom]);
 
   const handleScroll = () => {
     const el = containerRef.current;
     if (!el) return;
 
-    isAtBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
+    isAtBottomRef.current = atBottom;
+    if (atBottom && showJumpBtn) setShowJumpBtn(false);
+    else if (!atBottom && !showJumpBtn) setShowJumpBtn(true);
 
     if (el.scrollTop < 100 && hasMore) {
       prevHeightRef.current = el.scrollHeight;
@@ -77,25 +123,40 @@ export function MessageList({ messages, hasMore, onLoadMore, currentUserId, isGr
     </div>
   );
 
-  return (
-    <div ref={containerRef} style={containerStyle} onScroll={handleScroll}>
-      {hasMore && <LoadingSpinner size={24} />}
-      {messages.map((msg, i) => {
-        const showDate =
-          i === 0 ||
-          !isSameDay(new Date(messages[i - 1].createdAt), new Date(msg.createdAt));
+  const handleJumpClick = () => {
+    scrollToBottom();
+    setShowJumpBtn(false);
+    isAtBottomRef.current = true;
+  };
 
-        return (
-          <div key={msg.id}>
-            {showDate && renderDateSeparator(format(new Date(msg.createdAt), 'EEEE, MMMM d, yyyy'))}
-            <MessageBubble
-              message={msg}
-              isOwn={msg.senderId === currentUserId}
-              showSender={isGroupChat && msg.senderId !== currentUserId}
-            />
-          </div>
-        );
-      })}
+  return (
+    <div style={wrapperStyle}>
+      <div ref={containerRef} style={containerStyle} onScroll={handleScroll}>
+        {hasMore && <LoadingSpinner size={24} />}
+        {messages.map((msg, i) => {
+          const showDate =
+            i === 0 ||
+            !isSameDay(new Date(messages[i - 1].createdAt), new Date(msg.createdAt));
+
+          return (
+            <div key={msg.id}>
+              {showDate && renderDateSeparator(format(new Date(msg.createdAt), 'EEEE, MMMM d, yyyy'))}
+              <MessageBubble
+                message={msg}
+                isOwn={msg.senderId === currentUserId}
+                showSender={isGroupChat && msg.senderId !== currentUserId}
+              />
+            </div>
+          );
+        })}
+      </div>
+      {showJumpBtn && (
+        <button style={jumpBtnStyle} onClick={handleJumpClick} title="Scroll to latest">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
+      )}
     </div>
   );
 }

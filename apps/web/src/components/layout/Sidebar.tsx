@@ -166,7 +166,7 @@ export function Sidebar() {
           <NavLink
             key={item.path}
             to={item.path}
-            style={({ isActive }) => ({
+            style={({ isActive }: { isActive: boolean }) => ({
               ...linkBaseStyle,
               backgroundColor: isActive ? 'var(--color-primary)' : 'transparent',
               color: isActive ? '#fff' : 'var(--color-text-secondary)',

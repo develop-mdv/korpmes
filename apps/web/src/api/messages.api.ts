@@ -7,23 +7,30 @@ export interface MessagesResponse {
   hasMore: boolean;
 }
 
-function normalizeMessage(raw: any): Message {
+export function normalizeMessage(raw: any): Message {
   const sender = raw.sender || {};
+  const fileIds = Array.isArray(raw.metadata?.fileIds)
+    ? raw.metadata.fileIds.filter(
+        (x: unknown): x is string => typeof x === 'string' && x.length > 0,
+      )
+    : [];
   return {
     id: raw.id,
+    seq: typeof raw.seq === 'string' ? Number(raw.seq) : raw.seq || 0,
     chatId: raw.chatId,
     senderId: raw.senderId,
     senderName: raw.senderName || (sender.firstName
       ? `${sender.firstName} ${sender.lastName || ''}`.trim()
       : sender.email || 'Unknown'),
     senderAvatar: raw.senderAvatar || sender.avatarUrl,
-    content: raw.content,
+    content: raw.content || '',
     type: (raw.type || 'text').toLowerCase() as Message['type'],
     replyToId: raw.parentMessageId || raw.replyToId,
     reactions: raw.reactions || [],
     isPinned: raw.isPinned || false,
     isEdited: raw.isEdited || !!raw.editedAt,
     threadCount: raw.threadCount || raw.replyCount || 0,
+    attachments: fileIds,
     createdAt: raw.createdAt,
     updatedAt: raw.updatedAt || raw.createdAt,
   };

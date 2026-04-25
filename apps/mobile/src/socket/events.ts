@@ -7,6 +7,7 @@ import { useCallStore, type ActiveCall } from '../stores/call.store';
 import { useAuthStore } from '../stores/auth.store';
 import { normalizeMessage } from '../api/messages.api';
 import { normalizeChatFromSocket } from '../api/chats.api';
+import { playMessage, startRinging, stopRinging, playCallEnded } from '../services/audio.service';
 
 type WebRTCHandlers = {
   handleOffer: (callId: string, fromUserId: string, sdp: string, type: 'AUDIO' | 'VIDEO') => Promise<void>;
@@ -26,13 +27,27 @@ export function setupSocketListeners(socket: Socket) {
   socket.on(WS_EVENTS.MESSAGE_NEW, (rawMessage: any) => {
     const message = normalizeMessage(rawMessage);
     useMessageStore.getState().addMessage(message.chatId, message);
+    const attachCount = message.attachments?.length ?? 0;
+    const previewContent =
+      message.content ||
+      (attachCount > 0
+        ? `📎 ${attachCount} ${attachCount === 1 ? 'файл' : 'файлов'}`
+        : '');
     useChatStore.getState().updateChat(message.chatId, {
       lastMessage: {
-        content: message.content,
+        content: previewContent,
         senderName: message.senderName,
         createdAt: message.createdAt,
       },
     });
+
+    const selfId = useAuthStore.getState().user?.id;
+    const activeChat = useChatStore.getState().activeChat;
+    const isOwn = message.senderId === selfId;
+    const chatInactive = activeChat?.id !== message.chatId;
+    if (!isOwn && chatInactive) {
+      playMessage();
+    }
   });
 
   socket.on(WS_EVENTS.MESSAGE_EDIT, (data: { chatId: string; messageId: string; content: string; editedAt?: string }) => {
@@ -109,12 +124,17 @@ export function setupSocketListeners(socket: Socket) {
         initiatorId: data.initiatorId,
       };
       useCallStore.getState().setActiveCall(incomingCall);
+      const selfId = useAuthStore.getState().user?.id;
+      if (data.initiatorId !== selfId) {
+        startRinging();
+      }
     },
   );
 
   socket.on(WS_EVENTS.CALL_ACCEPTED, (data: { callId: string; userId: string }) => {
     const { activeCall } = useCallStore.getState();
     if (!activeCall || activeCall.id !== data.callId) return;
+    stopRinging();
     useCallStore.getState().setActiveCall({ ...activeCall, status: 'ACTIVE' });
     // ActiveCallScreen handles startCall on this same event
   });
@@ -146,12 +166,16 @@ export function setupSocketListeners(socket: Socket) {
   socket.on(WS_EVENTS.CALL_HANGUP, (data: { callId: string }) => {
     const { activeCall } = useCallStore.getState();
     if (!activeCall || activeCall.id !== data.callId) return;
+    stopRinging();
+    playCallEnded();
     useCallStore.getState().endCall();
   });
 
   socket.on(WS_EVENTS.CALL_REJECT, (data: { callId: string }) => {
     const { activeCall } = useCallStore.getState();
     if (!activeCall || activeCall.id !== data.callId) return;
+    stopRinging();
+    playCallEnded();
     useCallStore.getState().endCall();
   });
 

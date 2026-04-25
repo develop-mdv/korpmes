@@ -5,13 +5,15 @@ import { useAuthStore } from '../stores/auth.store';
 
 export interface Message {
   id: string;
+  seq: number;
   chatId: string;
   senderId: string;
   senderName: string;
   senderAvatarUrl?: string;
   content: string;
-  type: 'text' | 'image' | 'file' | 'audio';
+  type: 'text' | 'image' | 'file' | 'audio' | 'video' | 'system';
   fileUrl?: string;
+  attachments?: string[];
   parentMessageId?: string;
   replyCount?: number;
   createdAt: string;
@@ -34,6 +36,7 @@ export interface MessagesResponse {
 
 interface RawMessage {
   id: string;
+  seq?: number | string;
   chatId: string;
   senderId: string;
   senderName?: string;
@@ -49,6 +52,7 @@ interface RawMessage {
   type?: string;
   metadata?: {
     fileUrl?: string;
+    fileIds?: string[];
   };
   fileUrl?: string;
   parentMessageId?: string | null;
@@ -71,9 +75,15 @@ let refreshPromise: Promise<string> | null = null;
 
 export function normalizeMessage(raw: RawMessage): Message {
   const sender = raw.sender || {};
+  const fileIds = Array.isArray(raw.metadata?.fileIds)
+    ? raw.metadata.fileIds.filter(
+        (x: unknown): x is string => typeof x === 'string' && x.length > 0,
+      )
+    : [];
 
   return {
     id: raw.id,
+    seq: typeof raw.seq === 'string' ? Number(raw.seq) : raw.seq || 0,
     chatId: raw.chatId,
     senderId: raw.senderId,
     senderName:
@@ -85,6 +95,7 @@ export function normalizeMessage(raw: RawMessage): Message {
     content: raw.content || '',
     type: ((raw.type || 'TEXT').toLowerCase() as Message['type']),
     fileUrl: raw.fileUrl || raw.metadata?.fileUrl,
+    attachments: fileIds,
     parentMessageId: raw.parentMessageId || undefined,
     replyCount: raw.replyCount || raw.threadCount || 0,
     createdAt: raw.createdAt,

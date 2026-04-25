@@ -1,5 +1,6 @@
 import { io, Socket } from 'socket.io-client';
 import { useAuthStore } from '@/stores/auth.store';
+import { useMessageStore } from '@/stores/message.store';
 
 let socket: Socket | null = null;
 
@@ -19,6 +20,13 @@ export function getSocket(): Socket {
 
   socket.on('connect', () => {
     console.log('[Socket] Connected:', socket?.id);
+    // Catch up missed messages for every chat we have history for
+    const lastSeqs = useMessageStore.getState().lastSeqByChatId;
+    for (const [chatId, afterSeq] of Object.entries(lastSeqs)) {
+      if (afterSeq && afterSeq > 0) {
+        socket?.emit('chat:catchup', { chatId, afterSeq });
+      }
+    }
   });
 
   socket.on('disconnect', (reason) => {

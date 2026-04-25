@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useRef, useLayoutEffect, useState } from 'react';
+import React, { useEffect, useCallback, useRef, useLayoutEffect, useState, useMemo } from 'react';
 import {
   Alert,
   View,
@@ -18,6 +18,8 @@ import { useMessageStore } from '../../stores/message.store';
 import { useAuthStore } from '../../stores/auth.store';
 import { useChatStore } from '../../stores/chat.store';
 import { useCallStore } from '../../stores/call.store';
+import { useOrganizationStore } from '../../stores/organization.store';
+import { useAttachmentStaging } from '../../hooks/useAttachmentStaging';
 import * as messagesApi from '../../api/messages.api';
 import * as callsApi from '../../api/calls.api';
 import * as chatsApi from '../../api/chats.api';
@@ -61,7 +63,11 @@ export function ChatViewScreen({ route, navigation }: Props) {
   const chat = useChatStore((state) => state.chats.find((item) => item.id === chatId));
   const activeCall = useCallStore((state) => state.activeCall);
   const setActiveCall = useCallStore((state) => state.setActiveCall);
-  const messages = useMessageStore((state) => state.messages[chatId] ?? EMPTY_MESSAGES);
+  const currentOrg = useOrganizationStore((state) => state.currentOrg);
+  const staging = useAttachmentStaging(currentOrg?.id);
+  const messagesAsc = useMessageStore((state) => state.messages[chatId] ?? EMPTY_MESSAGES);
+  // Store keeps ASC (oldest → newest); FlatList `inverted` expects newest-first.
+  const messages = useMemo(() => [...messagesAsc].reverse(), [messagesAsc]);
   const hasMore = useMessageStore((state) => state.hasMore[chatId] ?? true);
   const cursor = useMessageStore((state) => state.cursors[chatId]);
   const setMessages = useMessageStore((state) => state.setMessages);
@@ -175,10 +181,8 @@ export function ChatViewScreen({ route, navigation }: Props) {
       );
       setMessages(chatId, data.messages, data.hasMore, data.nextCursor);
 
-      // Reset unread counter locally and tell the backend we've read up to
-      // the newest message. Fire-and-forget; if this fails, the next
-      // message:read emission from another client will correct state.
-      const newest = data.messages[0];
+      // Backend returns ASC (oldest → newest); take the last item as newest.
+      const newest = data.messages[data.messages.length - 1];
       if (newest) {
         updateChat(chatId, { unreadCount: 0 });
         chatsApi.markChatAsRead(chatId, newest.id).catch(() => undefined);
@@ -226,12 +230,18 @@ export function ChatViewScreen({ route, navigation }: Props) {
           throw new Error('Socket is not connected');
         }
 
-        socket.emit(WS_EVENTS.MESSAGE_SEND, { chatId, content: text });
+        const fileIds = staging.getReadyFileIds();
+        socket.emit(WS_EVENTS.MESSAGE_SEND, {
+          chatId,
+          content: text,
+          fileIds: fileIds.length > 0 ? fileIds : undefined,
+        });
+        staging.reset();
       } catch (err) {
         console.error('Failed to send message:', err);
       }
     },
-    [chatId],
+    [chatId, staging],
   );
 
   const renderMessage = useCallback(
@@ -249,6 +259,7 @@ export function ChatViewScreen({ route, navigation }: Props) {
           isEdited={item.isEdited}
           showSender={showSender}
           replyCount={item.replyCount}
+          attachments={item.attachments}
           onOpenThread={() =>
             navigation.navigate('Thread', {
               chatId,
@@ -308,7 +319,13 @@ export function ChatViewScreen({ route, navigation }: Props) {
           }
         />
       )}
-      <MessageInput onSend={handleSend} onAttach={() => {}} />
+      <MessageInput
+        onSend={handleSend}
+        onAttach={staging.add}
+        stagedFiles={staging.staged}
+        onRemoveStaged={staging.remove}
+        disableSend={staging.isUploading}
+      />
     </KeyboardAvoidingView>
   );
 }

@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal } from 'react-native';
 import { Avatar } from './Avatar';
 import { useCallStore } from '../stores/call.store';
+import { startRinging, stopRinging, playCallEnded } from '../services/audio.service';
 
 interface CallOverlayProps {
   visible: boolean;
@@ -22,6 +23,13 @@ export function CallOverlay({
 }: CallOverlayProps) {
   const { endCall } = useCallStore();
 
+  useEffect(() => {
+    if (visible && isIncoming) {
+      startRinging();
+    }
+    return () => stopRinging();
+  }, [visible, isIncoming]);
+
   return (
     <Modal visible={visible} animationType="slide" transparent>
       <View style={styles.overlay}>
@@ -39,13 +47,20 @@ export function CallOverlay({
               <>
                 <TouchableOpacity
                   style={[styles.actionButton, styles.rejectButton]}
-                  onPress={onReject}
+                  onPress={() => {
+                    stopRinging();
+                    playCallEnded();
+                    onReject?.();
+                  }}
                 >
                   <Text style={styles.actionText}>Decline</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.actionButton, styles.acceptButton]}
-                  onPress={onAccept}
+                  onPress={() => {
+                    stopRinging();
+                    onAccept?.();
+                  }}
                 >
                   <Text style={styles.actionText}>Accept</Text>
                 </TouchableOpacity>
@@ -54,6 +69,8 @@ export function CallOverlay({
               <TouchableOpacity
                 style={[styles.actionButton, styles.rejectButton]}
                 onPress={() => {
+                  stopRinging();
+                  playCallEnded();
                   endCall();
                   onReject?.();
                 }}

@@ -13,15 +13,12 @@ export function useMessages(chatId: string | undefined) {
   const setMessages = useMessageStore((s) => s.setMessages);
   const prependMessages = useMessageStore((s) => s.prependMessages);
 
-  // Join socket room for this chat + load initial messages
+  // Join socket room + load initial messages. Always fetch — store merges/dedups.
   useEffect(() => {
     if (!chatId) return;
 
     const socket = getSocket();
     socket.emit('chat:join', { chatId });
-
-    const existing = useMessageStore.getState().messagesByChatId[chatId];
-    if (existing && existing.length > 0) return;
 
     messagesApi.getMessages(chatId).then((res) => {
       setMessages(chatId, res.messages, res.cursor, res.hasMore);
@@ -36,10 +33,15 @@ export function useMessages(chatId: string | undefined) {
   }, [chatId, hasMore, cursor, prependMessages]);
 
   const sendMessage = useCallback(
-    (content: string, replyToId?: string) => {
+    (content: string, fileIds?: string[], replyToId?: string) => {
       if (!chatId) return;
       const socket = getSocket();
-      socket.emit('message:send', { chatId, content, replyToId });
+      socket.emit('message:send', {
+        chatId,
+        content,
+        fileIds,
+        parentMessageId: replyToId,
+      });
     },
     [chatId],
   );

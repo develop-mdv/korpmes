@@ -23,13 +23,12 @@ export function uploadFile(
   return new Promise((resolve, reject) => {
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('organizationId', orgId);
-    if (messageId) {
-      formData.append('messageId', messageId);
-    }
+
+    const params = new URLSearchParams({ orgId });
+    if (messageId) params.set('messageId', messageId);
 
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', '/api/files/upload');
+    xhr.open('POST', `/api/files/upload?${params.toString()}`);
 
     const token = useAuthStore.getState().accessToken;
     if (token) {
@@ -45,13 +44,28 @@ export function uploadFile(
 
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
-        resolve(JSON.parse(xhr.responseText));
+        try {
+          const parsed = JSON.parse(xhr.responseText);
+          // Unwrap backend's TransformInterceptor `{ success, data }` envelope.
+          const unwrapped =
+            parsed && typeof parsed === 'object' && 'success' in parsed && 'data' in parsed
+              ? parsed.data
+              : parsed;
+          resolve(unwrapped);
+        } catch (err) {
+          reject(new Error('Invalid server response'));
+        }
       } else {
-        reject(new Error(`Upload failed with status ${xhr.status}`));
+        let serverMsg = `status ${xhr.status}`;
+        try {
+          const body = JSON.parse(xhr.responseText);
+          if (body?.message) serverMsg = body.message;
+        } catch {}
+        reject(new Error(`Upload failed: ${serverMsg}`));
       }
     };
 
-    xhr.onerror = () => reject(new Error('Upload failed'));
+    xhr.onerror = () => reject(new Error('Upload failed (network)'));
     xhr.send(formData);
   });
 }

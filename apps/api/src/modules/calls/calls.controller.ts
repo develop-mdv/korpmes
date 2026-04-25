@@ -16,6 +16,9 @@ import { CallsService } from './calls.service';
 import { InitiateCallDto } from './dto/initiate-call.dto';
 import { WebSocketService } from '../websocket/websocket.service';
 import { ChatsService } from '../chats/chats.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { UsersService } from '../users/users.service';
+import { NotificationType } from '@corp/shared-types';
 
 @ApiTags('Calls')
 @Controller('calls')
@@ -25,6 +28,8 @@ export class CallsController {
     private readonly wsService: WebSocketService,
     private readonly chatsService: ChatsService,
     private readonly configService: ConfigService,
+    private readonly notificationsService: NotificationsService,
+    private readonly usersService: UsersService,
   ) {}
 
   @UseGuards(JwtAuthGuard)
@@ -35,6 +40,11 @@ export class CallsController {
     @Body() dto: InitiateCallDto,
   ) {
     const call = await this.callsService.initiate(user.id, dto);
+
+    const initiator = await this.usersService.findById(user.id).catch(() => null);
+    const initiatorName = initiator
+      ? `${initiator.firstName} ${initiator.lastName || ''}`.trim()
+      : 'Incoming call';
 
     // Уведомляем всех участников чата о входящем звонке
     const members = await this.chatsService.getMembers(dto.chatId);
@@ -47,6 +57,21 @@ export class CallsController {
           type: dto.type.toLowerCase(),
           participants: [user.id, member.userId],
         });
+
+        this.notificationsService
+          .create(
+            member.userId,
+            NotificationType.CALL_INCOMING,
+            initiatorName,
+            `${dto.type.toLowerCase()} call`,
+            {
+              callId: call.id,
+              chatId: dto.chatId,
+              type: dto.type,
+              initiatorId: user.id,
+            },
+          )
+          .catch(() => undefined);
       }
     }
 
@@ -133,6 +158,26 @@ export class CallsController {
       callId: call.id,
       userId: user.id,
     });
+
+    // Missed call notification for initiator
+    const rejecter = await this.usersService.findById(user.id).catch(() => null);
+    const rejecterName = rejecter
+      ? `${rejecter.firstName} ${rejecter.lastName || ''}`.trim()
+      : 'User';
+
+    this.notificationsService
+      .create(
+        call.initiatedBy,
+        NotificationType.CALL_MISSED,
+        rejecterName,
+        `${call.type.toLowerCase()} call declined`,
+        {
+          callId: call.id,
+          chatId: call.chatId,
+          type: call.type,
+        },
+      )
+      .catch(() => undefined);
 
     return call;
   }

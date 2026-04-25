@@ -1,10 +1,12 @@
 import { create } from 'zustand';
 import type { Message } from '../api/messages.api';
+import { mergeMessages, lastSeq } from './message.utils';
 
 interface MessageState {
   messages: Record<string, Message[]>;
   hasMore: Record<string, boolean>;
   cursors: Record<string, string | undefined>;
+  lastSeqByChatId: Record<string, number>;
   isLoading: boolean;
   setMessages: (chatId: string, messages: Message[], hasMore: boolean, cursor?: string) => void;
   appendMessages: (chatId: string, messages: Message[], hasMore: boolean, cursor?: string) => void;
@@ -15,35 +17,51 @@ interface MessageState {
   clearChat: (chatId: string) => void;
 }
 
-export const useMessageStore = create<MessageState>()((set, get) => ({
+export const useMessageStore = create<MessageState>()((set) => ({
   messages: {},
   hasMore: {},
   cursors: {},
+  lastSeqByChatId: {},
   isLoading: false,
   setMessages: (chatId, messages, hasMore, cursor) => {
-    set((state) => ({
-      messages: { ...state.messages, [chatId]: messages },
-      hasMore: { ...state.hasMore, [chatId]: hasMore },
-      cursors: { ...state.cursors, [chatId]: cursor },
-    }));
+    set((state) => {
+      const merged = mergeMessages(state.messages[chatId] || [], messages);
+      return {
+        messages: { ...state.messages, [chatId]: merged },
+        hasMore: { ...state.hasMore, [chatId]: hasMore },
+        cursors: { ...state.cursors, [chatId]: cursor },
+        lastSeqByChatId: {
+          ...state.lastSeqByChatId,
+          [chatId]: lastSeq(merged),
+        },
+      };
+    });
   },
   appendMessages: (chatId, newMessages, hasMore, cursor) => {
-    set((state) => ({
-      messages: {
-        ...state.messages,
-        [chatId]: [...(state.messages[chatId] || []), ...newMessages],
-      },
-      hasMore: { ...state.hasMore, [chatId]: hasMore },
-      cursors: { ...state.cursors, [chatId]: cursor },
-    }));
+    set((state) => {
+      const merged = mergeMessages(state.messages[chatId] || [], newMessages);
+      return {
+        messages: { ...state.messages, [chatId]: merged },
+        hasMore: { ...state.hasMore, [chatId]: hasMore },
+        cursors: { ...state.cursors, [chatId]: cursor },
+        lastSeqByChatId: {
+          ...state.lastSeqByChatId,
+          [chatId]: lastSeq(merged),
+        },
+      };
+    });
   },
   addMessage: (chatId, message) => {
-    set((state) => ({
-      messages: {
-        ...state.messages,
-        [chatId]: [message, ...(state.messages[chatId] || [])],
-      },
-    }));
+    set((state) => {
+      const merged = mergeMessages(state.messages[chatId] || [], [message]);
+      return {
+        messages: { ...state.messages, [chatId]: merged },
+        lastSeqByChatId: {
+          ...state.lastSeqByChatId,
+          [chatId]: Math.max(state.lastSeqByChatId[chatId] || 0, message.seq || 0),
+        },
+      };
+    });
   },
   updateMessage: (chatId, messageId, updates) => {
     set((state) => ({

@@ -45,8 +45,17 @@ export class FilesService {
       );
     }
 
+    // Multer decodes the multipart filename header as latin-1; re-encode as
+    // utf-8 so cyrillic/etc filenames don't get stored as mojibake.
+    const originalName = Buffer.from(file.originalname, 'latin1').toString(
+      'utf8',
+    );
+
     const fileId = uuidv4();
-    const storageKey = `${orgId}/${fileId}/${file.originalname}`;
+    // ASCII-only storage key: keep the human filename in the DB column, but
+    // strip non-ASCII from the MinIO object key to avoid signed-URL issues.
+    const safeKeyName = originalName.replace(/[^\w.\-]+/g, '_');
+    const storageKey = `${orgId}/${fileId}/${safeKeyName}`;
 
     const checksum = crypto
       .createHash('sha256')
@@ -69,7 +78,7 @@ export class FilesService {
           .resize(200, 200, { fit: 'inside' })
           .toBuffer();
 
-        thumbnailKey = `${orgId}/${fileId}/thumbnail_${file.originalname}`;
+        thumbnailKey = `${orgId}/${fileId}/thumbnail_${safeKeyName}`;
         await this.storageService.upload(
           thumbnailKey,
           thumbnailBuffer,
@@ -85,7 +94,7 @@ export class FilesService {
       organizationId: orgId,
       messageId: messageId ?? null,
       taskId: taskId ?? null,
-      originalName: file.originalname,
+      originalName,
       storageKey,
       mimeType: file.mimetype,
       sizeBytes: file.size,
@@ -103,6 +112,7 @@ export class FilesService {
     if (!file) {
       throw new NotFoundException(`File with id "${id}" not found`);
     }
+    file.originalName = fixMojibake(file.originalName);
     return file;
   }
 
@@ -110,6 +120,12 @@ export class FilesService {
     const file = await this.findById(id);
     // TODO: verify user is a member of the organization
     return this.storageService.getSignedUrl(file.storageKey);
+  }
+
+  async getThumbnailUrl(id: string): Promise<string | null> {
+    const file = await this.findById(id);
+    if (!file.thumbnailKey) return null;
+    return this.storageService.getSignedUrl(file.thumbnailKey);
   }
 
   async delete(id: string, userId: string): Promise<void> {
@@ -129,24 +145,50 @@ export class FilesService {
   }
 
   async findByChat(chatId: string): Promise<File[]> {
-    return this.fileRepository.find({
-      where: { messageId: chatId },
-      order: { createdAt: 'DESC' },
-    });
+    const rows = await this.fileRepository
+      .createQueryBuilder('f')
+      .innerJoin('messages', 'm', 'm.id = f.message_id')
+      .where('m.chat_id = :chatId', { chatId })
+      .orderBy('f.created_at', 'DESC')
+      .getMany();
+    return rows.map(fixFileNameInPlace);
   }
 
   async findByTask(taskId: string): Promise<File[]> {
-    return this.fileRepository.find({
+    const rows = await this.fileRepository.find({
       where: { taskId },
       order: { createdAt: 'DESC' },
     });
+    return rows.map(fixFileNameInPlace);
   }
 
   async findByOrg(orgId: string, limit = 100): Promise<File[]> {
-    return this.fileRepository.find({
+    const rows = await this.fileRepository.find({
       where: { organizationId: orgId },
       order: { createdAt: 'DESC' },
       take: limit,
     });
+    return rows.map(fixFileNameInPlace);
   }
+}
+
+// Heuristically reverses the latin-1↔utf-8 mojibake produced by older multer
+// uploads. Only applied when the string contains the typical mojibake byte
+// pattern (Ð/Ñ/Ã/Â followed by another high-bit byte) AND re-decoding
+// produces a valid utf-8 string with no replacement chars.
+function fixMojibake(name: string): string {
+  if (!name) return name;
+  if (!/[ÐÑÃÂ][\x80-\xBF]/.test(name)) return name;
+  try {
+    const decoded = Buffer.from(name, 'latin1').toString('utf8');
+    if (decoded.includes('�')) return name;
+    return decoded;
+  } catch {
+    return name;
+  }
+}
+
+function fixFileNameInPlace(file: File): File {
+  file.originalName = fixMojibake(file.originalName);
+  return file;
 }

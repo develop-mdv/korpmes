@@ -1,13 +1,13 @@
 import {
   IsString,
-  MinLength,
   MaxLength,
   IsOptional,
   IsEnum,
   IsUUID,
   IsArray,
+  ValidateIf,
 } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export enum CreateMessageType {
   TEXT = 'TEXT',
@@ -20,11 +20,12 @@ export enum CreateMessageType {
 }
 
 export class CreateMessageDto {
-  @ApiProperty({ description: 'Message content', maxLength: 4096 })
+  // Content is optional when fileIds is non-empty (attachment-only message).
+  @ApiPropertyOptional({ description: 'Message content', maxLength: 4096 })
+  @ValidateIf((o) => !o.fileIds || o.fileIds.length === 0)
   @IsString()
-  @MinLength(1)
   @MaxLength(4096)
-  content: string;
+  content?: string;
 
   @ApiPropertyOptional({ enum: CreateMessageType, default: CreateMessageType.TEXT })
   @IsOptional()

@@ -9,6 +9,8 @@ import { CallsController } from './calls.controller';
 import { CallsGateway } from './calls.gateway';
 import { WebSocketModule } from '../websocket/websocket.module';
 import { ChatsModule } from '../chats/chats.module';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
@@ -22,6 +24,8 @@ import { ChatsModule } from '../chats/chats.module';
     }),
     forwardRef(() => WebSocketModule),
     forwardRef(() => ChatsModule),
+    forwardRef(() => NotificationsModule),
+    UsersModule,
   ],
   controllers: [CallsController],
   providers: [CallsService, CallsGateway],

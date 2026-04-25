@@ -3,9 +3,13 @@ import { useMessageStore } from '@/stores/message.store';
 import { useChatStore } from '@/stores/chat.store';
 import { useCallStore } from '@/stores/call.store';
 import { useNotificationStore } from '@/stores/notification.store';
+import { useAuthStore } from '@/stores/auth.store';
 import type { Message } from '@/stores/message.store';
 import type { Notification } from '@/stores/notification.store';
 import * as callManager from '@/services/call-manager';
+import { audio } from '@/services/audio.service';
+import { showDesktop } from '@/services/desktop-notifications.service';
+import { startTitleFlash } from '@/services/title-flash.service';
 
 interface TypingEvent {
   chatId: string;
@@ -31,23 +35,30 @@ export function getTypingUsers(chatId: string) {
 
 // Normalize a message from the API/WS (which has `sender` as object) to the flat format the store expects
 function normalizeMessage(raw: any): Message {
-  if (raw.senderName) return raw; // already flat
+  if (raw.senderName && typeof raw.seq === 'number') return raw; // already normalized
   const sender = raw.sender || {};
+  const fileIds = Array.isArray(raw.metadata?.fileIds)
+    ? raw.metadata.fileIds.filter(
+        (x: unknown): x is string => typeof x === 'string' && x.length > 0,
+      )
+    : [];
   return {
     id: raw.id,
+    seq: typeof raw.seq === 'string' ? Number(raw.seq) : raw.seq || 0,
     chatId: raw.chatId,
     senderId: raw.senderId,
-    senderName: sender.firstName
+    senderName: raw.senderName || (sender.firstName
       ? `${sender.firstName} ${sender.lastName || ''}`.trim()
-      : sender.email || 'Unknown',
-    senderAvatar: sender.avatarUrl,
-    content: raw.content,
-    type: (raw.type || 'text').toLowerCase(),
+      : sender.email || 'Unknown'),
+    senderAvatar: raw.senderAvatar || sender.avatarUrl,
+    content: raw.content || '',
+    type: (raw.type || 'text').toLowerCase() as Message['type'],
     replyToId: raw.parentMessageId || raw.replyToId,
     reactions: raw.reactions || [],
     isPinned: raw.isPinned || false,
     isEdited: raw.isEdited || !!raw.editedAt,
     threadCount: raw.threadCount || raw.replyCount || 0,
+    attachments: fileIds,
     createdAt: raw.createdAt,
     updatedAt: raw.updatedAt || raw.createdAt,
   };
@@ -58,15 +69,42 @@ export function setupSocketListeners(socket: Socket): () => void {
     'message:new': (raw: any) => {
       const message = normalizeMessage(raw);
       useMessageStore.getState().addMessage(message.chatId, message);
+      const attachCount = message.attachments?.length ?? 0;
+      const previewContent =
+        message.content ||
+        (attachCount > 0
+          ? `📎 ${attachCount} ${attachCount === 1 ? 'файл' : 'файлов'}`
+          : '');
       useChatStore.getState().updateLastMessage(message.chatId, {
-        content: message.content,
+        content: previewContent,
         senderName: message.senderName,
         createdAt: message.createdAt,
       });
 
       const activeChatId = useChatStore.getState().activeChatId;
-      if (message.chatId !== activeChatId) {
+      const currentUserId = useAuthStore.getState().user?.id;
+      const isOwn = message.senderId === currentUserId;
+      const chatInactive = message.chatId !== activeChatId;
+      const tabBlurred = !document.hasFocus();
+
+      if (chatInactive) {
         useChatStore.getState().incrementUnread(message.chatId);
+      }
+
+      // Sound / desktop / title-flash only for incoming messages, and only when
+      // the chat isn't active OR the window isn't focused.
+      if (!isOwn && (chatInactive || tabBlurred)) {
+        audio.playMessage();
+        const previewText = message.content.slice(0, 80) || '📎 Attachment';
+        showDesktop(
+          message.senderName,
+          previewText,
+          () => {
+            useChatStore.getState().setActiveChatId?.(message.chatId);
+          },
+          { tag: `chat-${message.chatId}` },
+        );
+        startTitleFlash(`${message.senderName}: ${previewText}`);
       }
     },
 
@@ -116,9 +154,20 @@ export function setupSocketListeners(socket: Socket): () => void {
         status: 'ringing',
         startedAt: new Date().toISOString(),
       });
+      const currentUserId = useAuthStore.getState().user?.id;
+      if (data.initiatorId !== currentUserId) {
+        audio.startRinging();
+        showDesktop(
+          'Входящий звонок',
+          `${data.type === 'video' ? 'Видео' : 'Аудио'} звонок`,
+          () => window.focus(),
+          { tag: `call-${data.callId}` },
+        );
+      }
     },
 
     'call:accepted': (data: { callId: string; userId: string }) => {
+      audio.stopRinging();
       callManager.onCallAccepted(data).catch(console.error);
     },
 
@@ -135,6 +184,8 @@ export function setupSocketListeners(socket: Socket): () => void {
     },
 
     'call:hangup': (_data: { callId: string }) => {
+      audio.stopRinging();
+      audio.playCallEnded();
       callManager.cleanup();
     },
 

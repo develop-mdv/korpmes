@@ -1,9 +1,17 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  Logger,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { WS_EVENTS } from '@corp/shared-constants';
 import { Notification } from './entities/notification.entity';
 import { PushToken } from './entities/push-token.entity';
 import { RegisterPushTokenDto } from './dto/register-push-token.dto';
+import { WebSocketService } from '../websocket/websocket.service';
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 
@@ -25,6 +33,8 @@ export class NotificationsService {
     private readonly notificationRepository: Repository<Notification>,
     @InjectRepository(PushToken)
     private readonly pushTokenRepository: Repository<PushToken>,
+    @Inject(forwardRef(() => WebSocketService))
+    private readonly wsService: WebSocketService,
   ) {}
 
   async create(
@@ -44,7 +54,14 @@ export class NotificationsService {
 
     const saved = await this.notificationRepository.save(notification);
 
-    // Fire-and-forget: send push to all registered devices
+    // Real-time notification via WebSocket (in-app toast/sound/title flash)
+    try {
+      this.wsService.emitToUser(userId, WS_EVENTS.NOTIFICATION_NEW, saved);
+    } catch (err: any) {
+      this.logger.warn(`WS emit failed for user ${userId}: ${err.message}`);
+    }
+
+    // Fire-and-forget: send push to all registered devices (mobile background)
     this.sendExpoPushToUser(userId, { title, body, data }).catch((err) =>
       this.logger.warn(`Push send failed for user ${userId}: ${err.message}`),
     );
