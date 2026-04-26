@@ -1,10 +1,19 @@
 import React, { useState, FormEvent } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuthStore } from '@/stores/auth.store';
 import * as authApi from '@/api/auth.api';
 
+function safeNext(next: string | null): string {
+  if (!next) return '/chats';
+  // Only allow internal paths to prevent open-redirect.
+  if (next.startsWith('/') && !next.startsWith('//')) return next;
+  return '/chats';
+}
+
 export function LoginPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const next = safeNext(searchParams.get('next'));
   const { setAuth } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -31,7 +40,7 @@ export function LoginPage() {
         accessToken: response.accessToken,
         refreshToken: response.refreshToken,
       });
-      navigate('/chats');
+      navigate(next);
     } catch (err: any) {
       setError(err.response?.data?.error?.message || 'Login failed');
     } finally {
@@ -99,7 +108,12 @@ export function LoginPage() {
         <div style={styles.links}>
           <Link to="/forgot-password" style={styles.link}>Forgot password?</Link>
           <span style={styles.separator}>|</span>
-          <Link to="/register" style={styles.link}>Create account</Link>
+          <Link
+            to={next === '/chats' ? '/register' : `/register?next=${encodeURIComponent(next)}`}
+            style={styles.link}
+          >
+            Create account
+          </Link>
         </div>
       </div>
     </div>

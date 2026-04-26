@@ -6,6 +6,8 @@ import { OrganizationMember } from './entities/organization-member.entity';
 import { Invite } from './entities/invite.entity';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
+import { ChatsService } from '../chats/chats.service';
+import { ChatType } from '../chats/entities/chat.entity';
 
 @Injectable()
 export class OrganizationsService {
@@ -16,6 +18,7 @@ export class OrganizationsService {
     private readonly memberRepo: Repository<OrganizationMember>,
     @InjectRepository(Invite)
     private readonly inviteRepo: Repository<Invite>,
+    private readonly chatsService: ChatsService,
   ) {}
 
   async create(userId: string, dto: CreateOrganizationDto): Promise<Organization> {
@@ -32,6 +35,8 @@ export class OrganizationsService {
       joinedAt: new Date(),
     });
     await this.memberRepo.save(ownerMember);
+
+    await this.ensureDefaultChat(savedOrg.id, userId);
 
     return savedOrg;
   }
@@ -94,20 +99,47 @@ export class OrganizationsService {
     );
   }
 
-  async requestJoin(orgId: string, userId: string): Promise<void> {
-    await this.findById(orgId);
+  /**
+   * Lazily create the organization-wide chat ("Общий") if missing and return its id.
+   * Creator/owner is added as ADMIN; existing members are backfilled the first time
+   * the chat is created.
+   */
+  async ensureDefaultChat(orgId: string, fallbackCreatorId?: string): Promise<string> {
+    const org = await this.organizationRepo.findOne({ where: { id: orgId } });
+    if (!org) throw new NotFoundException('Organization not found');
 
-    const existing = await this.memberRepo.findOne({
-      where: { organizationId: orgId, userId },
-    });
-    if (existing) return;
+    const existingId = org.settings?.defaultChatId as string | undefined;
+    if (existingId) return existingId;
 
-    const member = this.memberRepo.create({
+    const creatorId = fallbackCreatorId ?? org.createdBy;
+    const members = await this.memberRepo.find({ where: { organizationId: orgId } });
+    const otherMemberIds = members
+      .map((m) => m.userId)
+      .filter((id) => id !== creatorId);
+
+    const chat = await this.chatsService.create(creatorId, {
+      type: ChatType.CHANNEL,
       organizationId: orgId,
-      userId,
-      role: 'MEMBER',
-      joinedAt: new Date(),
+      name: 'Общий',
+      memberIds: otherMemberIds,
     });
-    await this.memberRepo.save(member);
+
+    const settings: Record<string, any> = { ...(org.settings ?? {}), defaultChatId: chat.id };
+    await this.organizationRepo.update(orgId, { settings: settings as any });
+
+    return chat.id;
+  }
+
+  async getDefaultChatId(orgId: string): Promise<string> {
+    return this.ensureDefaultChat(orgId);
+  }
+
+  async addUserToDefaultChat(orgId: string, userId: string): Promise<void> {
+    const chatId = await this.ensureDefaultChat(orgId);
+    try {
+      await this.chatsService.addMember(chatId, userId, userId);
+    } catch (err: any) {
+      // Already a member — no-op
+    }
   }
 }

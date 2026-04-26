@@ -1,10 +1,18 @@
 import React, { useState, FormEvent } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import * as authApi from '@/api/auth.api';
 import { useAuthStore } from '@/stores/auth.store';
 
+function safeNext(next: string | null): string {
+  if (!next) return '/chats';
+  if (next.startsWith('/') && !next.startsWith('//')) return next;
+  return '/chats';
+}
+
 export function RegisterPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const next = safeNext(searchParams.get('next'));
   const { setAuth } = useAuthStore();
   const [form, setForm] = useState({
     firstName: '',
@@ -46,7 +54,7 @@ export function RegisterPage() {
         accessToken: response.accessToken,
         refreshToken: response.refreshToken,
       });
-      navigate('/chats');
+      navigate(next);
     } catch (err: any) {
       setError(err.response?.data?.error?.message || 'Registration failed');
     } finally {
@@ -95,7 +103,13 @@ export function RegisterPage() {
         </form>
 
         <div style={styles.links}>
-          Already have an account? <Link to="/login" style={styles.link}>Sign In</Link>
+          Already have an account?{' '}
+          <Link
+            to={next === '/chats' ? '/login' : `/login?next=${encodeURIComponent(next)}`}
+            style={styles.link}
+          >
+            Sign In
+          </Link>
         </div>
       </div>
     </div>

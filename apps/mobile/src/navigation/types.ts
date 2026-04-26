@@ -4,12 +4,14 @@ export type RootStackParamList = {
   Auth: NavigatorScreenParams<AuthStackParamList>;
   App: NavigatorScreenParams<AppTabParamList>;
   ActiveCall: undefined;
+  Invite: { token: string };
 };
 
 export type AuthStackParamList = {
   Login: undefined;
   Register: undefined;
   ForgotPassword: undefined;
+  Invite: { token: string };
 };
 
 export type AppTabParamList = {

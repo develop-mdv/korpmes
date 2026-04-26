@@ -6,7 +6,7 @@ import { RootNavigator } from './src/navigation/RootNavigator';
 import { useSettingsStore } from './src/stores/settings.store';
 
 const linking = {
-  prefixes: ['corpmessenger://', 'https://corpmessenger.com'],
+  prefixes: ['corpmessenger://', 'https://korpmes.ru', 'https://corpmessenger.com'],
   config: {
     screens: {
       Auth: {
@@ -14,6 +14,7 @@ const linking = {
           Login: 'login',
           Register: 'register',
           ForgotPassword: 'forgot-password',
+          Invite: 'invite/:token',
         },
       },
       App: {
@@ -37,6 +38,7 @@ const linking = {
           SettingsTab: 'settings',
         },
       },
+      Invite: 'invite/:token',
     },
   },
 };

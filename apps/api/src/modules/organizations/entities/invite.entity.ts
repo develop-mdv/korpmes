@@ -5,6 +5,8 @@ import {
   CreateDateColumn,
 } from 'typeorm';
 
+export type InviteType = 'EMAIL' | 'PHONE' | 'LINK';
+
 @Entity('invites')
 export class Invite {
   @PrimaryGeneratedColumn('uuid')
@@ -25,14 +27,20 @@ export class Invite {
   @Column({ unique: true })
   token: string;
 
+  @Column({ default: 'EMAIL' })
+  type: InviteType;
+
   @Column({ name: 'invited_by', type: 'uuid' })
   invitedBy: string;
 
   @Column({ default: 'PENDING' })
   status: string;
 
-  @Column({ name: 'expires_at', type: 'timestamp' })
-  expiresAt: Date;
+  @Column({ name: 'expires_at', type: 'timestamp', nullable: true })
+  expiresAt: Date | null;
+
+  @Column({ name: 'revoked_at', type: 'timestamp', nullable: true })
+  revokedAt: Date | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

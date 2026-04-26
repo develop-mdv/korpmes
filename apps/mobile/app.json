@@ -3,6 +3,7 @@
     "name": "CorpMessenger",
     "slug": "corpmessenger",
     "version": "0.1.0",
+    "scheme": "corpmessenger",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "splash": {
@@ -18,6 +19,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.corpmessenger.app",
+      "associatedDomains": ["applinks:korpmes.ru"],
       "infoPlist": {
         "NSCameraUsageDescription": "Camera access for video calls and photo messages",
         "NSMicrophoneUsageDescription": "Microphone access for audio calls and voice messages"
@@ -29,6 +31,17 @@
         "backgroundColor": "#4F46E5"
       },
       "package": "com.corpmessenger.app",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            { "scheme": "https", "host": "korpmes.ru", "pathPrefix": "/invite" },
+            { "scheme": "corpmessenger" }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ],
       "permissions": [
         "CAMERA",
         "RECORD_AUDIO",

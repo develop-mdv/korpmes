@@ -14,14 +14,24 @@ export function JoinOrganizationPage() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<OrgResult[]>([]);
   const [searching, setSearching] = useState(false);
-  const [requestSent, setRequestSent] = useState<Record<string, boolean>>({});
+  const [pendingByOrg, setPendingByOrg] = useState<Record<string, boolean>>({});
   const [error, setError] = useState('');
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  // Load top orgs on mount
+  // Load top orgs and current pending requests on mount
   useEffect(() => {
     setSearching(true);
-    orgsApi.searchOrganizations('').then(setResults).catch(() => setResults([])).finally(() => setSearching(false));
+    Promise.all([
+      orgsApi.searchOrganizations('').catch(() => [] as OrgResult[]),
+      orgsApi.getMyAllPendingRequests().catch(() => [] as orgsApi.JoinRequest[]),
+    ])
+      .then(([orgs, pending]) => {
+        setResults(orgs);
+        const map: Record<string, boolean> = {};
+        for (const r of pending) map[r.organizationId] = true;
+        setPendingByOrg(map);
+      })
+      .finally(() => setSearching(false));
   }, []);
 
   // Debounced search on query change
@@ -46,62 +56,69 @@ export function JoinOrganizationPage() {
     setError('');
     try {
       await orgsApi.requestJoin(orgId);
-      setRequestSent((prev) => ({ ...prev, [orgId]: true }));
+      setPendingByOrg((prev) => ({ ...prev, [orgId]: true }));
     } catch (err: any) {
-      setError(err.response?.data?.error?.message || 'Failed to send request');
+      setError(err.response?.data?.error?.message || 'Не удалось отправить запрос');
     }
   };
 
   return (
     <div style={styles.container}>
       <div style={styles.card}>
-        <h1 style={styles.title}>Join an Organization</h1>
-        <p style={styles.subtitle}>Search for your company's workspace</p>
+        <h1 style={styles.title}>Присоединиться к организации</h1>
+        <p style={styles.subtitle}>Найдите рабочее пространство вашей компании</p>
 
         {error && <div style={styles.error}>{error}</div>}
 
         <input
           style={styles.input}
-          placeholder="Search organizations..."
+          placeholder="Поиск организаций..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           autoFocus
         />
 
         <div style={styles.resultsList}>
-          {searching && <p style={styles.hint}>Searching...</p>}
+          {searching && <p style={styles.hint}>Поиск...</p>}
           {!searching && query && results.length === 0 && (
-            <p style={styles.hint}>No organizations found</p>
+            <p style={styles.hint}>Организации не найдены</p>
           )}
           {results.map((org) => (
             <div key={org.id} style={styles.resultItem}>
               <div style={styles.orgIcon}>🏢</div>
               <div style={styles.orgInfo}>
                 <div style={styles.orgName}>{org.name}</div>
-                <div style={styles.orgMeta}>{org.memberCount} members{org.description ? ` · ${org.description}` : ''}</div>
+                <div style={styles.orgMeta}>
+                  {org.memberCount} участников
+                  {org.description ? ` · ${org.description}` : ''}
+                </div>
               </div>
-              {requestSent[org.id] ? (
-                <span style={styles.sentBadge}>Request Sent</span>
+              {pendingByOrg[org.id] ? (
+                <span style={styles.sentBadge}>Запрос отправлен</span>
               ) : (
                 <button style={styles.joinBtn} onClick={() => handleRequestJoin(org.id)}>
-                  Request to Join
+                  Подать заявку
                 </button>
               )}
             </div>
           ))}
           {!query && !searching && results.length > 0 && (
-            <p style={{ ...styles.hint, marginBottom: 4 }}>Popular organizations</p>
+            <p style={{ ...styles.hint, marginBottom: 4 }}>Популярные организации</p>
           )}
           {!query && !searching && results.length === 0 && (
-            <p style={styles.hint}>No organizations available yet</p>
+            <p style={styles.hint}>Пока нет доступных организаций</p>
           )}
         </div>
 
         <div style={styles.footer}>
-          <span style={styles.footerText}>Don't see yours?</span>
-          <Link to="/create-organization" style={styles.link}>Create a new organization</Link>
+          <span style={styles.footerText}>Не нашли свою?</span>
+          <Link to="/create-organization" style={styles.link}>
+            Создать новую организацию
+          </Link>
           <span style={styles.footerDivider}>·</span>
-          <Link to="/chats" style={styles.link}>Skip for now</Link>
+          <Link to="/chats" style={styles.link}>
+            Пропустить
+          </Link>
         </div>
       </div>
     </div>

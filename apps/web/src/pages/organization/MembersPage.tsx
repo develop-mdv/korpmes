@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Avatar } from '@/components/common/Avatar';
 import { Modal } from '@/components/common/Modal';
 import { useOrganizationStore } from '@/stores/organization.store';
+import { useAuthStore } from '@/stores/auth.store';
 import * as orgsApi from '@/api/organizations.api';
 
 interface Member {
@@ -16,6 +18,7 @@ const ROLES = ['OWNER', 'ADMIN', 'MANAGER', 'EMPLOYEE', 'GUEST'];
 
 export function MembersPage() {
   const { currentOrg } = useOrganizationStore();
+  const currentUser = useAuthStore((s) => s.user);
   const [members, setMembers] = useState<Member[]>([]);
   const [search, setSearch] = useState('');
   const [showInvite, setShowInvite] = useState(false);
@@ -23,6 +26,15 @@ export function MembersPage() {
   const [inviteRole, setInviteRole] = useState('EMPLOYEE');
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteMsg, setInviteMsg] = useState('');
+  const [inviteLink, setInviteLink] = useState<orgsApi.InviteLinkInfo | null>(null);
+  const [linkBusy, setLinkBusy] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+
+  const myMembership = currentUser
+    ? members.find((m) => m.userId === currentUser.id)
+    : undefined;
+  const canManageInvites = !!myMembership && ['OWNER', 'ADMIN'].includes(myMembership.role);
 
   useEffect(() => {
     if (!currentOrg) return;
@@ -30,6 +42,11 @@ export function MembersPage() {
       const list = (res as any).data || (res as any).members || [];
       setMembers(list as Member[]);
     });
+    orgsApi.getInviteLink(currentOrg.id).then(setInviteLink).catch(() => setInviteLink(null));
+    orgsApi
+      .listJoinRequests(currentOrg.id)
+      .then((reqs) => setPendingCount(reqs.length))
+      .catch(() => setPendingCount(0));
   }, [currentOrg]);
 
   const filtered = members.filter((m) => {
@@ -43,6 +60,51 @@ export function MembersPage() {
     try {
       await orgsApi.changeRole(currentOrg.id, userId, role);
       setMembers((prev) => prev.map((m) => (m.id === memberId ? { ...m, role } : m)));
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleCreateLink = async () => {
+    if (!currentOrg) return;
+    setLinkBusy(true);
+    try {
+      const info = await orgsApi.createInviteLink(currentOrg.id);
+      setInviteLink(info);
+    } finally {
+      setLinkBusy(false);
+    }
+  };
+
+  const handleRevokeLink = async () => {
+    if (!currentOrg) return;
+    setLinkBusy(true);
+    try {
+      await orgsApi.revokeInviteLink(currentOrg.id);
+      setInviteLink(null);
+    } finally {
+      setLinkBusy(false);
+    }
+  };
+
+  const handleRotateLink = async () => {
+    if (!currentOrg) return;
+    setLinkBusy(true);
+    try {
+      await orgsApi.revokeInviteLink(currentOrg.id);
+      const info = await orgsApi.createInviteLink(currentOrg.id);
+      setInviteLink(info);
+    } finally {
+      setLinkBusy(false);
+    }
+  };
+
+  const handleCopyLink = async () => {
+    if (!inviteLink) return;
+    try {
+      await navigator.clipboard.writeText(inviteLink.url);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 1500);
     } catch {
       // ignore
     }
@@ -70,11 +132,47 @@ export function MembersPage() {
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <h1 style={styles.title}>Members ({members.length})</h1>
-        <button style={styles.inviteBtn} onClick={() => setShowInvite(true)}>Invite Member</button>
+        <h1 style={styles.title}>Участники ({members.length})</h1>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {canManageInvites && (
+            <Link to="/organization/requests" style={styles.requestsLink}>
+              Заявки{pendingCount > 0 ? ` (${pendingCount})` : ''}
+            </Link>
+          )}
+          <button style={styles.inviteBtn} onClick={() => setShowInvite(true)}>
+            Пригласить
+          </button>
+        </div>
       </div>
 
-      <input style={styles.search} placeholder="Search members..." value={search} onChange={(e) => setSearch(e.target.value)} />
+      {canManageInvites && (
+        <div style={styles.linkBlock}>
+          <div style={styles.linkLabel}>Ссылка-приглашение</div>
+          {inviteLink ? (
+            <div style={styles.linkRow}>
+              <input style={styles.linkInput} value={inviteLink.url} readOnly />
+              <button style={styles.linkBtn} onClick={handleCopyLink} disabled={linkBusy}>
+                {linkCopied ? 'Скопировано!' : 'Копировать'}
+              </button>
+              <button style={styles.linkBtn} onClick={handleRotateLink} disabled={linkBusy}>
+                Перевыпустить
+              </button>
+              <button style={{ ...styles.linkBtn, ...styles.linkBtnDanger }} onClick={handleRevokeLink} disabled={linkBusy}>
+                Отозвать
+              </button>
+            </div>
+          ) : (
+            <div style={styles.linkRow}>
+              <span style={styles.linkHint}>Ссылка не создана. Поделитесь ей, чтобы коллеги могли вступить без подтверждения.</span>
+              <button style={styles.inviteBtn} onClick={handleCreateLink} disabled={linkBusy}>
+                Создать ссылку
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      <input style={styles.search} placeholder="Поиск участников..." value={search} onChange={(e) => setSearch(e.target.value)} />
 
       <div style={styles.table}>
         <div style={{ ...styles.tableRow, ...styles.tableHeader }}>
@@ -169,4 +267,12 @@ const styles: Record<string, React.CSSProperties> = {
   memberEmail: { fontSize: 12, color: 'var(--color-text-secondary)' },
   roleSelect: { padding: '4px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)', fontSize: 13, width: '100%' },
   removeBtn: { padding: '4px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid #EF4444', background: 'transparent', color: '#EF4444', fontSize: 12, cursor: 'pointer' },
+  requestsLink: { display: 'inline-flex', alignItems: 'center', padding: '10px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text)', fontSize: 14, fontWeight: 500, textDecoration: 'none' },
+  linkBlock: { background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: '12px 16px', marginBottom: 16 },
+  linkLabel: { fontSize: 13, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 8 },
+  linkRow: { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
+  linkInput: { flex: '1 1 240px', minWidth: 200, padding: '8px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)', fontSize: 13, background: 'var(--color-surface)', color: 'var(--color-text)' },
+  linkBtn: { padding: '8px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text)', fontSize: 13, cursor: 'pointer' },
+  linkBtnDanger: { color: '#DC2626', borderColor: '#FCA5A5' },
+  linkHint: { flex: 1, fontSize: 13, color: 'var(--color-text-secondary)' },
 };
