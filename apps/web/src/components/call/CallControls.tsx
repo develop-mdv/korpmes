@@ -8,7 +8,9 @@ interface CallControlsProps {
 }
 
 export function CallControls({ onHangup, callType }: CallControlsProps) {
-  const { isMuted, isVideoOff, isScreenSharing, toggleMute, toggleVideo } = useCallStore();
+  const { isMuted, isVideoOff, isScreenSharing, layoutMode, toggleMute, toggleVideo, setLayoutMode } = useCallStore();
+  const remoteCount = useCallStore((s) => Object.keys(s.remoteStreams).length);
+  const showLayoutToggle = callType === 'video' && remoteCount > 0;
 
   const handleScreenShare = () => {
     if (isScreenSharing) callManager.stopScreenShare();
@@ -103,6 +105,33 @@ export function CallControls({ onHangup, callType }: CallControlsProps) {
                 <line x1="12" y1="17" x2="12" y2="21" />
                 <polyline points="17 8 12 3 7 8" />
                 <line x1="12" y1="3" x2="12" y2="13" />
+              </>
+            )}
+          </svg>
+        </button>
+      )}
+
+      {/* Layout toggle — only for video calls with at least one remote */}
+      {showLayoutToggle && (
+        <button
+          style={styles.btn}
+          onClick={() => setLayoutMode(layoutMode === 'grid' ? 'speaker' : 'grid')}
+          title={layoutMode === 'grid' ? 'Режим докладчика' : 'Режим сетки'}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            {layoutMode === 'grid' ? (
+              <>
+                <rect x="3" y="3" width="18" height="14" rx="2" ry="2" />
+                <rect x="3" y="19" width="4" height="2" />
+                <rect x="9" y="19" width="4" height="2" />
+                <rect x="15" y="19" width="4" height="2" />
+              </>
+            ) : (
+              <>
+                <rect x="3" y="3" width="7" height="7" />
+                <rect x="14" y="3" width="7" height="7" />
+                <rect x="3" y="14" width="7" height="7" />
+                <rect x="14" y="14" width="7" height="7" />
               </>
             )}
           </svg>

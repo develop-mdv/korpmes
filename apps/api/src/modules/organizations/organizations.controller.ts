@@ -48,15 +48,6 @@ export class OrganizationsController {
     return this.organizationsService.findById(id);
   }
 
-  @Post(':id/join-request')
-  @ApiOperation({ summary: 'Request to join an organization' })
-  requestJoin(
-    @Param('id', ParseUUIDPipe) id: string,
-    @CurrentUser() user: any,
-  ) {
-    return this.organizationsService.requestJoin(id, user.id);
-  }
-
   @Patch(':id')
   @ApiOperation({ summary: 'Update organization' })
   update(

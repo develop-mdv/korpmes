@@ -10,9 +10,12 @@ import {
 } from 'react-native';
 import { Avatar } from '../../components/Avatar';
 import { useAuthStore } from '../../stores/auth.store';
+import { useSettingsStore } from '../../stores/settings.store';
 
 export function SettingsScreen() {
   const { user, logout } = useAuthStore();
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const setSoundEnabled = useSettingsStore((s) => s.setSoundEnabled);
   const [pushEnabled, setPushEnabled] = useState(true);
   const [emailEnabled, setEmailEnabled] = useState(false);
   const [darkTheme, setDarkTheme] = useState(false);
@@ -46,6 +49,14 @@ export function SettingsScreen() {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Notifications</Text>
+        <View style={styles.settingRow}>
+          <Text style={styles.settingLabel}>Sound & Vibration</Text>
+          <Switch
+            value={soundEnabled}
+            onValueChange={setSoundEnabled}
+            trackColor={{ true: '#4F46E5' }}
+          />
+        </View>
         <View style={styles.settingRow}>
           <Text style={styles.settingLabel}>Push Notifications</Text>
           <Switch

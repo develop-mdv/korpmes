@@ -1,21 +1,32 @@
 import { useCallback, useRef } from 'react';
 import {
   RTCPeerConnection,
+  RTCRtpSender,
   RTCSessionDescription,
   RTCIceCandidate,
   mediaDevices,
 } from 'react-native-webrtc';
 import type { MediaStream } from 'react-native-webrtc';
 import InCallManager from 'react-native-incall-manager';
-import { useCallStore } from '../stores/call.store';
+import { useCallStore, type AudioOutput } from '../stores/call.store';
 import { getExistingSocket } from '../socket/socket';
 import { getIceServers } from '../api/calls.api';
+import { useAuthStore } from '../stores/auth.store';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 const AUDIO_MAX_BITRATE = 64_000;
 const VIDEO_MAX_BITRATE = 800_000;
 const RECONNECT_TIMEOUT = 5000;
+
+const BITRATE_BY_QUALITY = {
+  good: { audio: 64_000, video: 800_000, framerate: undefined as number | undefined },
+  fair: { audio: 48_000, video: 600_000, framerate: 24 as number | undefined },
+  poor: { audio: 32_000, video: 400_000, framerate: 15 as number | undefined },
+};
+
+const PREFERRED_AUDIO_CODEC = 'audio/opus';
+const PREFERRED_VIDEO_CODEC = 'video/VP8';
 
 const AUDIO_CONSTRAINTS = {
   echoCancellation: true,
@@ -50,6 +61,8 @@ export function useWebRTC() {
     }
   }, []);
 
+  const lastAppliedQuality = useRef<'good' | 'fair' | 'poor' | null>(null);
+
   const applyBandwidthConstraints = useCallback(async (pc: InstanceType<typeof RTCPeerConnection>) => {
     try {
       const senders = pc.getSenders();
@@ -70,6 +83,71 @@ export function useWebRTC() {
       // setParameters may not be fully supported on all RN-WebRTC versions
     }
   }, []);
+
+  const preferCodecs = useCallback((pc: InstanceType<typeof RTCPeerConnection>) => {
+    try {
+      const transceivers = (pc as any).getTransceivers?.() ?? [];
+      for (const transceiver of transceivers) {
+        const kind = transceiver.sender?.track?.kind as 'audio' | 'video' | undefined;
+        if (!kind) continue;
+        const target = kind === 'audio' ? PREFERRED_AUDIO_CODEC : PREFERRED_VIDEO_CODEC;
+        const caps = (RTCRtpSender as any).getCapabilities?.(kind);
+        const codecs = caps?.codecs;
+        if (!codecs || codecs.length === 0) continue;
+        const sorted = [
+          ...codecs.filter((c: any) => c.mimeType?.toLowerCase() === target),
+          ...codecs.filter((c: any) => c.mimeType?.toLowerCase() !== target),
+        ];
+        transceiver.setCodecPreferences?.(sorted);
+      }
+    } catch {
+      // Codec preferences not supported on this platform
+    }
+  }, []);
+
+  const adaptBitrate = useCallback(async (
+    pc: InstanceType<typeof RTCPeerConnection>,
+    quality: 'good' | 'fair' | 'poor',
+  ) => {
+    if (lastAppliedQuality.current === quality) return;
+    const settings = BITRATE_BY_QUALITY[quality];
+    try {
+      const senders = pc.getSenders();
+      for (const sender of senders) {
+        if (!sender.track) continue;
+        const params = sender.getParameters();
+        if (!params.encodings || params.encodings.length === 0) {
+          params.encodings = [{}] as any;
+        }
+        if (sender.track.kind === 'audio') {
+          params.encodings[0].maxBitrate = settings.audio;
+        } else if (sender.track.kind === 'video') {
+          params.encodings[0].maxBitrate = settings.video;
+          if (settings.framerate !== undefined) {
+            (params.encodings[0] as any).maxFramerate = settings.framerate;
+          } else {
+            delete (params.encodings[0] as any).maxFramerate;
+          }
+        }
+        await sender.setParameters(params);
+      }
+      lastAppliedQuality.current = quality;
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const setAudioRoute = useCallback((output: AudioOutput) => {
+    try {
+      InCallManager.setSpeakerphoneOn(output === 'speaker');
+    } catch {}
+    useCallStore.getState().setAudioOutput(output);
+  }, []);
+
+  const toggleAudioOutput = useCallback(() => {
+    const next = useCallStore.getState().audioOutput === 'speaker' ? 'earpiece' : 'speaker';
+    setAudioRoute(next);
+  }, [setAudioRoute]);
 
   const startStatsMonitor = useCallback((pc: InstanceType<typeof RTCPeerConnection>) => {
     stopStatsMonitor();
@@ -98,11 +176,12 @@ export function useWebRTC() {
         else quality = 'poor';
 
         useCallStore.getState().setConnectionQuality(quality);
+        await adaptBitrate(pc, quality);
       } catch {
         // stats not available on this platform
       }
     }, 3000);
-  }, [stopStatsMonitor]);
+  }, [stopStatsMonitor, adaptBitrate]);
 
   const attemptReconnect = useCallback(async () => {
     const pc = pcRef.current;
@@ -110,6 +189,7 @@ export function useWebRTC() {
     if (!pc || !activeCall) return;
 
     console.log('[Call] Attempting ICE restart');
+    useCallStore.getState().setMakingOffer(true);
     try {
       (pc as any).restartIce?.();
       const offer = await pc.createOffer({ iceRestart: true } as any);
@@ -123,6 +203,8 @@ export function useWebRTC() {
       pendingCandidates.current = [];
     } catch (e) {
       console.log('[Call] ICE restart failed:', e);
+    } finally {
+      useCallStore.getState().setMakingOffer(false);
     }
   }, []);
 
@@ -131,6 +213,13 @@ export function useWebRTC() {
     pendingCandidates.current = [];
     remoteDescSet.current = false;
     clearReconnectTimer();
+    lastAppliedQuality.current = null;
+
+    const myUserId = useAuthStore.getState().user?.id ?? '';
+    const remoteUserId = useCallStore.getState().activeCall?.participantId ?? '';
+    useCallStore.getState().setPolitePeer(myUserId < remoteUserId);
+    useCallStore.getState().setMakingOffer(false);
+    useCallStore.getState().setIgnoreOffer(false);
 
     let iceServers: any[] = [{ urls: 'stun:stun.l.google.com:19302' }];
     try {
@@ -184,7 +273,9 @@ export function useWebRTC() {
     pcAny.addEventListener('negotiationneeded', async () => {
       const { activeCall } = useCallStore.getState();
       if (!activeCall || !pcRef.current) return;
+      useCallStore.getState().setMakingOffer(true);
       try {
+        preferCodecs(pcRef.current);
         const offer = await pcRef.current.createOffer({} as any);
         await pcRef.current.setLocalDescription(offer as any);
         getExistingSocket()?.emit('call:offer', {
@@ -196,11 +287,13 @@ export function useWebRTC() {
         pendingCandidates.current = [];
       } catch (e) {
         console.log('[Call] negotiationneeded failed:', e);
+      } finally {
+        useCallStore.getState().setMakingOffer(false);
       }
     });
 
     return pc;
-  }, [clearReconnectTimer, applyBandwidthConstraints, startStatsMonitor, attemptReconnect]);
+  }, [clearReconnectTimer, applyBandwidthConstraints, startStatsMonitor, attemptReconnect, preferCodecs]);
 
   const flushPending = useCallback(async () => {
     const pc = pcRef.current;
@@ -222,20 +315,25 @@ export function useWebRTC() {
 
       useCallStore.getState().setLocalStream(stream);
       InCallManager.start({ media: type === 'VIDEO' ? 'video' : 'audio' });
-      InCallManager.setSpeakerphoneOn(type === 'VIDEO');
+      setAudioRoute(type === 'VIDEO' ? 'speaker' : 'earpiece');
 
       const pc = await createPC();
       stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+      preferCodecs(pc);
 
-      const offer = await pc.createOffer({
-        offerToReceiveAudio: true,
-        offerToReceiveVideo: type === 'VIDEO',
-      } as any);
-      await pc.setLocalDescription(offer as any);
-
-      getExistingSocket()?.emit('call:offer', { callId, targetUserId, sdp: offer.sdp });
+      useCallStore.getState().setMakingOffer(true);
+      try {
+        const offer = await pc.createOffer({
+          offerToReceiveAudio: true,
+          offerToReceiveVideo: type === 'VIDEO',
+        } as any);
+        await pc.setLocalDescription(offer as any);
+        getExistingSocket()?.emit('call:offer', { callId, targetUserId, sdp: offer.sdp });
+      } finally {
+        useCallStore.getState().setMakingOffer(false);
+      }
     },
-    [createPC],
+    [createPC, preferCodecs, setAudioRoute],
   );
 
   const handleOffer = useCallback(
@@ -243,10 +341,29 @@ export function useWebRTC() {
       // Renegotiation: reuse existing PC if one exists
       if (pcRef.current && remoteDescSet.current) {
         const pc = pcRef.current;
+        const { isPolite, makingOffer } = useCallStore.getState();
+        const isCollision = (pc as any).signalingState !== 'stable' || makingOffer;
+        const ignore = !isPolite && isCollision;
+        if (ignore) {
+          useCallStore.getState().setIgnoreOffer(true);
+          console.log('[Call] Glare: ignoring incoming offer (impolite peer)');
+          return;
+        }
+        useCallStore.getState().setIgnoreOffer(false);
+
+        if (isPolite && isCollision) {
+          try {
+            await (pc as any).setLocalDescription({ type: 'rollback' });
+          } catch (e) {
+            console.log('[Call] rollback failed:', e);
+          }
+        }
+
         await pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp }));
         remoteDescSet.current = true;
         await flushPending();
 
+        preferCodecs(pc);
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer as any);
 
@@ -265,7 +382,7 @@ export function useWebRTC() {
 
       useCallStore.getState().setLocalStream(stream);
       InCallManager.start({ media: type === 'VIDEO' ? 'video' : 'audio' });
-      InCallManager.setSpeakerphoneOn(type === 'VIDEO');
+      setAudioRoute(type === 'VIDEO' ? 'speaker' : 'earpiece');
 
       const pc = await createPC();
       stream.getTracks().forEach((t) => pc.addTrack(t, stream));
@@ -274,6 +391,7 @@ export function useWebRTC() {
       remoteDescSet.current = true;
       await flushPending();
 
+      preferCodecs(pc);
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer as any);
 
@@ -283,7 +401,7 @@ export function useWebRTC() {
         sdp: answer.sdp,
       });
     },
-    [createPC, flushPending],
+    [createPC, flushPending, preferCodecs, setAudioRoute],
   );
 
   const handleAnswer = useCallback(
@@ -298,13 +416,20 @@ export function useWebRTC() {
   );
 
   const handleIceCandidate = useCallback(async (candidate: unknown) => {
+    if (useCallStore.getState().ignoreOffer) {
+      return;
+    }
     if (!remoteDescSet.current) {
       pendingCandidates.current.push(candidate);
       return;
     }
     try {
       await pcRef.current?.addIceCandidate(new RTCIceCandidate(candidate as any));
-    } catch {}
+    } catch (e) {
+      if (!useCallStore.getState().ignoreOffer) {
+        console.log('[Call] addIceCandidate failed:', e);
+      }
+    }
   }, []);
 
   const toggleMute = useCallback(() => {
@@ -342,7 +467,7 @@ export function useWebRTC() {
       pc.addTrack(videoTrack, localStream as MediaStream);
 
       // Switch to speaker + video InCallManager mode
-      InCallManager.setSpeakerphoneOn(true);
+      setAudioRoute('speaker');
 
       // Update store
       useCallStore.getState().setActiveCall({ ...activeCall, type: 'VIDEO' });
@@ -356,7 +481,7 @@ export function useWebRTC() {
     } catch (e) {
       console.log('[Call] upgradeToVideo failed:', e);
     }
-  }, []);
+  }, [setAudioRoute]);
 
   const downgradeToAudio = useCallback(async () => {
     const pc = pcRef.current;
@@ -381,7 +506,7 @@ export function useWebRTC() {
     }
 
     // Switch to earpiece
-    InCallManager.setSpeakerphoneOn(false);
+    setAudioRoute('earpiece');
 
     // Update store
     useCallStore.getState().setActiveCall({ ...activeCall, type: 'AUDIO' });
@@ -392,7 +517,7 @@ export function useWebRTC() {
       targetUserId: activeCall.participantId,
       videoEnabled: false,
     });
-  }, []);
+  }, [setAudioRoute]);
 
   const cleanup = useCallback(() => {
     const { localStream } = useCallStore.getState();
@@ -414,6 +539,7 @@ export function useWebRTC() {
     handleIceCandidate,
     toggleMute,
     toggleVideo,
+    toggleAudioOutput,
     upgradeToVideo,
     downgradeToAudio,
     cleanup,

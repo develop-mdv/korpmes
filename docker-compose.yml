@@ -65,6 +65,10 @@ services:
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change-me-in-production}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-me-in-production}
       APP_PORT: 3000
+      APP_PUBLIC_URL: ${APP_PUBLIC_URL:-https://korpmes.ru/api}
+      APP_URL: ${APP_URL:-https://korpmes.ru}
+      WEB_URL: ${WEB_URL:-https://korpmes.ru}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://korpmes.ru}
       TURN_URL: turn:${SERVER_PUBLIC_IP:-localhost}:3478
       TURN_USERNAME: ${TURN_USERNAME:-turnuser}
       TURN_PASSWORD: ${TURN_PASSWORD:-turnpassword}

@@ -4,13 +4,16 @@ import { useCallStore } from '@/stores/call.store';
 import { useAuthStore } from '@/stores/auth.store';
 import { CallControls } from './CallControls';
 import { VideoGrid } from './VideoGrid';
+import { useBreakpoint } from '@/hooks/useBreakpoint';
 import * as callsApi from '@/api/calls.api';
 import * as callManager from '@/services/call-manager';
+import { audio } from '@/services/audio.service';
 
 export function CallOverlay() {
   const { activeCall, localStream, remoteStreams, screenStream, isScreenSharing } = useCallStore();
   const userId = useAuthStore((s) => s.user?.id);
   const [callDuration, setCallDuration] = useState(0);
+  const { isMobile } = useBreakpoint();
 
   const isIncoming = activeCall?.status === 'ringing' && activeCall.initiatorId !== userId;
   const isActive = activeCall?.status === 'active';
@@ -26,6 +29,7 @@ export function CallOverlay() {
   if (!activeCall) return null;
 
   const handleAccept = async () => {
+    audio.stopRinging();
     try {
       await callManager.acceptCall();
       await callsApi.answerCall(activeCall.id);
@@ -36,11 +40,14 @@ export function CallOverlay() {
   };
 
   const handleDecline = async () => {
+    audio.stopRinging();
     try { await callsApi.rejectCall(activeCall.id); } catch { /* ignore */ }
     callManager.hangup();
   };
 
   const handleHangup = async () => {
+    audio.stopRinging();
+    audio.playCallEnded();
     try { await callsApi.hangupCall(activeCall.id); } catch { /* ignore */ }
     callManager.hangup();
   };
@@ -50,9 +57,12 @@ export function CallOverlay() {
 
   // ── Ringing UI ───────────────────────────────────────────────────────────────
   if (!isActive) {
+    const ringingCardStyle: React.CSSProperties = isMobile
+      ? { ...s.card, padding: '24px 24px', minWidth: 'auto', width: '92%', maxWidth: 360 }
+      : s.card;
     return (
       <div style={s.overlay}>
-        <div style={s.card}>
+        <div style={ringingCardStyle}>
           <Avatar name={activeCall.type === 'video' ? 'Video' : 'Audio'} size="lg" />
           <h3 style={s.title}>{activeCall.type === 'video' ? 'Video Call' : 'Audio Call'}</h3>
           <p style={s.status}>{isIncoming ? 'Incoming call...' : 'Calling...'}</p>
@@ -76,10 +86,26 @@ export function CallOverlay() {
 
   // ── Active call UI ───────────────────────────────────────────────────────────
   const participantCount = (activeCall.participants?.length ?? 0);
+  let cardStyle: React.CSSProperties = isScreenSharing
+    ? { ...s.activeCard, maxWidth: 1280, height: '90vh' }
+    : s.activeCard;
+  if (isMobile) {
+    cardStyle = {
+      ...cardStyle,
+      width: '100vw',
+      height: '100dvh',
+      maxWidth: 'none',
+      borderRadius: 0,
+    };
+  }
+
+  const barStyle: React.CSSProperties = isMobile
+    ? { ...s.bar, padding: '10px 12px' }
+    : s.bar;
 
   return (
     <div style={s.overlay}>
-      <div style={s.activeCard}>
+      <div style={cardStyle}>
         <div style={s.videoArea}>
           <VideoGrid
             localStream={localStream}
@@ -89,7 +115,7 @@ export function CallOverlay() {
           />
         </div>
 
-        <div style={s.bar}>
+        <div style={barStyle}>
           <span style={s.info}>
             {formatDuration(callDuration)}
             {participantCount > 1 && (
@@ -124,6 +150,7 @@ const s: Record<string, React.CSSProperties> = {
     background: '#111827', borderRadius: 16,
     width: '92%', maxWidth: 960, height: '82vh',
     display: 'flex', flexDirection: 'column', overflow: 'hidden',
+    transition: 'max-width 0.2s, height 0.2s',
   },
   videoArea: { flex: 1, overflow: 'hidden' },
   bar: {

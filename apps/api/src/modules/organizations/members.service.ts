@@ -5,14 +5,23 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { OrganizationMember } from './entities/organization-member.entity';
 import { Invite } from './entities/invite.entity';
+import { Organization } from './entities/organization.entity';
 import { User } from '../users/entities/user.entity';
 import { InviteMemberDto } from './dto/invite-member.dto';
 import { ROLE_HIERARCHY } from '@corp/shared-constants';
 import { INVITE_EXPIRY_HOURS } from '@corp/shared-constants';
+import { OrganizationsService } from './organizations.service';
+
+const APPROVAL_ROLES = new Set(['OWNER', 'ADMIN']);
+
+export interface InviteLinkInfo {
+  invite: Invite;
+  url: string;
+}
 
 @Injectable()
 export class MembersService {
@@ -21,8 +30,11 @@ export class MembersService {
     private readonly memberRepo: Repository<OrganizationMember>,
     @InjectRepository(Invite)
     private readonly inviteRepo: Repository<Invite>,
+    @InjectRepository(Organization)
+    private readonly organizationRepo: Repository<Organization>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
+    private readonly organizationsService: OrganizationsService,
   ) {}
 
   async getMembers(
@@ -60,6 +72,7 @@ export class MembersService {
       phone: dto.phone,
       role: dto.role,
       token,
+      type: dto.email ? 'EMAIL' : 'PHONE',
       invitedBy,
       status: 'PENDING',
       expiresAt,
@@ -68,40 +81,142 @@ export class MembersService {
     return this.inviteRepo.save(invite);
   }
 
+  async createInviteLink(orgId: string, createdBy: string): Promise<InviteLinkInfo> {
+    await this.assertApprover(orgId, createdBy);
+
+    const existing = await this.inviteRepo.findOne({
+      where: {
+        organizationId: orgId,
+        type: 'LINK',
+        revokedAt: IsNull(),
+      },
+    });
+    if (existing) {
+      return { invite: existing, url: this.buildInviteUrl(existing.token) };
+    }
+
+    const invite = this.inviteRepo.create({
+      organizationId: orgId,
+      email: null as any,
+      phone: null as any,
+      role: 'EMPLOYEE',
+      token: uuidv4(),
+      type: 'LINK',
+      invitedBy: createdBy,
+      status: 'PENDING',
+      expiresAt: null,
+      revokedAt: null,
+    });
+    const saved = await this.inviteRepo.save(invite);
+    return { invite: saved, url: this.buildInviteUrl(saved.token) };
+  }
+
+  async getInviteLink(orgId: string): Promise<InviteLinkInfo | null> {
+    const invite = await this.inviteRepo.findOne({
+      where: {
+        organizationId: orgId,
+        type: 'LINK',
+        revokedAt: IsNull(),
+      },
+    });
+    if (!invite) return null;
+    return { invite, url: this.buildInviteUrl(invite.token) };
+  }
+
+  async revokeInviteLink(orgId: string, revokedBy: string): Promise<void> {
+    await this.assertApprover(orgId, revokedBy);
+    const invite = await this.inviteRepo.findOne({
+      where: {
+        organizationId: orgId,
+        type: 'LINK',
+        revokedAt: IsNull(),
+      },
+    });
+    if (!invite) return;
+    invite.revokedAt = new Date();
+    await this.inviteRepo.save(invite);
+  }
+
+  /**
+   * Public invite info — no auth required.
+   * Returns null if token is invalid, revoked, or expired.
+   */
+  async getInviteInfo(token: string): Promise<{
+    organizationId: string;
+    organizationName: string;
+    organizationLogo: string | null;
+    type: string;
+  } | null> {
+    const invite = await this.inviteRepo.findOne({ where: { token } });
+    if (!invite) return null;
+    if (invite.type === 'LINK') {
+      if (invite.revokedAt) return null;
+    } else {
+      if (invite.status !== 'PENDING') return null;
+      if (invite.expiresAt && new Date() > invite.expiresAt) return null;
+    }
+
+    const org = await this.organizationRepo.findOne({
+      where: { id: invite.organizationId },
+    });
+    if (!org) return null;
+
+    return {
+      organizationId: org.id,
+      organizationName: org.name,
+      organizationLogo: org.logoUrl ?? null,
+      type: invite.type,
+    };
+  }
+
   async acceptInvite(token: string, userId: string): Promise<OrganizationMember> {
     const invite = await this.inviteRepo.findOne({ where: { token } });
     if (!invite) {
       throw new NotFoundException('Invite not found');
     }
 
-    if (invite.status !== 'PENDING') {
-      throw new BadRequestException('Invite has already been used');
-    }
-
-    if (new Date() > invite.expiresAt) {
-      throw new BadRequestException('Invite has expired');
+    if (invite.type === 'LINK') {
+      if (invite.revokedAt) {
+        throw new BadRequestException('Invite link has been revoked');
+      }
+    } else {
+      if (invite.status !== 'PENDING') {
+        throw new BadRequestException('Invite has already been used');
+      }
+      if (invite.expiresAt && new Date() > invite.expiresAt) {
+        throw new BadRequestException('Invite has expired');
+      }
     }
 
     const existingMember = await this.memberRepo.findOne({
       where: { organizationId: invite.organizationId, userId },
     });
+
+    let member: OrganizationMember;
     if (existingMember) {
-      throw new BadRequestException('User is already a member of this organization');
+      if (invite.type !== 'LINK') {
+        throw new BadRequestException('User is already a member of this organization');
+      }
+      member = existingMember;
+    } else {
+      member = this.memberRepo.create({
+        organizationId: invite.organizationId,
+        userId,
+        role: invite.role,
+        invitedBy: invite.invitedBy,
+        joinedAt: new Date(),
+      });
+      member = await this.memberRepo.save(member);
     }
 
-    const member = this.memberRepo.create({
-      organizationId: invite.organizationId,
-      userId,
-      role: invite.role,
-      invitedBy: invite.invitedBy,
-      joinedAt: new Date(),
-    });
-    const savedMember = await this.memberRepo.save(member);
+    if (invite.type !== 'LINK') {
+      invite.status = 'ACCEPTED';
+      await this.inviteRepo.save(invite);
+    }
 
-    invite.status = 'ACCEPTED';
-    await this.inviteRepo.save(invite);
+    await this.organizationsService.addUserToDefaultChat(invite.organizationId, userId);
 
-    return savedMember;
+    return member;
   }
 
   async changeRole(
@@ -149,5 +264,19 @@ export class MembersService {
       where: { organizationId: orgId, userId },
     });
     return member ? member.role : null;
+  }
+
+  private async assertApprover(orgId: string, userId: string): Promise<void> {
+    const member = await this.memberRepo.findOne({
+      where: { organizationId: orgId, userId },
+    });
+    if (!member || !APPROVAL_ROLES.has(member.role)) {
+      throw new ForbiddenException('Only owners and admins can manage invites');
+    }
+  }
+
+  private buildInviteUrl(token: string): string {
+    const base = process.env.WEB_URL || 'http://localhost:5173';
+    return `${base.replace(/\/$/, '')}/invite/${token}`;
   }
 }

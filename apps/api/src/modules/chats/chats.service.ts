@@ -11,6 +11,7 @@ import { ChatMember } from './entities/chat-member.entity';
 import { Message } from '../messages/entities/message.entity';
 import { CreateChatDto } from './dto/create-chat.dto';
 import { UpdateChatDto } from './dto/update-chat.dto';
+import { isSelfChat } from './chats.utils';
 
 @Injectable()
 export class ChatsService {
@@ -24,15 +25,27 @@ export class ChatsService {
   ) {}
 
   async create(userId: string, dto: CreateChatDto): Promise<Chat> {
-    if (dto.type === ChatType.PERSONAL) {
-      if (dto.memberIds.length !== 1) {
-        throw new BadRequestException('Personal chat requires exactly one other member');
-      }
+    const isSelf =
+      dto.type === ChatType.PERSONAL &&
+      dto.memberIds.length === 1 &&
+      dto.memberIds[0] === userId;
 
-      const otherUserId = dto.memberIds[0];
-      const existingChat = await this.findPersonalChat(userId, otherUserId, dto.organizationId);
-      if (existingChat) {
-        return existingChat;
+    if (dto.type === ChatType.PERSONAL) {
+      if (isSelf) {
+        const existingSelf = await this.findSelfChat(userId, dto.organizationId);
+        if (existingSelf) {
+          return existingSelf;
+        }
+      } else {
+        if (dto.memberIds.length !== 1) {
+          throw new BadRequestException('Personal chat requires exactly one other member');
+        }
+
+        const otherUserId = dto.memberIds[0];
+        const existingChat = await this.findPersonalChat(userId, otherUserId, dto.organizationId);
+        if (existingChat) {
+          return existingChat;
+        }
       }
     }
 
@@ -54,18 +67,20 @@ export class ChatsService {
     });
     await this.chatMemberRepo.save(creatorMember);
 
-    const memberEntities = dto.memberIds
-      .filter((id) => id !== userId)
-      .map((memberId) =>
-        this.chatMemberRepo.create({
-          chatId: savedChat.id,
-          userId: memberId,
-          role: 'MEMBER',
-          joinedAt: new Date(),
-        }),
-      );
-    if (memberEntities.length > 0) {
-      await this.chatMemberRepo.save(memberEntities);
+    if (!isSelf) {
+      const memberEntities = dto.memberIds
+        .filter((id) => id !== userId)
+        .map((memberId) =>
+          this.chatMemberRepo.create({
+            chatId: savedChat.id,
+            userId: memberId,
+            role: 'MEMBER',
+            joinedAt: new Date(),
+          }),
+        );
+      if (memberEntities.length > 0) {
+        await this.chatMemberRepo.save(memberEntities);
+      }
     }
 
     return this.findById(savedChat.id);
@@ -86,6 +101,8 @@ export class ChatsService {
     userId: string,
     orgId: string,
   ): Promise<Array<Chat & { unreadCount: number }>> {
+    await this.ensureSelfChat(userId, orgId);
+
     const memberships = await this.chatMemberRepo.find({
       where: {
         userId,
@@ -119,6 +136,10 @@ export class ChatsService {
     );
 
     return withUnread.sort((a, b) => {
+      const aSelf = isSelfChat(a, userId);
+      const bSelf = isSelfChat(b, userId);
+      if (aSelf && !bSelf) return -1;
+      if (!aSelf && bSelf) return 1;
       const aTime = a.lastMessageAt?.getTime() ?? a.createdAt.getTime();
       const bTime = b.lastMessageAt?.getTime() ?? b.createdAt.getTime();
       return bTime - aTime;
@@ -200,6 +221,15 @@ export class ChatsService {
     if (!member) {
       throw new NotFoundException('Member not found in this chat');
     }
+
+    const chat = await this.chatRepo.findOne({
+      where: { id: chatId },
+      relations: ['members'],
+    });
+    if (chat && isSelfChat(chat, userId)) {
+      throw new ForbiddenException('Cannot leave Saved Messages chat');
+    }
+
     member.leftAt = new Date();
     await this.chatMemberRepo.save(member);
   }
@@ -253,6 +283,41 @@ export class ChatsService {
       .andWhere('chat.organizationId = :orgId', { orgId });
 
     return qb.getOne();
+  }
+
+  private async findSelfChat(userId: string, orgId: string): Promise<Chat | null> {
+    const candidates = await this.chatRepo
+      .createQueryBuilder('chat')
+      .innerJoin('chat.members', 'm', 'm.userId = :userId AND m.leftAt IS NULL', { userId })
+      .where('chat.type = :type', { type: ChatType.PERSONAL })
+      .andWhere('chat.organizationId = :orgId', { orgId })
+      .andWhere('chat.createdBy = :userId', { userId })
+      .leftJoinAndSelect('chat.members', 'allMembers')
+      .getMany();
+
+    for (const chat of candidates) {
+      const active = (chat.members ?? []).filter((m) => !m.leftAt);
+      if (active.length === 1 && active[0].userId === userId) {
+        return chat;
+      }
+    }
+    return null;
+  }
+
+  async ensureSelfChat(userId: string, orgId: string): Promise<Chat> {
+    const existing = await this.findSelfChat(userId, orgId);
+    if (existing) return existing;
+    try {
+      return await this.create(userId, {
+        type: ChatType.PERSONAL,
+        memberIds: [userId],
+        organizationId: orgId,
+      });
+    } catch (e: any) {
+      const recovered = await this.findSelfChat(userId, orgId);
+      if (recovered) return recovered;
+      throw e;
+    }
   }
 
   private async verifyAdmin(chatId: string, userId: string): Promise<void> {

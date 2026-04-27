@@ -1,7 +1,7 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as Minio from 'minio';
-import { StorageService } from './storage.service';
+import { StorageService, type StorageObject } from './storage.service';
 
 @Injectable()
 export class MinioStorageService extends StorageService implements OnModuleInit {
@@ -49,6 +49,21 @@ export class MinioStorageService extends StorageService implements OnModuleInit 
 
   async getSignedUrl(key: string, expiresIn = 3600): Promise<string> {
     return this.client.presignedGetObject(this.bucket, key, expiresIn);
+  }
+
+  async getObject(key: string): Promise<StorageObject> {
+    const [stat, stream] = await Promise.all([
+      this.client.statObject(this.bucket, key),
+      this.client.getObject(this.bucket, key),
+    ]);
+    const contentType =
+      (stat.metaData && (stat.metaData['content-type'] as string)) ||
+      'application/octet-stream';
+    return {
+      stream,
+      contentType,
+      contentLength: stat.size,
+    };
   }
 
   async delete(key: string): Promise<void> {

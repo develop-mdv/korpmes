@@ -1,10 +1,12 @@
 import { ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Avatar } from '@/components/common/Avatar';
 import * as callsApi from '@/api/calls.api';
 import { useAuthStore } from '@/stores/auth.store';
 import { useCallStore } from '@/stores/call.store';
 import { useChatStore } from '@/stores/chat.store';
 import { useUIStore } from '@/stores/ui.store';
+import { useBreakpoint } from '@/hooks/useBreakpoint';
 import { getChatDisplayName } from '@/utils/chat';
 
 interface ChatHeaderProps {
@@ -20,6 +22,7 @@ function HeaderIcon({ children }: { children: ReactNode }) {
 }
 
 export function ChatHeader({ chatId }: ChatHeaderProps) {
+  const navigate = useNavigate();
   const chat = useChatStore((state) => state.chats.find((item) => item.id === chatId));
   const activeCall = useCallStore((state) => state.activeCall);
   const setActiveCall = useCallStore((state) => state.setActiveCall);
@@ -27,6 +30,7 @@ export function ChatHeader({ chatId }: ChatHeaderProps) {
   const closeRightPanel = useUIStore((state) => state.closeRightPanel);
   const rightPanelOpen = useUIStore((state) => state.rightPanelOpen);
   const userId = useAuthStore((state) => state.user?.id);
+  const { isMobile } = useBreakpoint();
 
   if (!chat) return null;
 
@@ -55,6 +59,18 @@ export function ChatHeader({ chatId }: ChatHeaderProps) {
   return (
     <div className="chat-stage__header">
       <div className="chat-stage__header-copy">
+        {isMobile && (
+          <button
+            type="button"
+            className="icon-button chat-stage__back"
+            onClick={() => navigate('/chats')}
+            aria-label="Назад к списку чатов"
+          >
+            <HeaderIcon>
+              <polyline points="15 18 9 12 15 6" />
+            </HeaderIcon>
+          </button>
+        )}
         <Avatar name={displayName} size="md" />
         <div>
           <div className="chat-stage__copy-title">{displayName}</div>

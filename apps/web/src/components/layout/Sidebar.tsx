@@ -6,6 +6,7 @@ import { useUIStore } from '@/stores/ui.store';
 import { useOrganizationStore } from '@/stores/organization.store';
 import { Avatar } from '@/components/common/Avatar';
 import { useAuth } from '@/hooks/useAuth';
+import { useBreakpoint } from '@/hooks/useBreakpoint';
 
 type NavItem = {
   path: string;
@@ -135,6 +136,13 @@ export function Sidebar() {
   const currentOrg = useOrganizationStore((s) => s.currentOrg);
   const setCurrentOrg = useOrganizationStore((s) => s.setCurrentOrg);
   const { logout } = useAuth();
+  const { isMobile } = useBreakpoint();
+
+  const handleNavClick = () => {
+    if (isMobile && sidebarOpen) {
+      toggleSidebar();
+    }
+  };
 
   return (
     <aside className={clsx('sidebar-shell', sidebarOpen ? 'sidebar-shell--open' : 'sidebar-shell--compact')}>
@@ -177,6 +185,7 @@ export function Sidebar() {
           <NavLink
             key={item.path}
             to={item.path}
+            onClick={handleNavClick}
             className={({ isActive }: { isActive: boolean }) => clsx('sidebar-shell__nav-item', isActive && 'is-active')}
           >
             <span className="sidebar-shell__nav-icon">{item.icon}</span>

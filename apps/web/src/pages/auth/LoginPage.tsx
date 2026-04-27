@@ -1,11 +1,19 @@
 import { FormEvent, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import * as authApi from '@/api/auth.api';
 import { AuthShell } from '@/components/layout/AuthShell';
 import { useAuthStore } from '@/stores/auth.store';
 
+function safeNext(next: string | null): string {
+  if (!next) return '/chats';
+  if (next.startsWith('/') && !next.startsWith('//')) return next;
+  return '/chats';
+}
+
 export function LoginPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const next = safeNext(searchParams.get('next'));
   const { setAuth } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -32,7 +40,7 @@ export function LoginPage() {
         accessToken: response.accessToken,
         refreshToken: response.refreshToken,
       });
-      navigate('/chats');
+      navigate(next);
     } catch (value: any) {
       setError(value.response?.data?.error?.message || 'Не удалось войти');
     } finally {

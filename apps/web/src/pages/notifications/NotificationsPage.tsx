@@ -1,30 +1,64 @@
-import { useCallback, useEffect, useState } from 'react';
-import { formatDistanceToNow } from 'date-fns';
-import { ru } from 'date-fns/locale';
-import * as notificationsApi from '@/api/notifications.api';
-import { EmptyState } from '@/components/common/EmptyState';
+import React, { useEffect, useState, useCallback } from 'react';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+import { EmptyState } from '@/components/common/EmptyState';
+import * as notificationsApi from '@/api/notifications.api';
+import { formatDistanceToNow } from 'date-fns';
 
 type NotificationItem = notificationsApi.NotificationItem;
 
-const typeLabels: Record<string, string> = {
-  message: 'Сообщение',
-  mention: 'Упоминание',
-  task: 'Задача',
-  call: 'Звонок',
-  system: 'Система',
+const TYPE_ICONS: Record<string, string> = {
+  message: '💬',
+  mention: '@',
+  task: '✅',
+  call: '📞',
+  system: 'ℹ️',
 };
+
+function NotificationRow({
+  item,
+  onMarkRead,
+}: {
+  item: NotificationItem;
+  onMarkRead: (id: string) => void;
+}) {
+  return (
+    <div
+      style={{
+        ...styles.row,
+        ...(item.isRead ? {} : styles.rowUnread),
+      }}
+      onClick={() => !item.isRead && onMarkRead(item.id)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => e.key === 'Enter' && !item.isRead && onMarkRead(item.id)}
+    >
+      <div style={styles.icon}>{TYPE_ICONS[item.type] ?? 'ℹ️'}</div>
+      <div style={styles.body}>
+        <div style={styles.rowTitle}>{item.title}</div>
+        {item.body && <div style={styles.rowBody}>{item.body}</div>}
+      </div>
+      <div style={styles.meta}>
+        <span style={styles.time}>
+          {formatDistanceToNow(new Date(item.createdAt), { addSuffix: true })}
+        </span>
+        {!item.isRead && <span style={styles.dot} />}
+      </div>
+    </div>
+  );
+}
 
 export function NotificationsPage() {
   const [items, setItems] = useState<NotificationItem[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [markingAll, setMarkingAll] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await notificationsApi.listNotifications();
-      setItems(response.items);
+      const res = await notificationsApi.listNotifications();
+      setItems(res.items);
+      setTotal(res.total);
     } finally {
       setLoading(false);
     }
@@ -36,80 +70,106 @@ export function NotificationsPage() {
 
   const handleMarkRead = useCallback(async (id: string) => {
     await notificationsApi.markAsRead(id);
-    setItems((previous) => previous.map((item) => (item.id === id ? { ...item, isRead: true } : item)));
+    setItems((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)),
+    );
   }, []);
 
   const handleMarkAllRead = useCallback(async () => {
     setMarkingAll(true);
     try {
       await notificationsApi.markAllAsRead();
-      setItems((previous) => previous.map((item) => ({ ...item, isRead: true })));
+      setItems((prev) => prev.map((n) => ({ ...n, isRead: true })));
     } finally {
       setMarkingAll(false);
     }
   }, []);
 
-  const unreadCount = items.filter((item) => !item.isRead).length;
+  const unreadCount = items.filter((n) => !n.isRead).length;
 
   return (
-    <div className="page-shell">
-      <div className="page-shell__inner">
-        <section className="lux-panel page-hero">
-          <div className="page-hero__copy">
-            <div className="page-hero__kicker">Сигналы</div>
-            <h1 className="page-hero__title">Все важные события в одном аккуратном потоке.</h1>
-            <p className="page-hero__description">
-              Следите за сообщениями, задачами, звонками и системными изменениями без лишнего визуального шума.
-            </p>
-            <div className="page-hero__meta">
-              <span className="lux-pill">{unreadCount} непрочитанных</span>
-              <span className="lux-pill">{items.length} всего</span>
-            </div>
-          </div>
-          {unreadCount > 0 && (
-            <div className="page-hero__actions">
-              <button className="lux-button-secondary" onClick={handleMarkAllRead} disabled={markingAll}>
-                {markingAll ? 'Отмечаем...' : 'Прочитать всё'}
-              </button>
-            </div>
-          )}
-        </section>
-
-        {loading ? (
-          <section className="lux-panel" style={{ padding: 28 }}>
-            <LoadingSpinner />
-          </section>
-        ) : items.length === 0 ? (
-          <section className="lux-panel" style={{ minHeight: 360 }}>
-            <EmptyState title="Пока пусто" description="Новые события появятся здесь сразу после активности в системе." />
-          </section>
-        ) : (
-          <section className="collection-list stagger-in">
-            {items.map((item) => (
-              <button
-                key={item.id}
-                className="list-card"
-                style={item.isRead ? undefined : { borderColor: 'var(--color-border-strong)', background: 'var(--color-primary-faint)' }}
-                onClick={() => !item.isRead && handleMarkRead(item.id)}
-              >
-                <div className="brand-mark" style={{ width: 44, height: 44, fontSize: 20 }}>
-                  {typeLabels[item.type]?.charAt(0) || 'С'}
-                </div>
-                <div className="list-card__body">
-                  <div className="list-card__title">{item.title}</div>
-                  {item.body && <div className="list-card__subtitle" style={{ marginTop: 6 }}>{item.body}</div>}
-                </div>
-                <div className="list-card__actions">
-                  <span className="lux-pill">{typeLabels[item.type] || item.type}</span>
-                  <span className="list-card__subtitle">
-                    {formatDistanceToNow(new Date(item.createdAt), { addSuffix: true, locale: ru })}
-                  </span>
-                </div>
-              </button>
-            ))}
-          </section>
+    <div style={styles.container}>
+      <div style={styles.header}>
+        <h1 style={styles.title}>Notifications</h1>
+        {unreadCount > 0 && (
+          <button
+            style={styles.markAllBtn}
+            onClick={handleMarkAllRead}
+            disabled={markingAll}
+          >
+            {markingAll ? 'Marking…' : `Mark all read (${unreadCount})`}
+          </button>
         )}
       </div>
+
+      {loading && (
+        <div style={styles.centered}>
+          <LoadingSpinner />
+        </div>
+      )}
+
+      {!loading && items.length === 0 && (
+        <EmptyState title="No notifications" description="You're all caught up!" />
+      )}
+
+      {!loading && items.length > 0 && (
+        <div style={styles.list}>
+          {items.map((item) => (
+            <NotificationRow key={item.id} item={item} onMarkRead={handleMarkRead} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
+
+const styles: Record<string, React.CSSProperties> = {
+  container: { padding: 'clamp(12px, 4vw, 24px)', maxWidth: 720, margin: '0 auto' },
+  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
+  title: { fontSize: 24, fontWeight: 700, margin: 0, color: 'var(--color-text)' },
+  markAllBtn: {
+    padding: '7px 14px',
+    borderRadius: 'var(--radius-sm)',
+    border: '1px solid var(--color-border)',
+    background: 'transparent',
+    cursor: 'pointer',
+    fontSize: 13,
+    fontWeight: 500,
+    color: 'var(--color-primary)',
+  },
+  centered: { display: 'flex', justifyContent: 'center', paddingTop: 40 },
+  list: { display: 'flex', flexDirection: 'column', gap: 4 },
+  row: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 12,
+    padding: '12px 16px',
+    borderRadius: 8,
+    border: '1px solid var(--color-border)',
+    background: 'var(--color-surface)',
+    cursor: 'pointer',
+  },
+  rowUnread: {
+    borderColor: 'var(--color-primary)',
+    background: 'var(--color-primary-faint, rgba(79,70,229,0.04))',
+  },
+  icon: {
+    fontSize: 18,
+    minWidth: 24,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 1,
+  },
+  body: { flex: 1, minWidth: 0 },
+  rowTitle: { fontSize: 14, fontWeight: 600, color: 'var(--color-text)' },
+  rowBody: { fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 2 },
+  meta: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, paddingTop: 1 },
+  time: { fontSize: 11, color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: '50%',
+    background: 'var(--color-primary)',
+  },
+};

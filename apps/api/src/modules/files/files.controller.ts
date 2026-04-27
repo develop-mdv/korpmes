@@ -35,8 +35,16 @@ export class FilesController {
   }
 
   @Get(':id')
-  async getFileInfo(@Param('id') id: string) {
-    return this.filesService.findById(id);
+  async getFileInfo(
+    @Param('id') id: string,
+    @CurrentUser() user: { id: string },
+  ) {
+    const file = await this.filesService.findById(id);
+    const [signedUrl, thumbnailUrl] = await Promise.all([
+      this.filesService.getDownloadUrl(id, user.id),
+      this.filesService.getThumbnailUrl(id),
+    ]);
+    return { ...file, signedUrl, thumbnailUrl };
   }
 
   @Get(':id/download')

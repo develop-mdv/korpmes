@@ -1,26 +1,25 @@
-import { useState } from 'react';
-import { formatDistanceToNow } from 'date-fns';
-import { ru } from 'date-fns/locale';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import * as searchApi from '@/api/search.api';
 import { SearchBar } from '@/components/common/SearchBar';
 import { Avatar } from '@/components/common/Avatar';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+import * as searchApi from '@/api/search.api';
 import { useOrganizationStore } from '@/stores/organization.store';
+import { formatDistanceToNow } from 'date-fns';
 
 type SearchResult = searchApi.SearchResult;
 
-const labels: Record<string, string> = {
-  message: 'Сообщения',
-  file: 'Файлы',
-  task: 'Задачи',
-  member: 'Люди',
+const SCOPE_LABELS: Record<string, string> = {
+  message: 'Messages',
+  file: 'Files',
+  task: 'Tasks',
+  member: 'People',
 };
 
-function SearchItem({ result }: { result: SearchResult }) {
+function ResultItem({ result }: { result: SearchResult }) {
   const navigate = useNavigate();
 
-  const openResult = () => {
+  const handleClick = () => {
     if (result.type === 'message' && result.metadata.chatId) {
       navigate(`/chats/${result.metadata.chatId as string}`);
     } else if (result.type === 'task') {
@@ -29,25 +28,40 @@ function SearchItem({ result }: { result: SearchResult }) {
   };
 
   return (
-    <button className="list-card" onClick={openResult}>
-      {result.type === 'member' ? (
-        <Avatar name={result.title} size="md" />
-      ) : (
-        <div className="brand-mark" style={{ width: 44, height: 44, fontSize: 18 }}>
-          {labels[result.type]?.charAt(0) || 'Р'}
-        </div>
-      )}
-      <div className="list-card__body">
-        <div className="list-card__title">{result.title}</div>
-        {result.snippet && <div className="list-card__subtitle" style={{ marginTop: 6 }}>{result.snippet}</div>}
+    <div
+      style={styles.resultItem}
+      onClick={handleClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => e.key === 'Enter' && handleClick()}
+    >
+      <div style={styles.resultIcon}>
+        {result.type === 'message' && '💬'}
+        {result.type === 'file' && '📄'}
+        {result.type === 'task' && '✅'}
+        {result.type === 'member' && <Avatar name={result.title} size="sm" />}
       </div>
-      <div className="list-card__actions">
-        <span className="lux-pill">{labels[result.type] || result.type}</span>
-        <span className="list-card__subtitle">
-          {formatDistanceToNow(new Date(result.createdAt), { addSuffix: true, locale: ru })}
-        </span>
+      <div style={styles.resultBody}>
+        <div style={styles.resultTitle}>{result.title}</div>
+        {result.snippet && (
+          <div style={styles.resultSnippet}>{result.snippet}</div>
+        )}
       </div>
-    </button>
+      <div style={styles.resultTime}>
+        {formatDistanceToNow(new Date(result.createdAt), { addSuffix: true })}
+      </div>
+    </div>
+  );
+}
+
+function ResultGroup({ type, results }: { type: string; results: SearchResult[] }) {
+  return (
+    <div style={styles.group}>
+      <div style={styles.groupHeader}>{SCOPE_LABELS[type] ?? type}</div>
+      {results.map((r) => (
+        <ResultItem key={r.id} result={r} />
+      ))}
+    </div>
   );
 }
 
@@ -57,88 +71,116 @@ export function SearchPage() {
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
 
-  const handleSearch = async (value: string, scope: string) => {
-    if (!value.trim() || !currentOrg) return;
-
-    setQuery(value);
+  const handleSearch = async (q: string, scope: string) => {
+    if (!q.trim() || !currentOrg) return;
+    setQuery(q);
     setLoading(true);
     try {
-      const response = await searchApi.search({
-        q: value,
+      const res = await searchApi.search({
+        q,
         scope: scope.toLowerCase() as searchApi.SearchParams['scope'],
         orgId: currentOrg.id,
       });
-      setResults(response);
+      setResults(res);
     } finally {
       setLoading(false);
     }
   };
 
   const grouped = results
-    ? results.results.reduce<Record<string, SearchResult[]>>((accumulator, result) => {
-        if (!accumulator[result.type]) accumulator[result.type] = [];
-        accumulator[result.type].push(result);
-        return accumulator;
+    ? results.results.reduce<Record<string, SearchResult[]>>((acc, r) => {
+        if (!acc[r.type]) acc[r.type] = [];
+        acc[r.type].push(r);
+        return acc;
       }, {})
     : {};
 
-  const order: SearchResult['type'][] = ['member', 'message', 'task', 'file'];
+  const groupOrder: SearchResult['type'][] = ['member', 'message', 'task', 'file'];
 
   return (
-    <div className="page-shell">
-      <div className="page-shell__inner">
-        <section className="lux-panel page-hero">
-          <div className="page-hero__copy">
-            <div className="page-hero__kicker">Поиск</div>
-            <h1 className="page-hero__title">Ищите по всему продукту без визуального шума.</h1>
-            <p className="page-hero__description">
-              Сообщения, люди, задачи и файлы находятся из одной светлой и аккуратной панели.
-            </p>
-          </div>
-        </section>
+    <div style={styles.container}>
+      <h1 style={styles.title}>Search</h1>
+      <SearchBar onSearch={handleSearch} />
 
-        <section className="lux-panel" style={{ padding: 22 }}>
-          <SearchBar onSearch={handleSearch} />
-        </section>
+      {loading && (
+        <div style={styles.centered}>
+          <LoadingSpinner />
+        </div>
+      )}
 
-        {loading && (
-          <section className="lux-panel" style={{ padding: 28 }}>
-            <LoadingSpinner />
-          </section>
-        )}
-
-        {!loading && results && (
-          <section className="page-grid">
-            <div className="lux-panel" style={{ padding: 20 }}>
-              <div className="list-card__subtitle">
-                {results.total} результат{results.total === 1 ? '' : results.total < 5 ? 'а' : 'ов'} по запросу «{query}»
-              </div>
-            </div>
-
-            {results.total === 0 && (
-              <section className="lux-panel" style={{ minHeight: 300 }}>
-                <div className="lux-empty">
-                  <h3 className="lux-empty__title">Ничего не найдено</h3>
-                  <p className="lux-empty__description">Попробуйте другие слова, фильтр или более точный запрос.</p>
-                </div>
-              </section>
-            )}
-
-            {order
-              .filter((type) => (grouped[type]?.length ?? 0) > 0)
-              .map((type) => (
-                <section key={type} className="lux-panel" style={{ padding: 18 }}>
-                  <div className="page-hero__kicker" style={{ marginBottom: 14 }}>{labels[type]}</div>
-                  <div className="collection-list">
-                    {grouped[type].map((result) => (
-                      <SearchItem key={result.id} result={result} />
-                    ))}
-                  </div>
-                </section>
-              ))}
-          </section>
-        )}
-      </div>
+      {!loading && results && (
+        <>
+          <p style={styles.summary}>
+            {results.total} result{results.total !== 1 ? 's' : ''} for &ldquo;{query}&rdquo;
+          </p>
+          {results.total === 0 && (
+            <p style={styles.empty}>No results found. Try different keywords or filters.</p>
+          )}
+          {groupOrder
+            .filter((type) => (grouped[type]?.length ?? 0) > 0)
+            .map((type) => (
+              <ResultGroup key={type} type={type} results={grouped[type]} />
+            ))}
+        </>
+      )}
     </div>
   );
 }
+
+const styles: Record<string, React.CSSProperties> = {
+  container: { padding: 'clamp(12px, 4vw, 24px)', maxWidth: 800, margin: '0 auto' },
+  title: { fontSize: 24, fontWeight: 700, marginBottom: 24, color: 'var(--color-text)' },
+  centered: { display: 'flex', justifyContent: 'center', paddingTop: 32 },
+  summary: { fontSize: 13, color: 'var(--color-text-secondary)', margin: '16px 0 8px' },
+  empty: { fontSize: 14, color: 'var(--color-text-secondary)', marginTop: 16 },
+  group: { marginBottom: 24 },
+  groupHeader: {
+    fontSize: 11,
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+    color: 'var(--color-text-secondary)',
+    padding: '8px 0 6px',
+    borderBottom: '1px solid var(--color-border)',
+    marginBottom: 4,
+  },
+  resultItem: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 10,
+    padding: '10px 12px',
+    borderRadius: 6,
+    cursor: 'pointer',
+  },
+  resultIcon: {
+    fontSize: 16,
+    minWidth: 24,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 2,
+  },
+  resultBody: { flex: 1, minWidth: 0 },
+  resultTitle: {
+    fontSize: 14,
+    fontWeight: 500,
+    color: 'var(--color-text)',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  resultSnippet: {
+    fontSize: 12,
+    color: 'var(--color-text-secondary)',
+    marginTop: 2,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  resultTime: {
+    fontSize: 11,
+    color: 'var(--color-text-secondary)',
+    whiteSpace: 'nowrap',
+    paddingTop: 2,
+  },
+};

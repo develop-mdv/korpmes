@@ -1,4 +1,5 @@
 import { io, Socket } from 'socket.io-client';
+import { useMessageStore } from '../stores/message.store';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/api$/, '') || (__DEV__ ? 'http://10.0.2.2:3000' : 'https://korpmes.ru');
 
@@ -20,6 +21,13 @@ export function getSocket(token?: string): Socket {
 
   socket.on('connect', () => {
     console.log('[Socket] Connected');
+    // Catch up missed messages for every chat we have history for
+    const lastSeqs = useMessageStore.getState().lastSeqByChatId;
+    for (const [chatId, afterSeq] of Object.entries(lastSeqs)) {
+      if (afterSeq && afterSeq > 0) {
+        socket?.emit('chat:catchup', { chatId, afterSeq });
+      }
+    }
   });
 
   socket.on('disconnect', (reason) => {

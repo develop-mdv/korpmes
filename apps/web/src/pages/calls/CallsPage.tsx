@@ -1,24 +1,36 @@
-import { useEffect, useState } from 'react';
-import { formatDistanceToNow } from 'date-fns';
-import { ru } from 'date-fns/locale';
-import * as callsApi from '@/api/calls.api';
-import { Avatar } from '@/components/common/Avatar';
+import React, { useEffect, useState } from 'react';
 import { EmptyState } from '@/components/common/EmptyState';
+import { Avatar } from '@/components/common/Avatar';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { useAuthStore } from '@/stores/auth.store';
+import * as callsApi from '@/api/calls.api';
+import { formatDistanceToNow } from 'date-fns';
 
 type CallData = callsApi.CallData;
 
-function formatDuration(startedAt: string | null, endedAt: string | null) {
-  if (!startedAt || !endedAt) return 'Без длительности';
-  const seconds = Math.round((new Date(endedAt).getTime() - new Date(startedAt).getTime()) / 1000);
-  if (seconds < 60) return `${seconds} сек`;
-  const minutes = Math.floor(seconds / 60);
-  return `${minutes}:${String(seconds % 60).padStart(2, '0')}`;
+function formatDuration(startedAt: string | null, endedAt: string | null): string {
+  if (!startedAt || !endedAt) return '';
+  const seconds = Math.round(
+    (new Date(endedAt).getTime() - new Date(startedAt).getTime()) / 1000,
+  );
+  if (seconds < 60) return `${seconds}s`;
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+function CallStatusIcon({ status, isOutgoing }: { status: string; isOutgoing: boolean }) {
+  const color =
+    status === 'ENDED' ? 'var(--color-success)'
+    : status === 'REJECTED' || status === 'MISSED' ? 'var(--color-error)'
+    : 'var(--color-text-secondary)';
+
+  const arrow = isOutgoing ? '↗' : '↙';
+  return <span style={{ color, fontSize: 18, marginRight: 8 }}>{arrow}</span>;
 }
 
 export function CallsPage() {
-  const currentUserId = useAuthStore((state) => state.user?.id);
+  const currentUserId = useAuthStore((s) => s.user?.id);
   const [calls, setCalls] = useState<CallData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -27,64 +39,88 @@ export function CallsPage() {
     callsApi
       .getAllCallHistory()
       .then(setCalls)
-      .catch(() => setError('Не удалось загрузить историю звонков'))
+      .catch(() => setError('Failed to load call history'))
       .finally(() => setLoading(false));
   }, []);
 
   return (
-    <div className="page-shell">
-      <div className="page-shell__inner">
-        <section className="lux-panel page-hero">
-          <div className="page-hero__copy">
-            <div className="page-hero__kicker">Звонки</div>
-            <h1 className="page-hero__title">История аудио и видео без лишней перегрузки.</h1>
-            <p className="page-hero__description">
-              Просматривайте последние созвоны в одном чистом и светлом списке.
-            </p>
-          </div>
-        </section>
+    <div style={styles.container}>
+      <h1 style={styles.title}>Calls</h1>
 
-        {loading && (
-          <section className="lux-panel" style={{ padding: 28 }}>
-            <LoadingSpinner />
-          </section>
-        )}
+      {loading && (
+        <div style={styles.centered}>
+          <LoadingSpinner />
+        </div>
+      )}
 
-        {error && <div className="lux-alert">{error}</div>}
+      {error && <p style={styles.error}>{error}</p>}
 
-        {!loading && !error && calls.length === 0 && (
-          <section className="lux-panel" style={{ minHeight: 340 }}>
-            <EmptyState title="История пока пуста" description="Когда появятся первые звонки, они будут показаны здесь." />
-          </section>
-        )}
+      {!loading && !error && calls.length === 0 && (
+        <EmptyState
+          title="No call history"
+          description="Your audio and video calls will appear here"
+        />
+      )}
 
-        {!loading && !error && calls.length > 0 && (
-          <section className="collection-list stagger-in">
-            {calls.map((call) => {
-              const isOutgoing = call.initiatedBy === currentUserId;
-              const missed = call.status === 'REJECTED' || (call.status === 'MISSED' && !isOutgoing);
+      {!loading && !error && calls.length > 0 && (
+        <div style={styles.list}>
+          {calls.map((call) => {
+            const isOutgoing = call.initiatedBy === currentUserId;
+            const duration = formatDuration(call.startedAt, call.endedAt);
+            const missed =
+              call.status === 'REJECTED' ||
+              (call.status === 'MISSED' && !isOutgoing);
 
-              return (
-                <article key={call.id} className="list-card">
-                  <Avatar name={call.type === 'VIDEO' ? 'Видео' : 'Аудио'} size="md" />
-                  <div className="list-card__body">
-                    <div className="list-card__title">
-                      {isOutgoing ? 'Исходящий' : missed ? 'Пропущенный' : 'Входящий'} {call.type === 'VIDEO' ? 'видеозвонок' : 'аудиозвонок'}
-                    </div>
-                    <div className="list-card__meta">
-                      <span>{formatDuration(call.startedAt, call.endedAt)}</span>
-                      <span>{formatDistanceToNow(new Date(call.createdAt), { addSuffix: true, locale: ru })}</span>
-                    </div>
+            return (
+              <div key={call.id} style={styles.item}>
+                <Avatar name="?" size="md" />
+                <div style={styles.info}>
+                  <div style={styles.row}>
+                    <CallStatusIcon status={call.status} isOutgoing={isOutgoing} />
+                    <span style={{ ...styles.label, color: missed ? 'var(--color-error)' : 'var(--color-text)' }}>
+                      {isOutgoing ? 'Outgoing' : missed ? 'Missed' : 'Incoming'}{' '}
+                      {call.type === 'VIDEO' ? 'video' : 'audio'} call
+                    </span>
                   </div>
-                  <div className="list-card__actions">
-                    <span className="lux-pill">{missed ? 'пропущен' : call.status.toLowerCase()}</span>
+                  <div style={styles.meta}>
+                    {duration && <span style={styles.duration}>{duration}</span>}
+                    <span style={styles.time}>
+                      {formatDistanceToNow(new Date(call.createdAt), { addSuffix: true })}
+                    </span>
                   </div>
-                </article>
-              );
-            })}
-          </section>
-        )}
-      </div>
+                </div>
+                <div style={styles.type}>
+                  {call.type === 'VIDEO' ? '🎥' : '📞'}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
+
+const styles: Record<string, React.CSSProperties> = {
+  container: { padding: 'clamp(12px, 4vw, 24px)', maxWidth: 720, margin: '0 auto' },
+  title: { fontSize: 24, fontWeight: 700, marginBottom: 24, color: 'var(--color-text)' },
+  centered: { display: 'flex', justifyContent: 'center', paddingTop: 40 },
+  error: { color: 'var(--color-error)', fontSize: 14 },
+  list: { display: 'flex', flexDirection: 'column', gap: 4 },
+  item: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+    padding: '12px 16px',
+    borderRadius: 8,
+    background: 'var(--color-surface)',
+    border: '1px solid var(--color-border)',
+  },
+  info: { flex: 1, minWidth: 0 },
+  row: { display: 'flex', alignItems: 'center' },
+  label: { fontSize: 14, fontWeight: 500 },
+  meta: { display: 'flex', gap: 8, marginTop: 2 },
+  duration: { fontSize: 12, color: 'var(--color-text-secondary)' },
+  time: { fontSize: 12, color: 'var(--color-text-secondary)' },
+  type: { fontSize: 18 },
+};

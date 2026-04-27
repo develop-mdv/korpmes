@@ -120,13 +120,32 @@ export class WebSocketGatewayHandler
     }
   }
 
+  @SubscribeMessage('chat:catchup')
+  async handleChatCatchup(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: { chatId: string; afterSeq: string | number },
+  ): Promise<void> {
+    if (!payload.chatId || payload.afterSeq == null) return;
+    try {
+      const { messages } = await this.messagesService.catchupSince(
+        payload.chatId,
+        payload.afterSeq,
+      );
+      for (const m of messages) {
+        client.emit(WS_EVENTS.MESSAGE_NEW, m);
+      }
+    } catch (error: any) {
+      this.logger.warn(`chat:catchup failed: ${error.message}`);
+    }
+  }
+
   @SubscribeMessage(WS_EVENTS.MESSAGE_SEND)
   async handleMessageSend(
     @ConnectedSocket() client: Socket,
     @MessageBody()
     payload: {
       chatId: string;
-      content: string;
+      content?: string;
       type?: string;
       parentMessageId?: string;
       fileIds?: string[];
@@ -135,13 +154,18 @@ export class WebSocketGatewayHandler
     try {
       const userId = client.data.userId;
 
-      if (!payload.chatId || !payload.content) {
-        client.emit(WS_EVENTS.ERROR, { message: 'chatId and content are required' });
+      const hasContent = typeof payload.content === 'string' && payload.content.trim().length > 0;
+      const hasFiles = Array.isArray(payload.fileIds) && payload.fileIds.length > 0;
+
+      if (!payload.chatId || (!hasContent && !hasFiles)) {
+        client.emit(WS_EVENTS.ERROR, {
+          message: 'chatId and either content or fileIds are required',
+        });
         return;
       }
 
       const message = await this.messagesService.create(payload.chatId, userId, {
-        content: payload.content,
+        content: hasContent ? payload.content : undefined,
         type: payload.type as any,
         parentMessageId: payload.parentMessageId,
         fileIds: payload.fileIds,

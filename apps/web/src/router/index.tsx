@@ -7,6 +7,7 @@ import { RegisterPage } from '@/pages/auth/RegisterPage';
 import { ForgotPasswordPage } from '@/pages/auth/ForgotPasswordPage';
 import { CreateOrganizationPage } from '@/pages/organization/CreateOrganizationPage';
 import { JoinOrganizationPage } from '@/pages/organization/JoinOrganizationPage';
+import { InvitePage } from '@/pages/invite/InvitePage';
 import { ChatsPage } from '@/pages/chats/ChatsPage';
 import { CallsPage } from '@/pages/calls/CallsPage';
 import { TasksPage } from '@/pages/tasks/TasksPage';
@@ -14,6 +15,7 @@ import { FilesPage } from '@/pages/files/FilesPage';
 import { NotificationsPage } from '@/pages/notifications/NotificationsPage';
 import { OrganizationPage } from '@/pages/organization/OrganizationPage';
 import { MembersPage } from '@/pages/organization/MembersPage';
+import { RequestsPage } from '@/pages/organization/RequestsPage';
 import { DepartmentsPage } from '@/pages/organization/DepartmentsPage';
 import { SettingsPage } from '@/pages/settings/SettingsPage';
 import { SearchPage } from '@/pages/search/SearchPage';
@@ -35,6 +37,10 @@ export const router = createBrowserRouter([
   {
     path: '/forgot-password',
     element: <ForgotPasswordPage />,
+  },
+  {
+    path: '/invite/:token',
+    element: <InvitePage />,
   },
   {
     element: <AuthGuard />,
@@ -61,6 +67,7 @@ export const router = createBrowserRouter([
               { path: '/notifications', element: <NotificationsPage /> },
               { path: '/organization', element: <OrganizationPage /> },
               { path: '/organization/members', element: <MembersPage /> },
+              { path: '/organization/requests', element: <RequestsPage /> },
               { path: '/organization/departments', element: <DepartmentsPage /> },
               { path: '/settings', element: <SettingsPage /> },
               { path: '/search', element: <SearchPage /> },

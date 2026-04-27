@@ -1,9 +1,10 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { Platform } from 'react-native';
+import { Platform, AppState } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { useNotificationStore } from '../stores/notification.store';
 import { apiClient } from '../api/client';
+import { playMessage } from '../services/audio.service';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -81,6 +82,12 @@ export function usePushNotifications() {
           read: false,
           createdAt: new Date().toISOString(),
         });
+
+        // Extra feedback when app is in foreground: short vibration for messages.
+        const type = (data as any)?.type;
+        if (type === 'NEW_MESSAGE' && AppState.currentState === 'active') {
+          playMessage();
+        }
       },
     );
 

@@ -10,6 +10,8 @@ export interface Call {
   startedAt: string;
 }
 
+export type LayoutMode = 'grid' | 'speaker';
+
 interface CallState {
   activeCall: Call | null;
   localStream: MediaStream | null;
@@ -19,6 +21,10 @@ interface CallState {
   isVideoOff: boolean;
   isScreenSharing: boolean;
   connectionQuality: Record<string, 'good' | 'fair' | 'poor'>;
+  layoutMode: LayoutMode;
+  activeSpeakerId: string | null;
+  fullscreenUserId: string | null;
+  screenSharerId: string | null;
 
   setActiveCall: (call: Call | null) => void;
   setLocalStream: (stream: MediaStream | null) => void;
@@ -26,8 +32,12 @@ interface CallState {
   removeRemoteStream: (userId: string) => void;
   setScreenStream: (stream: MediaStream | null) => void;
   setScreenSharing: (sharing: boolean) => void;
+  setScreenSharerId: (userId: string | null) => void;
   setConnectionQuality: (userId: string, quality: 'good' | 'fair' | 'poor') => void;
   setCallType: (type: 'audio' | 'video') => void;
+  setLayoutMode: (mode: LayoutMode) => void;
+  setActiveSpeakerId: (userId: string | null) => void;
+  setFullscreenUserId: (id: string | null) => void;
   toggleMute: () => void;
   toggleVideo: () => void;
   endCall: () => void;
@@ -42,6 +52,10 @@ export const useCallStore = create<CallState>()((set, get) => ({
   isVideoOff: false,
   isScreenSharing: false,
   connectionQuality: {},
+  layoutMode: 'grid',
+  activeSpeakerId: null,
+  fullscreenUserId: null,
+  screenSharerId: null,
 
   setActiveCall: (activeCall) => set({ activeCall }),
 
@@ -61,6 +75,14 @@ export const useCallStore = create<CallState>()((set, get) => ({
   setScreenStream: (screenStream) => set({ screenStream }),
 
   setScreenSharing: (isScreenSharing) => set({ isScreenSharing }),
+
+  setScreenSharerId: (screenSharerId) => set({ screenSharerId }),
+
+  setLayoutMode: (layoutMode) => set({ layoutMode }),
+
+  setActiveSpeakerId: (activeSpeakerId) => set({ activeSpeakerId }),
+
+  setFullscreenUserId: (fullscreenUserId) => set({ fullscreenUserId }),
 
   setConnectionQuality: (userId, quality) =>
     set((state) => ({
@@ -105,6 +127,10 @@ export const useCallStore = create<CallState>()((set, get) => ({
       isVideoOff: false,
       isScreenSharing: false,
       connectionQuality: {},
+      layoutMode: 'grid',
+      activeSpeakerId: null,
+      fullscreenUserId: null,
+      screenSharerId: null,
     });
   },
 }));

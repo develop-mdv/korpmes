@@ -97,6 +97,7 @@ export function ChatsListScreen({ navigation }: Props) {
             lastMessage={item.lastMessage?.content}
             lastMessageTime={item.lastMessage?.createdAt}
             unreadCount={item.unreadCount}
+            isSelf={item.isSelf}
             onPress={handleChatPress}
           />
         )}

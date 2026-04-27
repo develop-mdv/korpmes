@@ -29,6 +29,9 @@ export class Message {
   @Column({ name: 'parent_message_id', type: 'uuid', nullable: true })
   parentMessageId: string | null;
 
+  @Column({ type: 'bigint', generated: 'increment' })
+  seq: string;
+
   @Column({ name: 'is_edited', type: 'boolean', default: false })
   isEdited: boolean;
 

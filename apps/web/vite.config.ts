@@ -7,6 +7,9 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '@corp/shared-constants': path.resolve(__dirname, '../../packages/shared-constants/src'),
+      '@corp/shared-types': path.resolve(__dirname, '../../packages/shared-types/src'),
+      '@corp/shared-validation': path.resolve(__dirname, '../../packages/shared-validation/src'),
     },
   },
   server: {

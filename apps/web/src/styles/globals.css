@@ -116,6 +116,10 @@ html {
   background: var(--color-bg);
 }
 
+html, body {
+  overflow-x: hidden;
+}
+
 body {
   position: relative;
   overflow-x: hidden;

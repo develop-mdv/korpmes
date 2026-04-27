@@ -2,11 +2,13 @@ import React, { useEffect } from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuthStore } from '../stores/auth.store';
 import { useCallStore } from '../stores/call.store';
+import { useInviteStore } from '../stores/invite.store';
 import { useSocket } from '../hooks/useSocket';
 import { useOrganizationBootstrap } from '../hooks/useOrganizationBootstrap';
 import { AuthStack } from './AuthStack';
 import { AppTabs } from './AppTabs';
 import { ActiveCallScreen } from '../screens/calls/ActiveCallScreen';
+import { InviteScreen } from '../screens/invite/InviteScreen';
 import type { RootStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -23,6 +25,11 @@ export function RootNavigator() {
             name="ActiveCall"
             component={ActiveCallScreen}
             options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }}
+          />
+          <Stack.Screen
+            name="Invite"
+            component={InviteScreen}
+            options={{ presentation: 'modal' }}
           />
         </>
       ) : (
@@ -41,12 +48,22 @@ function AppTabsWithCallGuard({ navigation }: { navigation: any }) {
   useSocket(); // Connect socket when authenticated
   useOrganizationBootstrap();
   const activeCall = useCallStore((state) => state.activeCall);
+  const pendingInviteToken = useInviteStore((state) => state.pendingToken);
+  const setPendingToken = useInviteStore((state) => state.setPendingToken);
 
   useEffect(() => {
     if (activeCall) {
       navigation.navigate('ActiveCall');
     }
   }, [activeCall, navigation]);
+
+  useEffect(() => {
+    if (pendingInviteToken) {
+      const token = pendingInviteToken;
+      setPendingToken(null);
+      navigation.navigate('Invite', { token });
+    }
+  }, [pendingInviteToken, navigation, setPendingToken]);
 
   return <AppTabs />;
 }

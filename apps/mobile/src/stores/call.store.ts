@@ -11,6 +11,8 @@ export interface ActiveCall {
   initiatorId: string;
 }
 
+export type AudioOutput = 'speaker' | 'earpiece';
+
 interface CallState {
   activeCall: ActiveCall | null;
   // MediaStream from react-native-webrtc — typed as unknown to avoid hard dep in store
@@ -19,11 +21,19 @@ interface CallState {
   isMuted: boolean;
   isVideoOff: boolean;
   connectionQuality: 'good' | 'fair' | 'poor';
+  audioOutput: AudioOutput;
+  isPolite: boolean;
+  makingOffer: boolean;
+  ignoreOffer: boolean;
 
   setActiveCall: (call: ActiveCall | null) => void;
   setLocalStream: (stream: unknown | null) => void;
   setRemoteStream: (stream: unknown | null) => void;
   setConnectionQuality: (quality: 'good' | 'fair' | 'poor') => void;
+  setAudioOutput: (output: AudioOutput) => void;
+  setPolitePeer: (isPolite: boolean) => void;
+  setMakingOffer: (value: boolean) => void;
+  setIgnoreOffer: (value: boolean) => void;
   toggleMute: () => void;
   toggleVideo: () => void;
   endCall: () => void;
@@ -36,8 +46,18 @@ export const useCallStore = create<CallState>((set) => ({
   isMuted: false,
   isVideoOff: false,
   connectionQuality: 'good',
+  audioOutput: 'earpiece',
+  isPolite: false,
+  makingOffer: false,
+  ignoreOffer: false,
 
-  setActiveCall: (call) => set({ activeCall: call, isMuted: false, isVideoOff: false }),
+  setActiveCall: (call) =>
+    set({
+      activeCall: call,
+      isMuted: false,
+      isVideoOff: false,
+      audioOutput: call?.type === 'VIDEO' ? 'speaker' : 'earpiece',
+    }),
 
   setLocalStream: (stream) => set({ localStream: stream }),
 
@@ -45,10 +65,29 @@ export const useCallStore = create<CallState>((set) => ({
 
   setConnectionQuality: (quality) => set({ connectionQuality: quality }),
 
+  setAudioOutput: (output) => set({ audioOutput: output }),
+
+  setPolitePeer: (isPolite) => set({ isPolite }),
+
+  setMakingOffer: (value) => set({ makingOffer: value }),
+
+  setIgnoreOffer: (value) => set({ ignoreOffer: value }),
+
   toggleMute: () => set((state) => ({ isMuted: !state.isMuted })),
 
   toggleVideo: () => set((state) => ({ isVideoOff: !state.isVideoOff })),
 
   endCall: () =>
-    set({ activeCall: null, localStream: null, remoteStream: null, isMuted: false, isVideoOff: false, connectionQuality: 'good' }),
+    set({
+      activeCall: null,
+      localStream: null,
+      remoteStream: null,
+      isMuted: false,
+      isVideoOff: false,
+      connectionQuality: 'good',
+      audioOutput: 'earpiece',
+      isPolite: false,
+      makingOffer: false,
+      ignoreOffer: false,
+    }),
 }));
