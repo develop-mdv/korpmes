@@ -36,7 +36,7 @@ export function Sidebar() {
         position: 'fixed',
         top: 0,
         left: 0,
-        bottom: 0,
+        height: 'var(--app-height, 100vh)',
         width: '85vw',
         maxWidth: 320,
         backgroundColor: 'var(--color-bg-secondary)',

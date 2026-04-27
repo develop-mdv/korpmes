@@ -1,17 +1,22 @@
 import { CSSProperties, useEffect, useRef } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { CallOverlay } from '@/components/call/CallOverlay';
 import { useSocket } from '@/hooks/useSocket';
 import { useUIStore } from '@/stores/ui.store';
 import { useBreakpoint } from '@/hooks/useBreakpoint';
+import { useAppHeight } from '@/hooks/useAppHeight';
 
 export function AppLayout() {
   useSocket();
+  useAppHeight();
   const sidebarOpen = useUIStore((s) => s.sidebarOpen);
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
   const { isMobile } = useBreakpoint();
   const initialMobileCloseRef = useRef(false);
+  const location = useLocation();
+  const isInsideChat = /^\/chats\/[^/]+/.test(location.pathname);
+  const showHamburger = isMobile && !sidebarOpen && !isInsideChat;
 
   useEffect(() => {
     if (isMobile && !initialMobileCloseRef.current) {
@@ -24,8 +29,7 @@ export function AppLayout() {
 
   const layoutStyle: CSSProperties = {
     display: 'flex',
-    height: '100dvh',
-    minHeight: '100vh',
+    height: 'var(--app-height, 100vh)',
     overflow: 'hidden',
   };
 
@@ -35,6 +39,7 @@ export function AppLayout() {
     flexDirection: 'column',
     overflow: 'hidden',
     marginLeft: isMobile ? 0 : sidebarOpen ? 260 : 72,
+    paddingTop: showHamburger ? 56 : 0,
     transition: 'margin-left 0.2s ease',
   };
 
@@ -71,7 +76,7 @@ export function AppLayout() {
         <div style={backdropStyle} onClick={toggleSidebar} aria-hidden />
       )}
       <Sidebar />
-      {isMobile && !sidebarOpen && (
+      {showHamburger && (
         <button
           type="button"
           style={hamburgerStyle}
