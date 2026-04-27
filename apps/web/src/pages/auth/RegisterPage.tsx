@@ -118,7 +118,7 @@ export function RegisterPage() {
 
 const styles: Record<string, React.CSSProperties> = {
   container: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-bg-secondary)', padding: 16 },
-  card: { background: 'var(--color-surface)', borderRadius: 'var(--radius-lg)', padding: 40, width: '100%', maxWidth: 460, boxShadow: 'var(--shadow-lg)' },
+  card: { background: 'var(--color-surface)', borderRadius: 'var(--radius-lg)', padding: 'clamp(20px, 5vw, 40px)', width: '100%', maxWidth: 460, boxShadow: 'var(--shadow-lg)' },
   title: { fontSize: 24, fontWeight: 700, textAlign: 'center', color: 'var(--color-text)', margin: 0 },
   subtitle: { textAlign: 'center', color: 'var(--color-text-secondary)', marginBottom: 24, fontSize: 14 },
   error: { background: '#FEE2E2', color: '#DC2626', padding: '10px 14px', borderRadius: 'var(--radius-sm)', fontSize: 14, marginBottom: 16 },

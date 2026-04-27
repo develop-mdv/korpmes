@@ -6,6 +6,7 @@ import { CreateChatModal } from '@/components/chat/CreateChatModal';
 import { EmptyState } from '@/components/common/EmptyState';
 import { useChatStore } from '@/stores/chat.store';
 import { useOrganizationStore } from '@/stores/organization.store';
+import { useBreakpoint } from '@/hooks/useBreakpoint';
 import * as chatsApi from '@/api/chats.api';
 
 function NoOrgBanner() {
@@ -36,7 +37,7 @@ const noOrgStyles: Record<string, React.CSSProperties> = {
   icon: { fontSize: 48, marginBottom: 12 },
   title: { fontSize: 20, fontWeight: 700, color: 'var(--color-text)', marginBottom: 8 },
   text: { fontSize: 14, color: 'var(--color-text-secondary)', marginBottom: 24, lineHeight: 1.6 },
-  actions: { display: 'flex', gap: 12, justifyContent: 'center' },
+  actions: { display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' },
   primaryBtn: { padding: '10px 20px', borderRadius: 'var(--radius-md)', background: 'var(--color-primary)', color: '#fff', fontSize: 14, fontWeight: 600, textDecoration: 'none' },
   secondaryBtn: { padding: '10px 20px', borderRadius: 'var(--radius-md)', background: 'transparent', color: 'var(--color-primary)', fontSize: 14, fontWeight: 600, textDecoration: 'none', border: '1px solid var(--color-primary)' },
 };
@@ -47,6 +48,7 @@ export function ChatsPage() {
   const { chats, setChats, setActiveChatId, unreadCounts } = useChatStore();
   const { currentOrg } = useOrganizationStore();
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const { isMobile } = useBreakpoint();
 
   useEffect(() => {
     if (currentOrg) {
@@ -66,23 +68,34 @@ export function ChatsPage() {
     return <NoOrgBanner />;
   }
 
+  const showList = !isMobile || !chatId;
+  const showMain = !isMobile || !!chatId;
+
+  const sidebarStyle: React.CSSProperties = isMobile
+    ? { ...styles.sidebar, width: '100%', borderRight: 'none' }
+    : styles.sidebar;
+
   return (
     <div style={styles.container}>
-      <div style={styles.sidebar}>
-        <div style={styles.sidebarHeader}>
-          <h2 style={styles.sidebarTitle}>Chats</h2>
-          <button style={styles.newChatBtn} onClick={() => setShowCreateModal(true)}>+</button>
+      {showList && (
+        <div style={sidebarStyle}>
+          <div style={styles.sidebarHeader}>
+            <h2 style={styles.sidebarTitle}>Chats</h2>
+            <button style={styles.newChatBtn} onClick={() => setShowCreateModal(true)}>+</button>
+          </div>
+          <ChatList chats={chats} activeChatId={chatId || null} onSelectChat={handleSelectChat} unreadCounts={unreadCounts} />
         </div>
-        <ChatList chats={chats} activeChatId={chatId || null} onSelectChat={handleSelectChat} unreadCounts={unreadCounts} />
-      </div>
+      )}
 
-      <div style={styles.main}>
-        {chatId ? (
-          <ChatView chatId={chatId} />
-        ) : (
-          <EmptyState title="Select a chat" description="Choose a conversation from the sidebar or start a new one" />
-        )}
-      </div>
+      {showMain && (
+        <div style={styles.main}>
+          {chatId ? (
+            <ChatView chatId={chatId} />
+          ) : (
+            <EmptyState title="Select a chat" description="Choose a conversation from the sidebar or start a new one" />
+          )}
+        </div>
+      )}
 
       {showCreateModal && (
         <CreateChatModal onClose={() => setShowCreateModal(false)} />

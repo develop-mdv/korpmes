@@ -223,7 +223,7 @@ export function DepartmentsPage() {
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  container: { padding: 24, maxWidth: 720, margin: '0 auto' },
+  container: { padding: 'clamp(12px, 4vw, 24px)', maxWidth: 720, margin: '0 auto' },
   header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
   title: { fontSize: 24, fontWeight: 700, margin: 0, color: 'var(--color-text)' },
   createBtn: {

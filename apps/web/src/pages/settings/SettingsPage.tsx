@@ -394,7 +394,7 @@ export function SettingsPage() {
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  container: { padding: 24, maxWidth: 640, margin: '0 auto' },
+  container: { padding: 'clamp(12px, 4vw, 24px)', maxWidth: 640, margin: '0 auto' },
   title: { fontSize: 24, fontWeight: 700, marginBottom: 24, color: 'var(--color-text)' },
   section: { background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: 20, marginBottom: 16 },
   sectionHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },

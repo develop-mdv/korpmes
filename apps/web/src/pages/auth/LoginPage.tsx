@@ -132,7 +132,7 @@ const styles: Record<string, React.CSSProperties> = {
   card: {
     background: 'var(--color-surface)',
     borderRadius: 'var(--radius-lg)',
-    padding: 40,
+    padding: 'clamp(20px, 5vw, 40px)',
     width: '100%',
     maxWidth: 420,
     boxShadow: 'var(--shadow-lg)',

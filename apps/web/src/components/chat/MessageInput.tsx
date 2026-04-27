@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback, KeyboardEvent } from 'react';
 import type { StagedFile } from '@/hooks/useAttachmentStaging';
+import { useBreakpoint } from '@/hooks/useBreakpoint';
 
 interface MessageInputProps {
   onSend: (content: string) => void;
@@ -76,6 +77,17 @@ export function MessageInput({
   const [isDragOver, setIsDragOver] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { isMobile } = useBreakpoint();
+
+  const containerStyle: React.CSSProperties = isMobile
+    ? { ...styles.container, padding: '10px 10px' }
+    : styles.container;
+  const attachBtnStyle: React.CSSProperties = isMobile
+    ? { ...styles.attachBtn, width: 40, height: 40 }
+    : styles.attachBtn;
+  const sendBtnStyle: React.CSSProperties = isMobile
+    ? { ...styles.sendBtn, width: 40, height: 40 }
+    : styles.sendBtn;
 
   const hasReadyFiles = stagedFiles.some((s) => s.status === 'done');
   const canSend = !disableSend && (text.trim().length > 0 || hasReadyFiles);
@@ -134,7 +146,7 @@ export function MessageInput({
 
   return (
     <div onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop} style={{ position: 'relative' }}>
-      {isDragOver && (
+      {isDragOver && !isMobile && (
         <div style={stagedStyles.dropOverlay}>
           <span>📎 Drop files to attach (up to 10)</span>
         </div>
@@ -150,8 +162,8 @@ export function MessageInput({
           ))}
         </div>
       )}
-      <div style={styles.container}>
-        <button style={styles.attachBtn} onClick={handleFileClick} title="Attach file">
+      <div style={containerStyle}>
+        <button style={attachBtnStyle} onClick={handleFileClick} title="Attach file">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
           </svg>
@@ -168,7 +180,7 @@ export function MessageInput({
           disabled={disabled}
         />
         <button
-          style={{ ...styles.sendBtn, opacity: canSend ? 1 : 0.4 }}
+          style={{ ...sendBtnStyle, opacity: canSend ? 1 : 0.4 }}
           onClick={handleSend}
           disabled={!canSend || disabled}
         >

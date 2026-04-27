@@ -116,7 +116,7 @@ export function RequestsPage() {
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  container: { padding: 24, maxWidth: 800, margin: '0 auto' },
+  container: { padding: 'clamp(12px, 4vw, 24px)', maxWidth: 800, margin: '0 auto' },
   title: { fontSize: 24, fontWeight: 700, margin: '0 0 4px' },
   subtitle: { fontSize: 14, color: 'var(--color-text-secondary)', marginBottom: 20 },
   error: { background: '#FEE2E2', color: '#DC2626', padding: '8px 12px', borderRadius: 'var(--radius-sm)', fontSize: 13, marginBottom: 12 },

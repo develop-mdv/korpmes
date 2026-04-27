@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Avatar } from '@/components/common/Avatar';
 import { useFileStore, type CachedFile } from '@/stores/file.store';
 import { FilePreviewModal } from '@/components/files/FilePreviewModal';
+import { useBreakpoint } from '@/hooks/useBreakpoint';
 
 interface MessageBubbleProps {
   message: {
@@ -52,14 +53,14 @@ function AttachmentItem({
       <img
         src={previewSrc}
         alt={file.originalName}
-        style={attachStyles.image}
+        style={{ ...attachStyles.image, maxWidth: 'min(240px, 70vw)' }}
         onClick={() => onPreview(file)}
       />
     );
   }
 
   return (
-    <div style={attachStyles.card} onClick={() => onPreview(file)}>
+    <div style={{ ...attachStyles.card, minWidth: 0, maxWidth: 'min(260px, 70vw)' }} onClick={() => onPreview(file)}>
       <div style={attachStyles.icon}>{isVideo ? '🎬' : '📎'}</div>
       <div style={attachStyles.info}>
         <div style={attachStyles.name} title={file.originalName}>
@@ -75,11 +76,23 @@ export function MessageBubble({ message, isOwn, showSender }: MessageBubbleProps
   const time = new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const [preview, setPreview] = useState<CachedFile | null>(null);
   const attachments = message.attachments ?? [];
+  const { isMobile } = useBreakpoint();
+
+  const wrapperStyle: React.CSSProperties = {
+    ...styles.wrapper,
+    justifyContent: isOwn ? 'flex-end' : 'flex-start',
+    padding: isMobile ? '0 4px' : '0 16px',
+  };
+  const bubbleStyle: React.CSSProperties = {
+    ...styles.bubble,
+    ...(isOwn ? styles.ownBubble : styles.otherBubble),
+    maxWidth: isMobile ? '82%' : '65%',
+  };
 
   return (
-    <div style={{ ...styles.wrapper, justifyContent: isOwn ? 'flex-end' : 'flex-start' }}>
+    <div style={wrapperStyle}>
       {!isOwn && showSender && <Avatar name={message.senderName || '?'} size="sm" />}
-      <div style={{ ...styles.bubble, ...(isOwn ? styles.ownBubble : styles.otherBubble) }}>
+      <div style={bubbleStyle}>
         {!isOwn && showSender && <div style={styles.senderName}>{message.senderName}</div>}
         {attachments.length > 0 && (
           <div style={styles.attachments}>

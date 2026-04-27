@@ -102,7 +102,7 @@ export function CallsPage() {
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  container: { padding: 24, maxWidth: 720, margin: '0 auto' },
+  container: { padding: 'clamp(12px, 4vw, 24px)', maxWidth: 720, margin: '0 auto' },
   title: { fontSize: 24, fontWeight: 700, marginBottom: 24, color: 'var(--color-text)' },
   centered: { display: 'flex', justifyContent: 'center', paddingTop: 40 },
   error: { color: 'var(--color-error)', fontSize: 14 },

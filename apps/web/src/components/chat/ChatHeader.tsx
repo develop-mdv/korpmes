@@ -1,8 +1,10 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Avatar } from '@/components/common/Avatar';
 import { useChatStore } from '@/stores/chat.store';
 import { useCallStore } from '@/stores/call.store';
 import { useAuthStore } from '@/stores/auth.store';
+import { useBreakpoint } from '@/hooks/useBreakpoint';
 import * as callsApi from '@/api/calls.api';
 import { getChatDisplayName } from '@/utils/chat';
 
@@ -11,10 +13,12 @@ interface ChatHeaderProps {
 }
 
 export function ChatHeader({ chatId }: ChatHeaderProps) {
+  const navigate = useNavigate();
   const chat = useChatStore((s) => s.chats.find((c) => c.id === chatId));
   const activeCall = useCallStore((s) => s.activeCall);
   const setActiveCall = useCallStore((s) => s.setActiveCall);
   const userId = useAuthStore((s) => s.user?.id);
+  const { isMobile } = useBreakpoint();
 
   if (!chat) return null;
 
@@ -36,9 +40,25 @@ export function ChatHeader({ chatId }: ChatHeaderProps) {
     }
   };
 
+  const containerStyle: React.CSSProperties = isMobile
+    ? { ...styles.container, padding: '10px 12px' }
+    : styles.container;
+
   return (
-    <div style={styles.container}>
+    <div style={containerStyle}>
       <div style={styles.info}>
+        {isMobile && (
+          <button
+            type="button"
+            style={styles.backBtn}
+            onClick={() => navigate('/chats')}
+            aria-label="Back to chats"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </button>
+        )}
         <Avatar name={getChatDisplayName(chat, userId)} size="sm" />
         <div>
           <div style={styles.name}>{getChatDisplayName(chat, userId)}</div>
@@ -78,4 +98,5 @@ const styles: Record<string, React.CSSProperties> = {
   subtitle: { fontSize: 12, color: 'var(--color-text-secondary)' },
   actions: { display: 'flex', gap: 4 },
   actionBtn: { width: 36, height: 36, borderRadius: 'var(--radius-md)', border: 'none', background: 'transparent', color: 'var(--color-text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  backBtn: { width: 40, height: 40, borderRadius: 'var(--radius-md)', border: 'none', background: 'transparent', color: 'var(--color-text)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: 4, padding: 0, flexShrink: 0 },
 };

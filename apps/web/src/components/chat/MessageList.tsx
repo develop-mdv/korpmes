@@ -3,6 +3,7 @@ import { MessageBubble } from './MessageBubble';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { format, isSameDay } from 'date-fns';
 import type { Message } from '@/stores/message.store';
+import { useBreakpoint } from '@/hooks/useBreakpoint';
 
 interface MessageListProps {
   messages: Message[];
@@ -70,6 +71,10 @@ export function MessageList({ messages, hasMore, onLoadMore, currentUserId, isGr
   const isAtBottomRef = useRef(true);
   const lastOwnIdRef = useRef<string | null>(null);
   const [showJumpBtn, setShowJumpBtn] = useState(false);
+  const { isMobile } = useBreakpoint();
+  const responsiveContainerStyle: CSSProperties = isMobile
+    ? { ...containerStyle, padding: '12px 12px' }
+    : containerStyle;
 
   const scrollToBottom = useCallback(() => {
     if (containerRef.current) {
@@ -131,7 +136,7 @@ export function MessageList({ messages, hasMore, onLoadMore, currentUserId, isGr
 
   return (
     <div style={wrapperStyle}>
-      <div ref={containerRef} style={containerStyle} onScroll={handleScroll}>
+      <div ref={containerRef} style={responsiveContainerStyle} onScroll={handleScroll}>
         {hasMore && <LoadingSpinner size={24} />}
         {messages.map((msg, i) => {
           const showDate =

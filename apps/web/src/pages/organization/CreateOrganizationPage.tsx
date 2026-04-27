@@ -104,7 +104,7 @@ export function CreateOrganizationPage() {
 
 const styles: Record<string, React.CSSProperties> = {
   container: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-bg-secondary)', padding: 16 },
-  card: { background: 'var(--color-surface)', borderRadius: 'var(--radius-lg)', padding: 40, width: '100%', maxWidth: 460, boxShadow: 'var(--shadow-lg)', textAlign: 'center' },
+  card: { background: 'var(--color-surface)', borderRadius: 'var(--radius-lg)', padding: 'clamp(20px, 5vw, 40px)', width: '100%', maxWidth: 460, boxShadow: 'var(--shadow-lg)', textAlign: 'center' },
   logoIcon: { width: 48, height: 48, borderRadius: 12, background: 'var(--color-primary)', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 18, marginBottom: 16 },
   title: { fontSize: 22, fontWeight: 700, color: 'var(--color-text)', margin: '0 0 4px' },
   subtitle: { fontSize: 14, color: 'var(--color-text-secondary)', marginBottom: 24 },

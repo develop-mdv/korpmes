@@ -127,7 +127,7 @@ export function JoinOrganizationPage() {
 
 const styles: Record<string, React.CSSProperties> = {
   container: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-bg-secondary)', padding: 16 },
-  card: { background: 'var(--color-surface)', borderRadius: 'var(--radius-lg)', padding: 32, width: '100%', maxWidth: 500, boxShadow: 'var(--shadow-lg)' },
+  card: { background: 'var(--color-surface)', borderRadius: 'var(--radius-lg)', padding: 'clamp(20px, 5vw, 32px)', width: '100%', maxWidth: 500, boxShadow: 'var(--shadow-lg)' },
   title: { fontSize: 22, fontWeight: 700, color: 'var(--color-text)', margin: '0 0 4px', textAlign: 'center' },
   subtitle: { fontSize: 14, color: 'var(--color-text-secondary)', marginBottom: 20, textAlign: 'center' },
   error: { background: '#FEE2E2', color: '#DC2626', padding: '8px 12px', borderRadius: 'var(--radius-sm)', fontSize: 13, marginBottom: 12 },

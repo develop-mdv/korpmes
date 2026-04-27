@@ -184,7 +184,7 @@ export function AuditPage() {
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  container: { padding: 24, maxWidth: 1200, margin: '0 auto' },
+  container: { padding: 'clamp(12px, 4vw, 24px)', maxWidth: 1200, margin: '0 auto' },
   header: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 },
   title: { fontSize: 24, fontWeight: 700, margin: 0, color: 'var(--color-text)' },
   count: { fontSize: 14, color: 'var(--color-text-secondary)' },

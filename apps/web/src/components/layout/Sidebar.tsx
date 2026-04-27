@@ -5,6 +5,7 @@ import { useUIStore } from '@/stores/ui.store';
 import { useOrganizationStore } from '@/stores/organization.store';
 import { Avatar } from '@/components/common/Avatar';
 import { useAuth } from '@/hooks/useAuth';
+import { useBreakpoint } from '@/hooks/useBreakpoint';
 
 const navItems = [
   { path: '/chats', label: 'Chats', icon: '\u{1F4AC}' },
@@ -26,21 +27,42 @@ export function Sidebar() {
   const currentOrg = useOrganizationStore((s) => s.currentOrg);
   const setCurrentOrg = useOrganizationStore((s) => s.setCurrentOrg);
   const { logout } = useAuth();
+  const { isMobile } = useBreakpoint();
 
-  const sidebarStyle: CSSProperties = {
-    position: 'fixed',
-    top: 0,
-    left: 0,
-    bottom: 0,
-    width: sidebarOpen ? 260 : 72,
-    backgroundColor: 'var(--color-bg-secondary)',
-    borderRight: '1px solid var(--color-border)',
-    display: 'flex',
-    flexDirection: 'column',
-    transition: 'width 0.2s ease',
-    zIndex: 100,
-    overflow: 'hidden',
-  };
+  const showLabels = isMobile ? true : sidebarOpen;
+
+  const sidebarStyle: CSSProperties = isMobile
+    ? {
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        bottom: 0,
+        width: '85vw',
+        maxWidth: 320,
+        backgroundColor: 'var(--color-bg-secondary)',
+        borderRight: '1px solid var(--color-border)',
+        display: 'flex',
+        flexDirection: 'column',
+        transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
+        transition: 'transform 0.2s ease',
+        zIndex: 100,
+        overflow: 'hidden',
+        boxShadow: sidebarOpen ? 'var(--shadow-lg)' : 'none',
+      }
+    : {
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        bottom: 0,
+        width: sidebarOpen ? 260 : 72,
+        backgroundColor: 'var(--color-bg-secondary)',
+        borderRight: '1px solid var(--color-border)',
+        display: 'flex',
+        flexDirection: 'column',
+        transition: 'width 0.2s ease',
+        zIndex: 100,
+        overflow: 'hidden',
+      };
 
   const logoAreaStyle: CSSProperties = {
     padding: '16px 16px 12px',
@@ -61,11 +83,17 @@ export function Sidebar() {
   const toggleBtnStyle: CSSProperties = {
     background: 'none',
     border: 'none',
-    fontSize: 18,
+    fontSize: isMobile ? 22 : 18,
     color: 'var(--color-text-secondary)',
     cursor: 'pointer',
     marginLeft: 'auto',
-    padding: 4,
+    padding: isMobile ? 0 : 4,
+    width: isMobile ? 40 : 'auto',
+    height: isMobile ? 40 : 'auto',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    lineHeight: 1,
   };
 
   const orgSwitcherStyle: CSSProperties = {
@@ -75,7 +103,7 @@ export function Sidebar() {
 
   const selectStyle: CSSProperties = {
     width: '100%',
-    padding: '8px 10px',
+    padding: isMobile ? '10px 10px' : '8px 10px',
     borderRadius: 'var(--radius-sm)',
     border: '1px solid var(--color-border)',
     backgroundColor: 'var(--color-surface)',
@@ -118,7 +146,7 @@ export function Sidebar() {
   const userInfoStyle: CSSProperties = {
     flex: 1,
     overflow: 'hidden',
-    display: sidebarOpen ? 'block' : 'none',
+    display: showLabels ? 'block' : 'none',
   };
 
   const logoutBtnStyle: CSSProperties = {
@@ -129,20 +157,26 @@ export function Sidebar() {
     fontSize: 14,
     padding: '4px 8px',
     borderRadius: 'var(--radius-sm)',
-    display: sidebarOpen ? 'block' : 'none',
+    display: showLabels ? 'block' : 'none',
+  };
+
+  const handleNavClick = () => {
+    if (isMobile && sidebarOpen) {
+      toggleSidebar();
+    }
   };
 
   return (
     <aside style={sidebarStyle}>
       <div style={logoAreaStyle}>
         <span style={{ fontSize: 24, color: 'var(--color-primary)' }}>C</span>
-        {sidebarOpen && <span style={logoTextStyle}>CorpMessenger</span>}
+        {showLabels && <span style={logoTextStyle}>CorpMessenger</span>}
         <button style={toggleBtnStyle} onClick={toggleSidebar} aria-label="Toggle sidebar">
-          {sidebarOpen ? '\u{25C0}' : '\u{25B6}'}
+          {isMobile ? '\u{2715}' : sidebarOpen ? '\u{25C0}' : '\u{25B6}'}
         </button>
       </div>
 
-      {sidebarOpen && organizations.length > 0 && (
+      {showLabels && organizations.length > 0 && (
         <div style={orgSwitcherStyle}>
           <select
             style={selectStyle}
@@ -166,15 +200,16 @@ export function Sidebar() {
           <NavLink
             key={item.path}
             to={item.path}
+            onClick={handleNavClick}
             style={({ isActive }: { isActive: boolean }) => ({
               ...linkBaseStyle,
               backgroundColor: isActive ? 'var(--color-primary)' : 'transparent',
               color: isActive ? '#fff' : 'var(--color-text-secondary)',
-              justifyContent: sidebarOpen ? 'flex-start' : 'center',
+              justifyContent: showLabels ? 'flex-start' : 'center',
             })}
           >
             <span style={{ fontSize: 18 }}>{item.icon}</span>
-            {sidebarOpen && <span>{item.label}</span>}
+            {showLabels && <span>{item.label}</span>}
           </NavLink>
         ))}
       </nav>

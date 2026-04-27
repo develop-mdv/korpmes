@@ -96,7 +96,7 @@ export function InvitePage() {
 
 const styles: Record<string, React.CSSProperties> = {
   container: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-bg-secondary)', padding: 16 },
-  card: { background: 'var(--color-surface)', borderRadius: 'var(--radius-lg)', padding: 36, width: '100%', maxWidth: 440, boxShadow: 'var(--shadow-lg)', textAlign: 'center' },
+  card: { background: 'var(--color-surface)', borderRadius: 'var(--radius-lg)', padding: 'clamp(20px, 5vw, 36px)', width: '100%', maxWidth: 440, boxShadow: 'var(--shadow-lg)', textAlign: 'center' },
   center: { textAlign: 'center', color: 'var(--color-text-secondary)', padding: 40 },
   logo: { width: 72, height: 72, borderRadius: 16, margin: '0 auto 16px', objectFit: 'cover' as const, display: 'block' },
   iconOrg: { fontSize: 56, marginBottom: 12 },

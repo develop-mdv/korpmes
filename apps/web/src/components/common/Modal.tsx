@@ -1,4 +1,5 @@
 import { CSSProperties, ReactNode, useEffect } from 'react';
+import { useBreakpoint } from '@/hooks/useBreakpoint';
 
 interface ModalProps {
   open: boolean;
@@ -17,7 +18,7 @@ const backdropStyle: CSSProperties = {
   zIndex: 1000,
 };
 
-const cardStyle: CSSProperties = {
+const desktopCardStyle: CSSProperties = {
   backgroundColor: 'var(--color-surface)',
   borderRadius: 'var(--radius-lg)',
   boxShadow: 'var(--shadow-lg)',
@@ -26,6 +27,19 @@ const cardStyle: CSSProperties = {
   maxWidth: 560,
   width: '90%',
   maxHeight: '85vh',
+  overflow: 'auto',
+  position: 'relative',
+};
+
+const mobileCardStyle: CSSProperties = {
+  backgroundColor: 'var(--color-surface)',
+  boxShadow: 'var(--shadow-lg)',
+  padding: 16,
+  width: '100%',
+  height: '100%',
+  maxWidth: 'none',
+  maxHeight: '100vh',
+  borderRadius: 0,
   overflow: 'auto',
   position: 'relative',
 };
@@ -43,7 +57,7 @@ const titleStyle: CSSProperties = {
   color: 'var(--color-text)',
 };
 
-const closeButtonStyle: CSSProperties = {
+const desktopCloseButtonStyle: CSSProperties = {
   background: 'none',
   border: 'none',
   fontSize: 20,
@@ -53,7 +67,24 @@ const closeButtonStyle: CSSProperties = {
   lineHeight: 1,
 };
 
+const mobileCloseButtonStyle: CSSProperties = {
+  background: 'none',
+  border: 'none',
+  fontSize: 24,
+  color: 'var(--color-text-tertiary)',
+  cursor: 'pointer',
+  width: 40,
+  height: 40,
+  lineHeight: 1,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: 0,
+};
+
 export function Modal({ open, onClose, title, children }: ModalProps) {
+  const { isMobile } = useBreakpoint();
+
   useEffect(() => {
     if (open) {
       document.body.style.overflow = 'hidden';
@@ -66,6 +97,9 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
   }, [open]);
 
   if (!open) return null;
+
+  const cardStyle = isMobile ? mobileCardStyle : desktopCardStyle;
+  const closeButtonStyle = isMobile ? mobileCloseButtonStyle : desktopCloseButtonStyle;
 
   return (
     <div style={backdropStyle} onClick={onClose}>

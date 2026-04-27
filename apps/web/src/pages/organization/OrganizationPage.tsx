@@ -49,7 +49,7 @@ export function OrganizationPage() {
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  container: { padding: 24, maxWidth: 720, margin: '0 auto' },
+  container: { padding: 'clamp(12px, 4vw, 24px)', maxWidth: 720, margin: '0 auto' },
   header: { display: 'flex', alignItems: 'center', gap: 16, marginBottom: 32 },
   orgAvatar: { width: 64, height: 64, borderRadius: 16, background: 'var(--color-primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, fontWeight: 700 },
   title: { fontSize: 28, fontWeight: 700, margin: 0, color: 'var(--color-text)' },

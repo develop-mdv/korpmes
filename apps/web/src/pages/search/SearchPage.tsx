@@ -128,7 +128,7 @@ export function SearchPage() {
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  container: { padding: 24, maxWidth: 800, margin: '0 auto' },
+  container: { padding: 'clamp(12px, 4vw, 24px)', maxWidth: 800, margin: '0 auto' },
   title: { fontSize: 24, fontWeight: 700, marginBottom: 24, color: 'var(--color-text)' },
   centered: { display: 'flex', justifyContent: 'center', paddingTop: 32 },
   summary: { fontSize: 13, color: 'var(--color-text-secondary)', margin: '16px 0 8px' },
