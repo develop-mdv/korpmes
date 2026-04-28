@@ -1,8 +1,10 @@
 import React, { useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Avatar } from './Avatar';
 import { useCallStore } from '../stores/call.store';
 import { startRinging, stopRinging, playCallEnded } from '../services/audio.service';
+import { useTheme } from '../theme';
 
 interface CallOverlayProps {
   visible: boolean;
@@ -13,14 +15,8 @@ interface CallOverlayProps {
   onReject?: () => void;
 }
 
-export function CallOverlay({
-  visible,
-  isIncoming,
-  callerName,
-  callType,
-  onAccept,
-  onReject,
-}: CallOverlayProps) {
+export function CallOverlay({ visible, isIncoming, callerName, callType, onAccept, onReject }: CallOverlayProps) {
+  const theme = useTheme();
   const { endCall } = useCallStore();
 
   useEffect(() => {
@@ -30,52 +26,66 @@ export function CallOverlay({
     return () => stopRinging();
   }, [visible, isIncoming]);
 
+  const statusLabel = isIncoming
+    ? `Входящий ${callType === 'VIDEO' ? 'видеозвонок' : 'звонок'}…`
+    : 'Соединение…';
+
   return (
     <Modal visible={visible} animationType="slide" transparent>
-      <View style={styles.overlay}>
-        <View style={styles.card}>
-          <Avatar name={callerName} size={80} />
-          <Text style={styles.name}>{callerName}</Text>
-          <Text style={styles.status}>
-            {isIncoming
-              ? `Incoming ${callType === 'VIDEO' ? 'Video' : 'Audio'} Call...`
-              : 'Calling...'}
+      <View style={[styles.overlay, { backgroundColor: theme.colors.overlay }]}>
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: theme.colors.surface,
+              borderColor: theme.colors.borderStrong,
+              ...theme.shadows.lg,
+            },
+          ]}
+        >
+          <Avatar name={callerName} size={88} />
+          <Text style={[styles.name, { color: theme.colors.textPrimary, fontFamily: theme.typography.displayFamily }]}>
+            {callerName}
           </Text>
+          <Text style={[styles.status, { color: theme.colors.textSecondary }]}>{statusLabel}</Text>
 
           <View style={styles.actions}>
             {isIncoming ? (
               <>
                 <TouchableOpacity
-                  style={[styles.actionButton, styles.rejectButton]}
+                  style={[styles.iconBtn, { backgroundColor: theme.colors.error }]}
                   onPress={() => {
                     stopRinging();
                     playCallEnded();
                     onReject?.();
                   }}
+                  activeOpacity={0.85}
                 >
-                  <Text style={styles.actionText}>Decline</Text>
+                  <Ionicons name="close" size={28} color={theme.colors.onPrimary} />
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.actionButton, styles.acceptButton]}
+                  style={[styles.iconBtn, { backgroundColor: theme.colors.success }]}
                   onPress={() => {
                     stopRinging();
                     onAccept?.();
                   }}
+                  activeOpacity={0.85}
                 >
-                  <Text style={styles.actionText}>Accept</Text>
+                  <Ionicons name={callType === 'VIDEO' ? 'videocam' : 'call'} size={26} color={theme.colors.onPrimary} />
                 </TouchableOpacity>
               </>
             ) : (
               <TouchableOpacity
-                style={[styles.actionButton, styles.rejectButton]}
+                style={[styles.iconBtn, { backgroundColor: theme.colors.error }]}
                 onPress={() => {
                   stopRinging();
                   playCallEnded();
                   endCall();
                   onReject?.();
                 }}
+                activeOpacity={0.85}
               >
-                <Text style={styles.actionText}>Cancel</Text>
+                <Ionicons name="close" size={28} color={theme.colors.onPrimary} />
               </TouchableOpacity>
             )}
           </View>
@@ -86,56 +96,16 @@ export function CallOverlay({
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+  overlay: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  card: { borderRadius: 32, borderWidth: 1, padding: 32, alignItems: 'center', width: '85%' },
+  name: { fontSize: 24, fontWeight: '700', marginTop: 18 },
+  status: { fontSize: 15, marginTop: 6 },
+  actions: { flexDirection: 'row', marginTop: 32, gap: 24 },
+  iconBtn: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'center',
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 32,
-    alignItems: 'center',
-    width: '80%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  name: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#111827',
-    marginTop: 16,
-  },
-  status: {
-    fontSize: 15,
-    color: '#6B7280',
-    marginTop: 6,
-  },
-  actions: {
-    flexDirection: 'row',
-    marginTop: 32,
-    gap: 16,
-  },
-  actionButton: {
-    paddingVertical: 14,
-    paddingHorizontal: 28,
-    borderRadius: 30,
-    minWidth: 110,
-    alignItems: 'center',
-  },
-  acceptButton: {
-    backgroundColor: '#10B981',
-  },
-  rejectButton: {
-    backgroundColor: '#EF4444',
-  },
-  actionText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
   },
 });

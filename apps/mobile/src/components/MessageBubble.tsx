@@ -1,14 +1,9 @@
 import React, { memo, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Image,
-  Linking,
-} from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Image, Linking } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { useFileStore } from '../stores/file.store';
+import { useTheme } from '../theme';
 
 interface MessageBubbleProps {
   content: string;
@@ -29,6 +24,7 @@ function formatSize(bytes: number): string {
 }
 
 function AttachmentItem({ fileId, isOwn }: { fileId: string; isOwn: boolean }) {
+  const theme = useTheme();
   const fetchFile = useFileStore((s) => s.fetchFile);
   const file = useFileStore((s) => s.filesById[fileId]);
 
@@ -38,8 +34,8 @@ function AttachmentItem({ fileId, isOwn }: { fileId: string; isOwn: boolean }) {
 
   if (!file) {
     return (
-      <View style={attachStyles.skeleton}>
-        <Text style={attachStyles.skeletonText}>Loading…</Text>
+      <View style={[attachStyles.skeleton, { backgroundColor: theme.colors.surfaceSoft }]}>
+        <Text style={[attachStyles.skeletonText, { color: theme.colors.textSecondary }]}>Загружается…</Text>
       </View>
     );
   }
@@ -58,20 +54,19 @@ function AttachmentItem({ fileId, isOwn }: { fileId: string; isOwn: boolean }) {
     );
   }
 
+  const cardBg = isOwn ? 'rgba(255,255,255,0.16)' : theme.colors.surfaceSoft;
+  const nameColor = isOwn ? theme.colors.onPrimary : theme.colors.textPrimary;
+  const metaColor = isOwn ? 'rgba(255,255,255,0.78)' : theme.colors.textTertiary;
+  const iconColor = isOwn ? theme.colors.onPrimary : theme.colors.primary;
+
   return (
-    <TouchableOpacity
-      style={[attachStyles.card, isOwn ? attachStyles.cardOwn : attachStyles.cardOther]}
-      onPress={openUrl}
-      activeOpacity={0.85}
-    >
-      <Text style={attachStyles.icon}>📎</Text>
+    <TouchableOpacity style={[attachStyles.card, { backgroundColor: cardBg }]} onPress={openUrl} activeOpacity={0.85}>
+      <Ionicons name="document-attach-outline" size={20} color={iconColor} />
       <View style={attachStyles.info}>
-        <Text numberOfLines={1} style={[attachStyles.name, isOwn && attachStyles.nameOwn]}>
+        <Text numberOfLines={1} style={[attachStyles.name, { color: nameColor }]}>
           {file.originalName}
         </Text>
-        <Text style={[attachStyles.meta, isOwn && attachStyles.metaOwn]}>
-          {formatSize(file.sizeBytes)}
-        </Text>
+        <Text style={[attachStyles.meta, { color: metaColor }]}>{formatSize(file.sizeBytes)}</Text>
       </View>
     </TouchableOpacity>
   );
@@ -88,13 +83,28 @@ export const MessageBubble = memo(function MessageBubble({
   attachments = [],
   onOpenThread,
 }: MessageBubbleProps) {
+  const theme = useTheme();
   const parsedDate = new Date(createdAt);
   const time = Number.isNaN(parsedDate.getTime()) ? '' : format(parsedDate, 'HH:mm');
   const hasThread = (replyCount ?? 0) > 0 || onOpenThread !== undefined;
 
+  const ownBubble = { backgroundColor: theme.colors.primary, borderBottomRightRadius: 8 };
+  const otherBubble = {
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.border,
+    borderWidth: 1,
+    borderBottomLeftRadius: 8,
+  };
+  const ownText = { color: theme.colors.onPrimary };
+  const otherText = { color: theme.colors.textPrimary };
+  const ownMeta = { color: 'rgba(255,255,255,0.78)' };
+  const otherMeta = { color: theme.colors.textTertiary };
+
   const bubbleContent = (
-    <View style={[styles.bubble, isOwn ? styles.bubbleOwn : styles.bubbleOther]}>
-      {showSender && !isOwn && <Text style={styles.senderName}>{senderName}</Text>}
+    <View style={[styles.bubble, isOwn ? ownBubble : otherBubble]}>
+      {showSender && !isOwn && (
+        <Text style={[styles.senderName, { color: theme.colors.primary }]}>{senderName}</Text>
+      )}
       {attachments.length > 0 && (
         <View style={styles.attachments}>
           {attachments.map((id) => (
@@ -102,22 +112,12 @@ export const MessageBubble = memo(function MessageBubble({
           ))}
         </View>
       )}
-      {content ? (
-        <Text style={[styles.content, isOwn ? styles.contentOwn : styles.contentOther]}>
-          {content}
-        </Text>
-      ) : null}
+      {content ? <Text style={[styles.content, isOwn ? ownText : otherText]}>{content}</Text> : null}
       <View style={styles.meta}>
         {isEdited && (
-          <Text style={[styles.edited, isOwn ? styles.metaOwn : styles.metaOther]}>
-            edited
-          </Text>
+          <Text style={[styles.edited, isOwn ? ownMeta : otherMeta]}>изменено</Text>
         )}
-        {time ? (
-          <Text style={[styles.time, isOwn ? styles.metaOwn : styles.metaOther]}>
-            {time}
-          </Text>
-        ) : null}
+        {time ? <Text style={[styles.time, isOwn ? ownMeta : otherMeta]}>{time}</Text> : null}
       </View>
     </View>
   );
@@ -134,12 +134,15 @@ export const MessageBubble = memo(function MessageBubble({
 
       {hasThread && replyCount !== undefined && replyCount > 0 && (
         <TouchableOpacity
-          style={[styles.threadBtn, isOwn ? styles.threadBtnOwn : styles.threadBtnOther]}
+          style={[
+            styles.threadBtn,
+            { borderColor: theme.colors.borderStrong, backgroundColor: theme.colors.surfaceSoft },
+          ]}
           onPress={onOpenThread}
           activeOpacity={0.7}
         >
-          <Text style={styles.threadBtnText}>
-            {replyCount} {replyCount === 1 ? 'reply' : 'replies'} →
+          <Text style={[styles.threadBtnText, { color: theme.colors.primary }]}>
+            {replyCount} {replyCount === 1 ? 'ответ' : 'ответа'} →
           </Text>
         </TouchableOpacity>
       )}
@@ -148,67 +151,26 @@ export const MessageBubble = memo(function MessageBubble({
 });
 
 const styles = StyleSheet.create({
-  wrapper: { paddingHorizontal: 12, marginVertical: 2 },
+  wrapper: { paddingHorizontal: 12, marginVertical: 3 },
   wrapperOwn: { alignItems: 'flex-end' },
   wrapperOther: { alignItems: 'flex-start' },
-  bubble: {
-    maxWidth: '80%',
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  bubbleOwn: { backgroundColor: '#4F46E5', borderBottomRightRadius: 4 },
-  bubbleOther: { backgroundColor: '#F3F4F6', borderBottomLeftRadius: 4 },
-  senderName: { fontSize: 12, fontWeight: '600', color: '#4F46E5', marginBottom: 2 },
+  bubble: { maxWidth: '82%', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 9 },
+  senderName: { fontSize: 12, fontWeight: '600', marginBottom: 2 },
   content: { fontSize: 15, lineHeight: 20 },
-  contentOwn: { color: '#FFFFFF' },
-  contentOther: { color: '#111827' },
   attachments: { gap: 6, marginBottom: 6 },
-  meta: { flexDirection: 'row', justifyContent: 'flex-end', gap: 4, marginTop: 2 },
+  meta: { flexDirection: 'row', justifyContent: 'flex-end', gap: 6, marginTop: 4 },
   time: { fontSize: 11 },
-  metaOwn: { color: 'rgba(255, 255, 255, 0.7)' },
-  metaOther: { color: '#9CA3AF' },
   edited: { fontSize: 11, fontStyle: 'italic' },
-  threadBtn: {
-    marginTop: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 10,
-    borderWidth: 1,
-  },
-  threadBtnOwn: {
-    borderColor: 'rgba(79,70,229,0.4)',
-    backgroundColor: 'rgba(79,70,229,0.06)',
-  },
-  threadBtnOther: { borderColor: '#E5E7EB', backgroundColor: '#F9FAFB' },
-  threadBtnText: { fontSize: 12, fontWeight: '600', color: '#4F46E5' },
+  threadBtn: { marginTop: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, borderWidth: 1 },
+  threadBtnText: { fontSize: 12, fontWeight: '600' },
 });
 
 const attachStyles = StyleSheet.create({
-  skeleton: {
-    width: 200,
-    height: 48,
-    borderRadius: 6,
-    backgroundColor: 'rgba(0,0,0,0.08)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  skeletonText: { fontSize: 12, opacity: 0.6 },
-  image: { width: 220, height: 220, borderRadius: 8, resizeMode: 'cover' },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    padding: 8,
-    borderRadius: 6,
-    minWidth: 180,
-  },
-  cardOwn: { backgroundColor: 'rgba(255,255,255,0.18)' },
-  cardOther: { backgroundColor: 'rgba(0,0,0,0.06)' },
-  icon: { fontSize: 18 },
-  info: { flex: 1 },
-  name: { fontSize: 13, fontWeight: '500', color: '#111827' },
-  nameOwn: { color: '#FFFFFF' },
-  meta: { fontSize: 11, color: '#6B7280' },
-  metaOwn: { color: 'rgba(255,255,255,0.75)' },
+  skeleton: { width: 200, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  skeletonText: { fontSize: 12, opacity: 0.7 },
+  image: { width: 220, height: 220, borderRadius: 14, resizeMode: 'cover' },
+  card: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 14, minWidth: 180 },
+  info: { flex: 1, minWidth: 0 },
+  name: { fontSize: 13, fontWeight: '600' },
+  meta: { fontSize: 11 },
 });

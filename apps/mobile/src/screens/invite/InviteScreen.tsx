@@ -1,22 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  Pressable,
-  StyleSheet,
-  ActivityIndicator,
-  Alert,
-  Image,
-  SafeAreaView,
-} from 'react-native';
+import { View, Text, Pressable, StyleSheet, ActivityIndicator, Alert, Image } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useAuthStore } from '../../stores/auth.store';
 import { useInviteStore } from '../../stores/invite.store';
+import { useTheme } from '../../theme';
 import * as orgsApi from '../../api/organizations.api';
 
 type Props = NativeStackScreenProps<any, 'Invite'>;
 
 export function InviteScreen({ navigation, route }: Props) {
+  const theme = useTheme();
   const token = (route.params as any)?.token as string | undefined;
   const isAuthenticated = useAuthStore((s) => !!s.token);
   const setPendingToken = useInviteStore((s) => s.setPendingToken);
@@ -41,7 +36,6 @@ export function InviteScreen({ navigation, route }: Props) {
       .finally(() => setLoading(false));
   }, [token]);
 
-  // If user becomes authenticated while on this screen, auto-accept
   useEffect(() => {
     if (!isAuthenticated || !token || !info || accepting) return;
     handleAccept();
@@ -54,10 +48,7 @@ export function InviteScreen({ navigation, route }: Props) {
     try {
       await orgsApi.acceptInvite(token);
       setPendingToken(null);
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'App' as never }],
-      });
+      navigation.reset({ index: 0, routes: [{ name: 'App' as never }] });
     } catch (err: any) {
       Alert.alert('Ошибка', err.response?.data?.error?.message || 'Не удалось присоединиться');
     } finally {
@@ -70,83 +61,128 @@ export function InviteScreen({ navigation, route }: Props) {
     navigation.navigate(screen as never);
   };
 
+  const wrapper = (children: React.ReactNode) => (
+    <SafeAreaView style={[styles.safe, { backgroundColor: theme.colors.bg }]} edges={['top', 'bottom']}>
+      <View style={styles.center}>{children}</View>
+    </SafeAreaView>
+  );
+
   if (loading) {
-    return (
-      <SafeAreaView style={styles.safe}>
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color="#4F46E5" />
-        </View>
-      </SafeAreaView>
-    );
+    return wrapper(<ActivityIndicator size="large" color={theme.colors.primary} />);
   }
 
   if (error || !info) {
-    return (
-      <SafeAreaView style={styles.safe}>
-        <View style={styles.center}>
-          <Text style={styles.errorIcon}>⚠️</Text>
-          <Text style={styles.title}>Приглашение недоступно</Text>
-          <Text style={styles.subtitle}>{error || 'Эта ссылка больше не работает.'}</Text>
+    return wrapper(
+      <>
+        <View style={[styles.errorIcon, { backgroundColor: 'rgba(212,98,98,0.18)' }]}>
+          <Ionicons name="alert-circle-outline" size={40} color={theme.colors.error} />
         </View>
-      </SafeAreaView>
+        <Text style={[styles.title, { color: theme.colors.textPrimary, fontFamily: theme.typography.displayFamily }]}>
+          Приглашение недоступно
+        </Text>
+        <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
+          {error || 'Эта ссылка больше не работает.'}
+        </Text>
+      </>,
     );
   }
 
-  return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.center}>
-        {info.organizationLogo ? (
-          <Image source={{ uri: info.organizationLogo }} style={styles.logo} />
-        ) : (
-          <View style={styles.logoPlaceholder}>
-            <Text style={styles.logoEmoji}>🏢</Text>
-          </View>
-        )}
-        <Text style={styles.title}>Вступить в «{info.organizationName}»</Text>
-        <Text style={styles.subtitle}>
-          Вы получили приглашение присоединиться. После вступления у вас появится общий чат компании.
-        </Text>
+  return wrapper(
+    <>
+      {info.organizationLogo ? (
+        <Image source={{ uri: info.organizationLogo }} style={styles.logo} />
+      ) : (
+        <View style={[styles.logoPlaceholder, { backgroundColor: theme.colors.surfaceSoft, borderColor: theme.colors.borderStrong }]}>
+          <Ionicons name="business-outline" size={36} color={theme.colors.primary} />
+        </View>
+      )}
+      <Text style={[styles.kicker, { color: theme.colors.primary }]}>Приглашение в пространство</Text>
+      <Text style={[styles.title, { color: theme.colors.textPrimary, fontFamily: theme.typography.displayFamily }]}>
+        Вступить в «{info.organizationName}»
+      </Text>
+      <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
+        Вы получили приглашение присоединиться. После вступления у вас появится общий чат компании.
+      </Text>
 
-        {isAuthenticated ? (
+      {isAuthenticated ? (
+        <Pressable
+          style={({ pressed }) => [
+            styles.primary,
+            {
+              backgroundColor: theme.colors.primary,
+              opacity: accepting ? 0.6 : pressed ? 0.85 : 1,
+              ...theme.shadows.md,
+            },
+          ]}
+          onPress={handleAccept}
+          disabled={accepting}
+        >
+          {accepting ? (
+            <ActivityIndicator color={theme.colors.onPrimary} />
+          ) : (
+            <Text style={[styles.primaryText, { color: theme.colors.onPrimary }]}>Присоединиться</Text>
+          )}
+        </Pressable>
+      ) : (
+        <View style={styles.actions}>
           <Pressable
-            style={[styles.primary, accepting && styles.disabled]}
-            onPress={handleAccept}
-            disabled={accepting}
+            style={({ pressed }) => [
+              styles.primary,
+              { backgroundColor: theme.colors.primary, opacity: pressed ? 0.85 : 1, ...theme.shadows.md },
+            ]}
+            onPress={() => goAuth('Login')}
           >
-            {accepting ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.primaryText}>Присоединиться</Text>
-            )}
+            <Text style={[styles.primaryText, { color: theme.colors.onPrimary }]}>Войти</Text>
           </Pressable>
-        ) : (
-          <View style={styles.actions}>
-            <Pressable style={styles.primary} onPress={() => goAuth('Login')}>
-              <Text style={styles.primaryText}>Войти</Text>
-            </Pressable>
-            <Pressable style={styles.secondary} onPress={() => goAuth('Register')}>
-              <Text style={styles.secondaryText}>Зарегистрироваться</Text>
-            </Pressable>
-          </View>
-        )}
-      </View>
-    </SafeAreaView>
+          <Pressable
+            style={({ pressed }) => [
+              styles.secondary,
+              { borderColor: theme.colors.borderStrong, backgroundColor: theme.colors.surface, opacity: pressed ? 0.85 : 1 },
+            ]}
+            onPress={() => goAuth('Register')}
+          >
+            <Text style={[styles.secondaryText, { color: theme.colors.textPrimary }]}>Зарегистрироваться</Text>
+          </Pressable>
+        </View>
+      )}
+    </>,
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#FFFFFF' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 },
-  logo: { width: 80, height: 80, borderRadius: 16, marginBottom: 16 },
-  logoPlaceholder: { width: 80, height: 80, borderRadius: 16, backgroundColor: '#EEF2FF', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-  logoEmoji: { fontSize: 40 },
-  errorIcon: { fontSize: 56, marginBottom: 12 },
-  title: { fontSize: 22, fontWeight: '700', color: '#111827', textAlign: 'center', marginBottom: 8 },
-  subtitle: { fontSize: 15, color: '#6B7280', textAlign: 'center', marginBottom: 28, lineHeight: 22 },
-  actions: { width: '100%', gap: 12 },
-  primary: { height: 48, borderRadius: 10, backgroundColor: '#4F46E5', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, minWidth: 200 },
-  primaryText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
-  secondary: { height: 48, borderRadius: 10, borderWidth: 1, borderColor: '#D1D5DB', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
-  secondaryText: { color: '#111827', fontSize: 16, fontWeight: '600' },
-  disabled: { opacity: 0.6 },
+  safe: { flex: 1 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32, gap: 4 },
+  logo: { width: 88, height: 88, borderRadius: 22, marginBottom: 16 },
+  logoPlaceholder: {
+    width: 88,
+    height: 88,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+    borderWidth: 1,
+  },
+  errorIcon: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  kicker: { fontSize: 11, fontWeight: '700', letterSpacing: 1.6, textTransform: 'uppercase', marginTop: 4 },
+  title: { fontSize: 26, fontWeight: '700', textAlign: 'center', marginTop: 6 },
+  subtitle: { fontSize: 15, textAlign: 'center', marginTop: 10, lineHeight: 22, marginBottom: 24 },
+  actions: { width: '100%', gap: 12, marginTop: 8 },
+  primary: {
+    height: 52,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    minWidth: 220,
+  },
+  primaryText: { fontSize: 15, fontWeight: '700' },
+  secondary: { height: 52, borderRadius: 999, borderWidth: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
+  secondaryText: { fontSize: 15, fontWeight: '700' },
 });

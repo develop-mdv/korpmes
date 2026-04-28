@@ -1,17 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import {
-  View,
-  Text,
-  FlatList,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  RefreshControl,
-} from 'react-native';
+import { View, Text, FlatList, Pressable, ScrollView, StyleSheet, RefreshControl } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { EmptyState } from '../../components/EmptyState';
 import { Avatar } from '../../components/Avatar';
 import { apiClient } from '../../api/client';
+import { useTheme } from '../../theme';
 import type { TaskStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<TaskStackParamList, 'TasksList'>;
@@ -25,28 +19,47 @@ interface Task {
   dueDate?: string;
 }
 
-const FILTERS = ['All', 'My', 'In Progress', 'Review', 'Done'] as const;
-type Filter = (typeof FILTERS)[number];
+const FILTERS: { id: string; label: string }[] = [
+  { id: 'All', label: 'Все' },
+  { id: 'My', label: 'Мои' },
+  { id: 'In Progress', label: 'В работе' },
+  { id: 'Review', label: 'На ревью' },
+  { id: 'Done', label: 'Готово' },
+];
 
-const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  todo: { bg: '#F3F4F6', text: '#374151' },
-  in_progress: { bg: '#DBEAFE', text: '#1D4ED8' },
-  review: { bg: '#FEF3C7', text: '#B45309' },
-  done: { bg: '#D1FAE5', text: '#047857' },
+const STATUS_LABELS: Record<string, string> = {
+  todo: 'к работе',
+  in_progress: 'в работе',
+  review: 'на ревью',
+  done: 'готово',
 };
 
-const PRIORITY_COLORS: Record<string, string> = {
-  low: '#6B7280',
-  medium: '#3B82F6',
-  high: '#F59E0B',
-  urgent: '#EF4444',
+const PRIORITY_LABELS: Record<string, string> = {
+  low: 'низкий',
+  medium: 'средний',
+  high: 'высокий',
+  urgent: 'срочный',
 };
 
 export function TasksScreen({ navigation }: Props) {
+  const theme = useTheme();
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [filter, setFilter] = useState<Filter>('All');
+  const [filter, setFilter] = useState<string>('All');
   const [isLoading, setIsLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
+  const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
+    todo: { bg: theme.colors.surfaceSoft, text: theme.colors.textSecondary },
+    in_progress: { bg: 'rgba(58,109,194,0.18)', text: theme.colors.info },
+    review: { bg: 'rgba(213,139,34,0.18)', text: theme.colors.warning },
+    done: { bg: 'rgba(30,157,104,0.18)', text: theme.colors.success },
+  };
+  const PRIORITY_COLORS: Record<string, string> = {
+    low: theme.colors.textTertiary,
+    medium: theme.colors.info,
+    high: theme.colors.warning,
+    urgent: theme.colors.error,
+  };
 
   const fetchTasks = useCallback(async () => {
     try {
@@ -89,70 +102,82 @@ export function TasksScreen({ navigation }: Props) {
     ({ item }: { item: Task }) => {
       const statusStyle = STATUS_COLORS[item.status] || STATUS_COLORS.todo;
       const priorityColor = PRIORITY_COLORS[item.priority] || PRIORITY_COLORS.low;
-      const statusLabel = item.status.replace('_', ' ');
 
       return (
         <Pressable
-          style={styles.card}
+          style={({ pressed }) => [
+            styles.card,
+            {
+              backgroundColor: theme.colors.surface,
+              borderColor: theme.colors.border,
+              transform: [{ translateY: pressed ? 1 : 0 }],
+            },
+          ]}
           onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
         >
           <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle} numberOfLines={2}>
+            <Text style={[styles.cardTitle, { color: theme.colors.textPrimary }]} numberOfLines={2}>
               {item.title}
             </Text>
             <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
               <Text style={[styles.statusText, { color: statusStyle.text }]}>
-                {statusLabel}
+                {STATUS_LABELS[item.status] ?? item.status}
               </Text>
             </View>
           </View>
           <View style={styles.cardFooter}>
             <View style={styles.cardMeta}>
               <View style={[styles.priorityDot, { backgroundColor: priorityColor }]} />
-              <Text style={styles.priorityText}>{item.priority}</Text>
+              <Text style={[styles.priorityText, { color: theme.colors.textSecondary }]}>
+                {PRIORITY_LABELS[item.priority] ?? item.priority}
+              </Text>
             </View>
             {item.assignee && (
               <Avatar
                 name={`${item.assignee.firstName} ${item.assignee.lastName}`}
                 uri={item.assignee.avatarUrl}
-                size={24}
+                size={26}
               />
             )}
             {item.dueDate && (
-              <Text style={styles.dueDate}>
-                {new Date(item.dueDate).toLocaleDateString()}
+              <Text style={[styles.dueDate, { color: theme.colors.textTertiary }]}>
+                {new Date(item.dueDate).toLocaleDateString('ru-RU')}
               </Text>
             )}
           </View>
         </Pressable>
       );
     },
-    [navigation],
+    [navigation, theme],
   );
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.filtersContainer}
       >
-        {FILTERS.map((f) => (
-          <Pressable
-            key={f}
-            style={[styles.filterChip, filter === f && styles.filterChipActive]}
-            onPress={() => setFilter(f)}
-          >
-            <Text
+        {FILTERS.map((f) => {
+          const active = filter === f.id;
+          return (
+            <Pressable
+              key={f.id}
               style={[
-                styles.filterChipText,
-                filter === f && styles.filterChipTextActive,
+                styles.filterChip,
+                {
+                  backgroundColor: active ? theme.colors.primary : theme.colors.surface,
+                  borderColor: active ? theme.colors.primary : theme.colors.border,
+                },
               ]}
+              onPress={() => setFilter(f.id)}
             >
-              {f}
-            </Text>
-          </Pressable>
-        ))}
+              <Text style={[styles.filterChipText, { color: active ? theme.colors.onPrimary : theme.colors.textSecondary }]}>
+                {f.label}
+              </Text>
+            </Pressable>
+          );
+        })}
       </ScrollView>
 
       <FlatList
@@ -162,11 +187,15 @@ export function TasksScreen({ navigation }: Props) {
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={
           !isLoading ? (
-            <EmptyState title="No tasks found" description="Try a different filter" />
+            <EmptyState
+              title="Задач не найдено"
+              description="Попробуйте сменить фильтр или создать новую задачу."
+              icon={<Ionicons name="checkbox-outline" size={56} color={theme.colors.primary} />}
+            />
           ) : null
         }
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />
         }
       />
     </View>
@@ -174,93 +203,19 @@ export function TasksScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-  },
-  filtersContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 8,
-  },
-  filterChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  filterChipActive: {
-    backgroundColor: '#4F46E5',
-    borderColor: '#4F46E5',
-  },
-  filterChipText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#6B7280',
-  },
-  filterChipTextActive: {
-    color: '#FFFFFF',
-  },
-  listContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 8,
-  },
-  cardTitle: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-  },
-  statusText: {
-    fontSize: 11,
-    fontWeight: '600',
-    textTransform: 'capitalize',
-  },
-  cardFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 10,
-    gap: 12,
-  },
-  cardMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  priorityDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  priorityText: {
-    fontSize: 12,
-    color: '#6B7280',
-    textTransform: 'capitalize',
-  },
-  dueDate: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginLeft: 'auto',
-  },
+  container: { flex: 1 },
+  filtersContainer: { paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
+  filterChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 999, borderWidth: 1 },
+  filterChipText: { fontSize: 13, fontWeight: '600' },
+  listContent: { paddingHorizontal: 16, paddingBottom: 16 },
+  card: { borderRadius: 20, padding: 18, marginBottom: 10, borderWidth: 1 },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 },
+  cardTitle: { flex: 1, fontSize: 15, fontWeight: '600' },
+  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
+  statusText: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
+  cardFooter: { flexDirection: 'row', alignItems: 'center', marginTop: 12, gap: 12 },
+  cardMeta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  priorityDot: { width: 8, height: 8, borderRadius: 4 },
+  priorityText: { fontSize: 12 },
+  dueDate: { fontSize: 12, marginLeft: 'auto' },
 });

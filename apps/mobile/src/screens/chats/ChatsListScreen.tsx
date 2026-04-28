@@ -1,24 +1,19 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import {
-  View,
-  TextInput,
-  FlatList,
-  Pressable,
-  Text,
-  StyleSheet,
-  RefreshControl,
-} from 'react-native';
+import { View, TextInput, FlatList, Pressable, StyleSheet, RefreshControl } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ChatListItem } from '../../components/ChatListItem';
 import { EmptyState } from '../../components/EmptyState';
 import { useChatStore } from '../../stores/chat.store';
 import { useOrganizationStore } from '../../stores/organization.store';
 import * as chatsApi from '../../api/chats.api';
+import { useTheme } from '../../theme';
 import type { ChatStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<ChatStackParamList, 'ChatsList'>;
 
 export function ChatsListScreen({ navigation }: Props) {
+  const theme = useTheme();
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const { chats, setChats, setLoading, isLoading } = useChatStore();
@@ -48,7 +43,6 @@ export function ChatsListScreen({ navigation }: Props) {
       void fetchChats();
       return;
     }
-
     if (!isOrganizationLoading) {
       setChats([]);
       setLoading(false);
@@ -62,9 +56,7 @@ export function ChatsListScreen({ navigation }: Props) {
   }, [fetchChats]);
 
   const filteredChats = searchQuery.trim()
-    ? chats.filter((c) =>
-        c.name.toLowerCase().includes(searchQuery.toLowerCase()),
-      )
+    ? chats.filter((c) => c.name.toLowerCase().includes(searchQuery.toLowerCase()))
     : chats;
 
   const handleChatPress = useCallback(
@@ -75,15 +67,18 @@ export function ChatsListScreen({ navigation }: Props) {
   );
 
   return (
-    <View style={styles.container}>
-      <View style={styles.searchContainer}>
-        <TextInput
-          style={styles.searchInput}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholder="Search chats..."
-          placeholderTextColor="#9CA3AF"
-        />
+    <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
+      <View style={[styles.searchContainer, { borderBottomColor: theme.colors.border }]}>
+        <View style={[styles.searchWrap, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+          <Ionicons name="search-outline" size={18} color={theme.colors.textTertiary} />
+          <TextInput
+            style={[styles.searchInput, { color: theme.colors.textPrimary }]}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Поиск чатов…"
+            placeholderTextColor={theme.colors.textTertiary}
+          />
+        </View>
       </View>
 
       <FlatList
@@ -104,49 +99,51 @@ export function ChatsListScreen({ navigation }: Props) {
         ListEmptyComponent={
           !isLoading && !isOrganizationLoading ? (
             <EmptyState
-              title={organizations.length > 0 ? 'No chats yet' : 'No organization found'}
+              title={organizations.length > 0 ? 'Пока нет чатов' : 'Нет рабочего пространства'}
               description={
                 organizations.length > 0
-                  ? 'Start a new conversation by tapping the button below'
-                  : 'Your account is not attached to any organization yet.'
+                  ? 'Начните новый диалог, нажав кнопку ниже.'
+                  : 'Ваш аккаунт пока не привязан к рабочему пространству.'
               }
+              icon={<Ionicons name="chatbubble-ellipses-outline" size={56} color={theme.colors.primary} />}
             />
           ) : null
         }
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />
         }
       />
 
       <Pressable
-        style={styles.fab}
+        style={({ pressed }) => [
+          styles.fab,
+          {
+            backgroundColor: theme.colors.primary,
+            transform: [{ translateY: pressed ? 1 : 0 }],
+            ...theme.shadows.lg,
+          },
+        ]}
         onPress={() => navigation.navigate('NewChat')}
       >
-        <Text style={styles.fabText}>+</Text>
+        <Ionicons name="add" size={26} color={theme.colors.onPrimary} />
       </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
+  container: { flex: 1 },
+  searchContainer: { paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth },
+  searchWrap: {
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
-  searchContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E5E7EB',
-  },
-  searchInput: {
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#F3F4F6',
-    paddingHorizontal: 16,
-    fontSize: 15,
-    color: '#111827',
-  },
+  searchInput: { flex: 1, fontSize: 15 },
   fab: {
     position: 'absolute',
     bottom: 24,
@@ -154,19 +151,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#4F46E5',
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-  },
-  fabText: {
-    fontSize: 28,
-    color: '#FFFFFF',
-    fontWeight: '400',
-    lineHeight: 30,
   },
 });

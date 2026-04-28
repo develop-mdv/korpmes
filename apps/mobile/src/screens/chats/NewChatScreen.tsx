@@ -1,20 +1,13 @@
 import React, { useState, useCallback } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  FlatList,
-  Pressable,
-  StyleSheet,
-  ActivityIndicator,
-  Alert,
-} from 'react-native';
+import { View, Text, TextInput, FlatList, Pressable, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Avatar } from '../../components/Avatar';
 import { apiClient } from '../../api/client';
 import * as chatsApi from '../../api/chats.api';
 import { useChatStore } from '../../stores/chat.store';
 import { useOrganizationStore } from '../../stores/organization.store';
+import { useTheme } from '../../theme';
 import type { ChatStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<ChatStackParamList, 'NewChat'>;
@@ -28,6 +21,7 @@ interface User {
 }
 
 export function NewChatScreen({ navigation }: Props) {
+  const theme = useTheme();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<User[]>([]);
   const [selectedMembers, setSelectedMembers] = useState<User[]>([]);
@@ -43,12 +37,9 @@ export function NewChatScreen({ navigation }: Props) {
       setSearchResults([]);
       return;
     }
-
     try {
       setIsSearching(true);
-      const { data } = await apiClient.get<User[]>('/users/search', {
-        params: { q: query.trim() },
-      });
+      const { data } = await apiClient.get<User[]>('/users/search', { params: { q: query.trim() } });
       setSearchResults(data);
     } catch (err) {
       console.error('Search failed:', err);
@@ -67,18 +58,18 @@ export function NewChatScreen({ navigation }: Props) {
 
   const handleCreate = useCallback(async () => {
     if (selectedMembers.length === 0) {
-      Alert.alert('Error', 'Please select at least one member');
+      Alert.alert('Заполните форму', 'Выберите хотя бы одного участника.');
       return;
     }
 
     const isGroup = selectedMembers.length > 1;
     if (isGroup && !groupName.trim()) {
-      Alert.alert('Error', 'Please enter a group name');
+      Alert.alert('Название группы', 'Введите название группы.');
       return;
     }
 
     if (!currentOrg?.id) {
-      Alert.alert('Error', 'Organization is still loading. Please try again in a moment.');
+      Alert.alert('Подождите', 'Организация ещё загружается.');
       return;
     }
 
@@ -93,7 +84,7 @@ export function NewChatScreen({ navigation }: Props) {
       addChat(chat);
       navigation.replace('ChatView', { chatId: chat.id });
     } catch (err: any) {
-      Alert.alert('Error', err.response?.data?.message || 'Failed to create chat');
+      Alert.alert('Ошибка', err.response?.data?.message || 'Не удалось создать чат.');
     } finally {
       setIsCreating(false);
     }
@@ -105,15 +96,18 @@ export function NewChatScreen({ navigation }: Props) {
   );
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
       {selectedMembers.length > 1 && (
         <View style={styles.groupNameContainer}>
           <TextInput
-            style={styles.groupNameInput}
+            style={[
+              styles.groupNameInput,
+              { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, color: theme.colors.textPrimary },
+            ]}
             value={groupName}
             onChangeText={setGroupName}
-            placeholder="Group name"
-            placeholderTextColor="#9CA3AF"
+            placeholder="Название группы"
+            placeholderTextColor={theme.colors.textTertiary}
           />
         </View>
       )}
@@ -123,64 +117,80 @@ export function NewChatScreen({ navigation }: Props) {
           {selectedMembers.map((member) => (
             <Pressable
               key={member.id}
-              style={styles.selectedChip}
+              style={[styles.selectedChip, { backgroundColor: theme.colors.surfaceSoft, borderColor: theme.colors.borderStrong }]}
               onPress={() => toggleMember(member)}
             >
-              <Text style={styles.selectedChipText}>
-                {member.firstName} {member.lastName} x
+              <Text style={[styles.selectedChipText, { color: theme.colors.primary }]}>
+                {member.firstName} {member.lastName}
               </Text>
+              <Ionicons name="close" size={14} color={theme.colors.primary} />
             </Pressable>
           ))}
         </View>
       )}
 
-      <View style={styles.searchContainer}>
-        <TextInput
-          style={styles.searchInput}
-          value={searchQuery}
-          onChangeText={handleSearch}
-          placeholder="Search users..."
-          placeholderTextColor="#9CA3AF"
-          autoFocus
-        />
+      <View style={[styles.searchContainer, { borderBottomColor: theme.colors.border }]}>
+        <View style={[styles.searchWrap, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+          <Ionicons name="search-outline" size={18} color={theme.colors.textTertiary} />
+          <TextInput
+            style={[styles.searchInput, { color: theme.colors.textPrimary }]}
+            value={searchQuery}
+            onChangeText={handleSearch}
+            placeholder="Найти участников…"
+            placeholderTextColor={theme.colors.textTertiary}
+            autoFocus
+          />
+        </View>
       </View>
 
       <FlatList
         data={searchResults}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <Pressable
-            style={[styles.userRow, isSelected(item.id) && styles.userRowSelected]}
-            onPress={() => toggleMember(item)}
-          >
-            <Avatar name={`${item.firstName} ${item.lastName}`} uri={item.avatarUrl} size={40} />
-            <View style={styles.userInfo}>
-              <Text style={styles.userName}>
-                {item.firstName} {item.lastName}
-              </Text>
-              <Text style={styles.userEmail}>{item.email}</Text>
-            </View>
-            {isSelected(item.id) && <Text style={styles.checkmark}>check</Text>}
-          </Pressable>
-        )}
-        ListEmptyComponent={
-          isSearching ? (
-            <ActivityIndicator style={styles.loader} color="#4F46E5" />
-          ) : null
-        }
+        renderItem={({ item }) => {
+          const selected = isSelected(item.id);
+          return (
+            <Pressable
+              style={({ pressed }) => [
+                styles.userRow,
+                {
+                  borderBottomColor: theme.colors.border,
+                  backgroundColor: selected ? theme.colors.surfaceSoft : pressed ? theme.colors.surfaceSoft : 'transparent',
+                },
+              ]}
+              onPress={() => toggleMember(item)}
+            >
+              <Avatar name={`${item.firstName} ${item.lastName}`} uri={item.avatarUrl} size={40} />
+              <View style={styles.userInfo}>
+                <Text style={[styles.userName, { color: theme.colors.textPrimary }]}>
+                  {item.firstName} {item.lastName}
+                </Text>
+                <Text style={[styles.userEmail, { color: theme.colors.textSecondary }]}>{item.email}</Text>
+              </View>
+              {selected && <Ionicons name="checkmark-circle" size={22} color={theme.colors.primary} />}
+            </Pressable>
+          );
+        }}
+        ListEmptyComponent={isSearching ? <ActivityIndicator style={styles.loader} color={theme.colors.primary} /> : null}
       />
 
       {selectedMembers.length > 0 && (
         <Pressable
-          style={[styles.createButton, isCreating && styles.createButtonDisabled]}
+          style={({ pressed }) => [
+            styles.createButton,
+            {
+              backgroundColor: theme.colors.primary,
+              opacity: isCreating ? 0.6 : pressed ? 0.85 : 1,
+              ...theme.shadows.md,
+            },
+          ]}
           onPress={handleCreate}
           disabled={isCreating}
         >
           {isCreating ? (
-            <ActivityIndicator color="#FFFFFF" />
+            <ActivityIndicator color={theme.colors.onPrimary} />
           ) : (
-            <Text style={styles.createButtonText}>
-              {selectedMembers.length > 1 ? 'Create Group' : 'Start Chat'}
+            <Text style={[styles.createButtonText, { color: theme.colors.onPrimary }]}>
+              {selectedMembers.length > 1 ? 'Создать группу' : 'Начать диалог'}
             </Text>
           )}
         </Pressable>
@@ -190,103 +200,49 @@ export function NewChatScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  groupNameContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-  },
-  groupNameInput: {
-    height: 44,
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    fontSize: 15,
-    color: '#111827',
-  },
-  selectedContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    gap: 6,
-  },
+  container: { flex: 1 },
+  groupNameContainer: { paddingHorizontal: 16, paddingTop: 12 },
+  groupNameInput: { height: 46, borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, fontSize: 15 },
+  selectedContainer: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, paddingTop: 8, gap: 6 },
   selectedChip: {
-    backgroundColor: '#EEF2FF',
-    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
-  selectedChipText: {
-    fontSize: 13,
-    color: '#4F46E5',
-    fontWeight: '500',
+  selectedChipText: { fontSize: 13, fontWeight: '600' },
+  searchContainer: { paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth },
+  searchWrap: {
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
-  searchContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E5E7EB',
-  },
-  searchInput: {
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#F3F4F6',
-    paddingHorizontal: 16,
-    fontSize: 15,
-    color: '#111827',
-  },
+  searchInput: { flex: 1, fontSize: 15 },
   userRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#F3F4F6',
   },
-  userRowSelected: {
-    backgroundColor: '#EEF2FF',
-  },
-  userInfo: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  userName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  userEmail: {
-    fontSize: 13,
-    color: '#6B7280',
-    marginTop: 1,
-  },
-  checkmark: {
-    fontSize: 14,
-    color: '#4F46E5',
-    fontWeight: '600',
-  },
-  loader: {
-    paddingVertical: 24,
-  },
+  userInfo: { flex: 1, marginLeft: 12 },
+  userName: { fontSize: 15, fontWeight: '600' },
+  userEmail: { fontSize: 13, marginTop: 1 },
+  loader: { paddingVertical: 24 },
   createButton: {
     marginHorizontal: 16,
     marginBottom: 24,
-    height: 48,
-    borderRadius: 10,
-    backgroundColor: '#4F46E5',
+    height: 52,
+    borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  createButtonDisabled: {
-    opacity: 0.6,
-  },
-  createButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
+  createButtonText: { fontSize: 15, fontWeight: '700' },
 });

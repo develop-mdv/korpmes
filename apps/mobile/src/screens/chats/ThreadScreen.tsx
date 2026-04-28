@@ -12,6 +12,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { MessageBubble } from '../../components/MessageBubble';
 import { MessageInput } from '../../components/MessageInput';
 import { useAuthStore } from '../../stores/auth.store';
+import { useTheme } from '../../theme';
 import * as messagesApi from '../../api/messages.api';
 import type { ChatStackParamList } from '../../navigation/types';
 import type { Message } from '../../api/messages.api';
@@ -45,6 +46,7 @@ function withTimeout<T>(
 }
 
 export function ThreadScreen({ route, navigation }: Props) {
+  const theme = useTheme();
   const { chatId, parentMessageId, parentContent } = route.params;
   const userId = useAuthStore((s) => s.user?.id);
   const [replies, setReplies] = useState<Message[]>([]);
@@ -52,7 +54,7 @@ export function ThreadScreen({ route, navigation }: Props) {
   const flatListRef = useRef<FlatList<Message>>(null);
 
   useEffect(() => {
-    navigation.setOptions({ title: 'Thread' });
+    navigation.setOptions({ title: 'Тред' });
   }, [navigation]);
 
   const fetchReplies = useCallback(async () => {
@@ -144,25 +146,26 @@ export function ThreadScreen({ route, navigation }: Props) {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: theme.colors.bg }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
-      {/* Parent message */}
-      <View style={styles.parent}>
-        <Text style={styles.parentLabel}>Original message</Text>
-        <Text style={styles.parentContent} numberOfLines={3}>{parentContent}</Text>
+      <View style={[styles.parent, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
+        <Text style={[styles.parentLabel, { color: theme.colors.primary }]}>Исходное сообщение</Text>
+        <Text style={[styles.parentContent, { color: theme.colors.textPrimary }]} numberOfLines={3}>
+          {parentContent}
+        </Text>
       </View>
 
-      <View style={styles.divider}>
-        <Text style={styles.dividerText}>
-          {replies.length} {replies.length === 1 ? 'reply' : 'replies'}
+      <View style={[styles.divider, { borderBottomColor: theme.colors.border }]}>
+        <Text style={[styles.dividerText, { color: theme.colors.textTertiary }]}>
+          {replies.length} {replies.length === 1 ? 'ответ' : replies.length < 5 ? 'ответа' : 'ответов'}
         </Text>
       </View>
 
       {loading ? (
         <View style={styles.centered}>
-          <ActivityIndicator color="#4F46E5" />
+          <ActivityIndicator color={theme.colors.primary} />
         </View>
       ) : (
         <FlatList
@@ -175,23 +178,18 @@ export function ThreadScreen({ route, navigation }: Props) {
         />
       )}
 
-      <MessageInput onSend={handleSend} onAttach={() => {}} placeholder="Reply in thread…" />
+      <MessageInput onSend={handleSend} placeholder="Ответ в треде…" />
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
-  parent: {
-    padding: 16,
-    backgroundColor: '#F9FAFB',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E5E7EB',
-  },
-  parentLabel: { fontSize: 11, fontWeight: '700', color: '#6B7280', textTransform: 'uppercase', marginBottom: 4 },
-  parentContent: { fontSize: 14, color: '#374151', lineHeight: 20 },
-  divider: { padding: '8px 16px' as any, paddingHorizontal: 16, paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E5E7EB' },
-  dividerText: { fontSize: 12, color: '#9CA3AF', fontWeight: '600' },
+  container: { flex: 1 },
+  parent: { padding: 16, borderBottomWidth: StyleSheet.hairlineWidth },
+  parentLabel: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1.4, marginBottom: 4 },
+  parentContent: { fontSize: 14, lineHeight: 20 },
+  divider: { paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth },
+  dividerText: { fontSize: 12, fontWeight: '600' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   list: { paddingVertical: 8 },
 });

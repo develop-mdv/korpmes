@@ -1,140 +1,121 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Text, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { ChatStack } from './ChatStack';
 import { TasksScreen } from '../screens/tasks/TasksScreen';
 import { TaskDetailScreen } from '../screens/tasks/TaskDetailScreen';
 import { CallsScreen } from '../screens/calls/CallsScreen';
 import { FilesScreen } from '../screens/files/FilesScreen';
 import { SettingsScreen } from '../screens/settings/SettingsScreen';
-import { Badge } from '../components/Badge';
 import { useChatStore } from '../stores/chat.store';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { useTheme, tabIcons } from '../theme';
 import type { AppTabParamList, TaskStackParamList } from './types';
 
 const Tab = createBottomTabNavigator<AppTabParamList>();
 const TaskStack = createNativeStackNavigator<TaskStackParamList>();
 
-function TaskStackNavigator() {
-  return (
-    <TaskStack.Navigator>
-      <TaskStack.Screen
-        name="TasksList"
-        component={TasksScreen}
-        options={{ title: 'Tasks' }}
-      />
-      <TaskStack.Screen
-        name="TaskDetail"
-        component={TaskDetailScreen}
-        options={{ title: 'Task Detail' }}
-      />
-      <TaskStack.Screen
-        name="CreateTask"
-        component={CreateTaskPlaceholder}
-        options={{ title: 'Create Task' }}
-      />
-    </TaskStack.Navigator>
-  );
-}
-
 function CreateTaskPlaceholder() {
   return null;
 }
 
-function TabIcon({ label, focused }: { label: string; focused: boolean }) {
-  const icons: Record<string, string> = {
-    Chats: '💬',
-    Tasks: '📋',
-    Calls: '📞',
-    Files: '📂',
-    Settings: '⚙️',
-  };
+function TaskStackNavigator() {
+  const theme = useTheme();
   return (
-    <Text style={[styles.tabIcon, focused && styles.tabIconFocused]}>
-      {icons[label] || '●'}
-    </Text>
+    <TaskStack.Navigator
+      screenOptions={{
+        headerStyle: { backgroundColor: theme.colors.bg },
+        headerTintColor: theme.colors.textPrimary,
+        headerTitleStyle: { fontWeight: '700' },
+        contentStyle: { backgroundColor: theme.colors.bg },
+      }}
+    >
+      <TaskStack.Screen name="TasksList" component={TasksScreen} options={{ title: 'Задачи' }} />
+      <TaskStack.Screen name="TaskDetail" component={TaskDetailScreen} options={{ title: 'Карточка' }} />
+      <TaskStack.Screen name="CreateTask" component={CreateTaskPlaceholder} options={{ title: 'Новая задача' }} />
+    </TaskStack.Navigator>
   );
 }
 
 export function AppTabs() {
   const unreadCount = useChatStore((state) => state.totalUnread);
+  const theme = useTheme();
 
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#4F46E5',
-        tabBarInactiveTintColor: '#6B7280',
-        tabBarStyle: styles.tabBar,
-        tabBarLabelStyle: styles.tabBarLabel,
+        tabBarActiveTintColor: theme.colors.primary,
+        tabBarInactiveTintColor: theme.colors.textSecondary,
+        tabBarStyle: {
+          backgroundColor: theme.colors.bg,
+          borderTopColor: theme.colors.border,
+          borderTopWidth: 1,
+          height: 64,
+          paddingBottom: 10,
+          paddingTop: 6,
+        },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+        headerStyle: { backgroundColor: theme.colors.bg },
+        headerTintColor: theme.colors.textPrimary,
+        headerTitleStyle: { fontWeight: '700' },
       }}
     >
       <Tab.Screen
         name="ChatsTab"
         component={ChatStack}
         options={{
-          title: 'Chats',
-          tabBarIcon: ({ focused }) => <TabIcon label="Chats" focused={focused} />,
+          title: 'Чаты',
+          tabBarIcon: ({ focused, color, size }) => (
+            <Ionicons name={focused ? tabIcons.chats.active : tabIcons.chats.inactive} color={color} size={size} />
+          ),
           tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
+          tabBarBadgeStyle: { backgroundColor: theme.colors.error, color: theme.colors.onPrimary },
         }}
       />
       <Tab.Screen
         name="TasksTab"
         component={TaskStackNavigator}
         options={{
-          title: 'Tasks',
-          tabBarIcon: ({ focused }) => <TabIcon label="Tasks" focused={focused} />,
+          title: 'Задачи',
+          tabBarIcon: ({ focused, color, size }) => (
+            <Ionicons name={focused ? tabIcons.tasks.active : tabIcons.tasks.inactive} color={color} size={size} />
+          ),
         }}
       />
       <Tab.Screen
         name="CallsTab"
         component={CallsScreen}
         options={{
-          title: 'Calls',
+          title: 'Звонки',
           headerShown: true,
-          tabBarIcon: ({ focused }) => <TabIcon label="Calls" focused={focused} />,
+          tabBarIcon: ({ focused, color, size }) => (
+            <Ionicons name={focused ? tabIcons.calls.active : tabIcons.calls.inactive} color={color} size={size} />
+          ),
         }}
       />
       <Tab.Screen
         name="FilesTab"
         component={FilesScreen}
         options={{
-          title: 'Files',
+          title: 'Файлы',
           headerShown: true,
-          tabBarIcon: ({ focused }) => <TabIcon label="Files" focused={focused} />,
+          tabBarIcon: ({ focused, color, size }) => (
+            <Ionicons name={focused ? tabIcons.files.active : tabIcons.files.inactive} color={color} size={size} />
+          ),
         }}
       />
       <Tab.Screen
         name="SettingsTab"
         component={SettingsScreen}
         options={{
-          title: 'Settings',
+          title: 'Настройки',
           headerShown: true,
-          tabBarIcon: ({ focused }) => <TabIcon label="Settings" focused={focused} />,
+          tabBarIcon: ({ focused, color, size }) => (
+            <Ionicons name={focused ? tabIcons.settings.active : tabIcons.settings.inactive} color={color} size={size} />
+          ),
         }}
       />
     </Tab.Navigator>
   );
 }
-
-const styles = StyleSheet.create({
-  tabBar: {
-    backgroundColor: '#FFFFFF',
-    borderTopColor: '#E5E7EB',
-    borderTopWidth: 1,
-    height: 60,
-    paddingBottom: 8,
-    paddingTop: 4,
-  },
-  tabBarLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  tabIcon: {
-    fontSize: 20,
-    opacity: 0.6,
-  },
-  tabIconFocused: {
-    opacity: 1,
-  },
-});
