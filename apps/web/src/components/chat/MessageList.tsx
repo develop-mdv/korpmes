@@ -90,7 +90,7 @@ export function MessageList({ messages, hasMore, onLoadMore, currentUserId, isGr
   };
 
   return (
-    <div style={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+    <>
       <div ref={containerRef} className="message-list" onScroll={handleScroll}>
         {hasMore && <LoadingSpinner size={24} />}
         {messages.map((msg, i) => {
@@ -122,6 +122,6 @@ export function MessageList({ messages, hasMore, onLoadMore, currentUserId, isGr
           </svg>
         </button>
       )}
-    </div>
+    </>
   );
 }
