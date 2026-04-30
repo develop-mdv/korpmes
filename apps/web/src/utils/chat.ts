@@ -7,11 +7,10 @@ export function isSelfChat(chat: Chat, currentUserId?: string): boolean {
 }
 
 export function getChatDisplayName(chat: Chat, currentUserId?: string): string {
-  if (isSelfChat(chat, currentUserId)) return 'Saved Messages';
+  if (isSelfChat(chat, currentUserId)) return 'Сохранённые сообщения';
 
   if (chat.name) return chat.name;
 
-  // For PERSONAL chats, show the other person's name
   if (chat.type === 'PERSONAL' && chat.members?.length > 0) {
     const other = chat.members.find(
       (m) => m.user && m.userId !== currentUserId,
@@ -21,7 +20,6 @@ export function getChatDisplayName(chat: Chat, currentUserId?: string): string {
     }
   }
 
-  // Fallback for group chats without name
   if (chat.members?.length > 0) {
     const names = chat.members
       .filter((m) => m.user && m.userId !== currentUserId)
@@ -30,5 +28,5 @@ export function getChatDisplayName(chat: Chat, currentUserId?: string): string {
     if (names.length > 0) return names.join(', ');
   }
 
-  return 'Chat';
+  return 'Чат';
 }

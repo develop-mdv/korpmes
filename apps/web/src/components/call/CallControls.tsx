@@ -1,165 +1,141 @@
-import React from 'react';
 import { useCallStore } from '@/stores/call.store';
 import * as callManager from '@/services/call-manager';
 
 interface CallControlsProps {
   onHangup: () => void;
   callType: 'audio' | 'video';
+  compact?: boolean;
 }
 
-export function CallControls({ onHangup, callType }: CallControlsProps) {
+function Icon({
+  kind,
+  crossed,
+}: {
+  kind: 'mic' | 'video' | 'screen' | 'grid' | 'speaker' | 'phone';
+  crossed?: boolean;
+}) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {kind === 'mic' && (
+        <>
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+          <line x1="12" y1="19" x2="12" y2="23" />
+          <line x1="8" y1="23" x2="16" y2="23" />
+        </>
+      )}
+      {kind === 'video' && (
+        <>
+          <path d="M23 7l-7 5 7 5V7z" />
+          <rect x="1" y="5" width="15" height="14" rx="2" />
+        </>
+      )}
+      {kind === 'screen' && (
+        <>
+          <rect x="2" y="3" width="20" height="14" rx="2" />
+          <line x1="8" y1="21" x2="16" y2="21" />
+          <line x1="12" y1="17" x2="12" y2="21" />
+          <polyline points="17 8 12 3 7 8" />
+          <line x1="12" y1="3" x2="12" y2="13" />
+        </>
+      )}
+      {kind === 'grid' && (
+        <>
+          <rect x="3" y="3" width="7" height="7" />
+          <rect x="14" y="3" width="7" height="7" />
+          <rect x="3" y="14" width="7" height="7" />
+          <rect x="14" y="14" width="7" height="7" />
+        </>
+      )}
+      {kind === 'speaker' && (
+        <>
+          <rect x="3" y="4" width="18" height="12" rx="2" />
+          <line x1="7" y1="20" x2="17" y2="20" />
+          <line x1="12" y1="16" x2="12" y2="20" />
+        </>
+      )}
+      {kind === 'phone' && (
+        <path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91" />
+      )}
+      {crossed && <line x1="2" y1="2" x2="22" y2="22" />}
+    </svg>
+  );
+}
+
+export function CallControls({ onHangup, callType, compact = false }: CallControlsProps) {
   const { isMuted, isVideoOff, isScreenSharing, layoutMode, toggleMute, toggleVideo, setLayoutMode } = useCallStore();
-  const remoteCount = useCallStore((s) => Object.keys(s.remoteStreams).length);
+  const remoteCount = useCallStore((state) => Object.keys(state.remoteStreams).length);
   const showLayoutToggle = callType === 'video' && remoteCount > 0;
 
+  const buttonBase = compact ? styles.buttonCompact : styles.button;
+  const hangupBase = compact ? styles.hangupCompact : styles.hangup;
+
   const handleScreenShare = () => {
-    if (isScreenSharing) callManager.stopScreenShare();
-    else callManager.startScreenShare();
+    if (isScreenSharing) {
+      callManager.stopScreenShare();
+    } else {
+      callManager.startScreenShare();
+    }
   };
 
   return (
-    <div style={styles.container}>
-      {/* Mute */}
+    <div style={{ ...styles.container, ...(compact ? styles.containerCompact : {}) }}>
       <button
-        style={{ ...styles.btn, ...(isMuted ? styles.active : {}) }}
+        style={{ ...buttonBase, ...(isMuted ? styles.active : {}) }}
         onClick={toggleMute}
         title={isMuted ? 'Включить микрофон' : 'Выключить микрофон'}
+        aria-label={isMuted ? 'Включить микрофон' : 'Выключить микрофон'}
       >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          {isMuted ? (
-            <>
-              <line x1="1" y1="1" x2="23" y2="23" />
-              <path d="M9 9v3a3 3 0 005.12 2.12M15 9.34V4a3 3 0 00-5.94-.6" />
-              <path d="M17 16.95A7 7 0 015 12v-2m14 0v2c0 .76-.12 1.49-.35 2.17" />
-              <line x1="12" y1="19" x2="12" y2="23" />
-              <line x1="8" y1="23" x2="16" y2="23" />
-            </>
-          ) : (
-            <>
-              <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" />
-              <path d="M19 10v2a7 7 0 01-14 0v-2" />
-              <line x1="12" y1="19" x2="12" y2="23" />
-              <line x1="8" y1="23" x2="16" y2="23" />
-            </>
-          )}
-        </svg>
+        <Icon kind="mic" crossed={isMuted} />
       </button>
 
-      {/* Upgrade to video — only for audio calls */}
       {callType === 'audio' && (
-        <button
-          style={styles.btn}
-          onClick={() => callManager.upgradeToVideo()}
-          title="Включить видео"
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polygon points="23 7 16 12 23 17 23 7" />
-            <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
-          </svg>
+        <button style={buttonBase} onClick={() => callManager.upgradeToVideo()} title="Включить видео" aria-label="Включить видео">
+          <Icon kind="video" />
         </button>
       )}
 
-      {/* Video toggle — only for video calls */}
       {callType === 'video' && (
         <button
-          style={{ ...styles.btn, ...(isVideoOff ? styles.active : {}) }}
+          style={{ ...buttonBase, ...(isVideoOff ? styles.active : {}) }}
           onClick={toggleVideo}
           title={isVideoOff ? 'Включить камеру' : 'Выключить камеру'}
+          aria-label={isVideoOff ? 'Включить камеру' : 'Выключить камеру'}
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            {isVideoOff ? (
-              <>
-                <line x1="1" y1="1" x2="23" y2="23" />
-                <path d="M21 7l-5 3.5V7a2 2 0 00-2-2H5.5" />
-                <path d="M2 7v10a2 2 0 002 2h12" />
-              </>
-            ) : (
-              <>
-                <polygon points="23 7 16 12 23 17 23 7" />
-                <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
-              </>
-            )}
-          </svg>
+          <Icon kind="video" crossed={isVideoOff} />
         </button>
       )}
 
-      {/* Screen share — only for video calls */}
       {callType === 'video' && (
         <button
-          style={{ ...styles.btn, ...(isScreenSharing ? styles.active : {}) }}
+          style={{ ...buttonBase, ...(isScreenSharing ? styles.active : {}) }}
           onClick={handleScreenShare}
           title={isScreenSharing ? 'Остановить показ экрана' : 'Показать экран'}
+          aria-label={isScreenSharing ? 'Остановить показ экрана' : 'Показать экран'}
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            {isScreenSharing ? (
-              <>
-                <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-                <line x1="8" y1="21" x2="16" y2="21" />
-                <line x1="12" y1="17" x2="12" y2="21" />
-                <line x1="1" y1="1" x2="23" y2="23" />
-              </>
-            ) : (
-              <>
-                <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-                <line x1="8" y1="21" x2="16" y2="21" />
-                <line x1="12" y1="17" x2="12" y2="21" />
-                <polyline points="17 8 12 3 7 8" />
-                <line x1="12" y1="3" x2="12" y2="13" />
-              </>
-            )}
-          </svg>
+          <Icon kind="screen" crossed={isScreenSharing} />
         </button>
       )}
 
-      {/* Layout toggle — only for video calls with at least one remote */}
       {showLayoutToggle && (
         <button
-          style={styles.btn}
+          style={buttonBase}
           onClick={() => setLayoutMode(layoutMode === 'grid' ? 'speaker' : 'grid')}
           title={layoutMode === 'grid' ? 'Режим докладчика' : 'Режим сетки'}
+          aria-label={layoutMode === 'grid' ? 'Режим докладчика' : 'Режим сетки'}
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            {layoutMode === 'grid' ? (
-              <>
-                <rect x="3" y="3" width="18" height="14" rx="2" ry="2" />
-                <rect x="3" y="19" width="4" height="2" />
-                <rect x="9" y="19" width="4" height="2" />
-                <rect x="15" y="19" width="4" height="2" />
-              </>
-            ) : (
-              <>
-                <rect x="3" y="3" width="7" height="7" />
-                <rect x="14" y="3" width="7" height="7" />
-                <rect x="3" y="14" width="7" height="7" />
-                <rect x="14" y="14" width="7" height="7" />
-              </>
-            )}
-          </svg>
+          <Icon kind={layoutMode === 'grid' ? 'speaker' : 'grid'} />
         </button>
       )}
 
-      {/* Downgrade to audio — only for video calls */}
       {callType === 'video' && (
-        <button
-          style={styles.btn}
-          onClick={() => callManager.downgradeToAudio()}
-          title="Переключить на аудио"
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" />
-            <path d="M19 10v2a7 7 0 01-14 0v-2" />
-            <line x1="12" y1="19" x2="12" y2="23" />
-            <line x1="8" y1="23" x2="16" y2="23" />
-          </svg>
+        <button style={buttonBase} onClick={() => callManager.downgradeToAudio()} title="Переключить на аудио" aria-label="Переключить на аудио">
+          <Icon kind="mic" />
         </button>
       )}
 
-      {/* Hangup */}
-      <button style={{ ...styles.btn, ...styles.hangup }} onClick={onHangup} title="Завершить звонок">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-          <path d="M10.68 13.31a16 16 0 003.41 2.6l1.27-1.27a2 2 0 012.11-.45c.907.34 1.85.573 2.81.7A2 2 0 0122 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91" />
-          <line x1="1" y1="1" x2="23" y2="23" />
-        </svg>
+      <button style={{ ...buttonBase, ...hangupBase }} onClick={onHangup} title="Завершить звонок" aria-label="Завершить звонок">
+        <Icon kind="phone" crossed />
       </button>
     </div>
   );
@@ -167,14 +143,51 @@ export function CallControls({ onHangup, callType }: CallControlsProps) {
 
 const styles: Record<string, React.CSSProperties> = {
   container: {
-    display: 'flex', gap: 12, justifyContent: 'center', alignItems: 'center',
+    display: 'flex',
+    gap: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexWrap: 'wrap',
   },
-  btn: {
-    width: 48, height: 48, borderRadius: '50%', border: 'none',
-    background: '#374151', color: '#fff', cursor: 'pointer',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    transition: 'background 0.15s',
+  containerCompact: {
+    width: '100%',
   },
-  active: { background: '#6B7280' },
-  hangup: { background: '#EF4444', width: 52, height: 52 },
+  button: {
+    width: 46,
+    height: 46,
+    borderRadius: '50%',
+    border: '1px solid rgba(255,255,255,0.12)',
+    background: 'rgba(255,255,255,0.1)',
+    color: '#fff',
+    cursor: 'pointer',
+    display: 'grid',
+    placeItems: 'center',
+  },
+  buttonCompact: {
+    width: 42,
+    height: 42,
+    borderRadius: '50%',
+    border: '1px solid rgba(255,255,255,0.12)',
+    background: 'rgba(255,255,255,0.1)',
+    color: '#fff',
+    cursor: 'pointer',
+    display: 'grid',
+    placeItems: 'center',
+  },
+  active: {
+    background: 'rgba(212, 177, 106, 0.28)',
+    color: '#f4dda5',
+  },
+  hangup: {
+    width: 52,
+    height: 52,
+    background: 'var(--color-error)',
+    borderColor: 'transparent',
+  },
+  hangupCompact: {
+    width: 46,
+    height: 46,
+    background: 'var(--color-error)',
+    borderColor: 'transparent',
+  },
 };

@@ -80,7 +80,6 @@ export function CreateOrganizationPage() {
             </p>
             <div className="page-hero__meta">
               <span className="lux-pill">Русский интерфейс</span>
-              <span className="lux-pill">Светлая тема по умолчанию</span>
               <span className="lux-pill">Мгновенный старт</span>
             </div>
           </div>

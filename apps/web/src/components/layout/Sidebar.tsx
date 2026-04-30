@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import { ReactNode, useState } from 'react';
 import clsx from 'clsx';
 import { NavLink } from 'react-router-dom';
 import { useAuthStore } from '@/stores/auth.store';
@@ -116,7 +116,7 @@ const navItems: NavItem[] = [
   {
     path: '/settings',
     label: 'Настройки',
-    caption: 'Параметры',
+    caption: 'Профиль и тема',
     icon: (
       <LineIcon>
         <circle cx="12" cy="12" r="3" />
@@ -129,14 +129,13 @@ const navItems: NavItem[] = [
 export function Sidebar() {
   const sidebarOpen = useUIStore((s) => s.sidebarOpen);
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
-  const theme = useUIStore((s) => s.theme);
-  const setTheme = useUIStore((s) => s.setTheme);
   const user = useAuthStore((s) => s.user);
   const organizations = useOrganizationStore((s) => s.organizations);
   const currentOrg = useOrganizationStore((s) => s.currentOrg);
   const setCurrentOrg = useOrganizationStore((s) => s.setCurrentOrg);
   const { logout } = useAuth();
   const { isMobile } = useBreakpoint();
+  const [orgMenuOpen, setOrgMenuOpen] = useState(false);
 
   const handleNavClick = () => {
     if (isMobile && sidebarOpen) {
@@ -144,38 +143,61 @@ export function Sidebar() {
     }
   };
 
+  const handleSelectOrg = (orgId: string) => {
+    const org = organizations.find((item) => item.id === orgId);
+    if (!org) return;
+    setCurrentOrg(org);
+    setOrgMenuOpen(false);
+  };
+
   return (
     <aside className={clsx('sidebar-shell', sidebarOpen ? 'sidebar-shell--open' : 'sidebar-shell--compact')}>
       <div className="sidebar-shell__brand">
         <div className="brand-mark">S</div>
         <div className="sidebar-shell__brand-copy">
-          <div className="sidebar-shell__eyebrow">Премиум-контур</div>
           <div className="sidebar-shell__title">StaffHub</div>
-          <div className="sidebar-shell__subtitle">Светлое рабочее пространство</div>
         </div>
-        <button className="sidebar-shell__toggle" onClick={toggleSidebar} aria-label="Переключить навигацию">
+        <button className="sidebar-shell__toggle" onClick={toggleSidebar} aria-label="Переключить навигацию" type="button">
           {sidebarOpen ? '‹' : '›'}
         </button>
       </div>
 
       {organizations.length > 0 && (
         <div className="sidebar-shell__org-wrap">
-          <div className="sidebar-shell__org">
-            <div className="sidebar-shell__org-label">Рабочее пространство</div>
-            <select
-              className="lux-select"
-              value={currentOrg?.id || ''}
-              onChange={(e) => {
-                const org = organizations.find((item) => item.id === e.target.value);
-                if (org) setCurrentOrg(org);
-              }}
+          <div className="org-switcher">
+            <button
+              className="org-switcher__button"
+              onClick={() => setOrgMenuOpen((value) => !value)}
+              aria-expanded={orgMenuOpen}
+              type="button"
             >
-              {organizations.map((org) => (
-                <option key={org.id} value={org.id}>
-                  {org.name}
-                </option>
-              ))}
-            </select>
+              <span className="org-switcher__avatar">{currentOrg?.name?.[0] || 'S'}</span>
+              <span className="org-switcher__text">
+                <span className="org-switcher__name">{currentOrg?.name || 'Выберите пространство'}</span>
+              </span>
+              <svg className="org-switcher__chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+
+            {orgMenuOpen && (
+              <div className="org-switcher__menu">
+                {organizations.map((org) => (
+                  <button
+                    key={org.id}
+                    className={clsx('org-switcher__option', currentOrg?.id === org.id && 'is-active')}
+                    onClick={() => handleSelectOrg(org.id)}
+                    type="button"
+                  >
+                    <span className="org-switcher__avatar org-switcher__avatar--small">{org.name[0] || 'S'}</span>
+                    <span>
+                      <span className="org-switcher__name">{org.name}</span>
+                      <span className="org-switcher__meta">{org.memberCount} участников</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -200,13 +222,9 @@ export function Sidebar() {
       <div className="sidebar-shell__footer">
         <Avatar name={user ? `${user.firstName} ${user.lastName}` : 'SH'} size="md" online />
         <div className="sidebar-shell__footer-copy">
-          <div className="sidebar-shell__status">{theme === 'dark' ? 'Тёмный режим' : 'Светлый режим'}</div>
           <div className="sidebar-shell__name">{user ? `${user.firstName} ${user.lastName}` : 'Участник'}</div>
         </div>
-        <button className="lux-button-ghost sidebar-shell__logout" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
-          {theme === 'dark' ? 'Светлая' : 'Тёмная'}
-        </button>
-        <button className="lux-button-secondary sidebar-shell__logout" onClick={logout}>
+        <button className="lux-button-secondary sidebar-shell__logout" onClick={logout} type="button">
           Выйти
         </button>
       </div>

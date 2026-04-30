@@ -1,13 +1,31 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { CSSProperties } from 'react';
+import { formatDistanceToNow } from 'date-fns';
+import { ru } from 'date-fns/locale';
 import { EmptyState } from '@/components/common/EmptyState';
+import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { useOrganizationStore } from '@/stores/organization.store';
 import { FilePreviewModal } from '@/components/files/FilePreviewModal';
 import * as filesApi from '@/api/files.api';
-import { formatDistanceToNow } from 'date-fns';
 
 type FileInfo = filesApi.FileInfo;
 type FileCategory = 'images' | 'documents' | 'video' | 'audio' | 'other';
+
+const CATEGORIES: FileCategory[] = ['images', 'documents', 'video', 'audio', 'other'];
+const CATEGORY_LABELS: Record<FileCategory, string> = {
+  images: 'Изображения',
+  documents: 'Документы',
+  video: 'Видео',
+  audio: 'Аудио',
+  other: 'Другое',
+};
+const CATEGORY_MARKS: Record<FileCategory, string> = {
+  images: 'IMG',
+  documents: 'DOC',
+  video: 'VID',
+  audio: 'AUD',
+  other: 'FILE',
+};
 
 function getCategory(mimeType: string): FileCategory {
   if (mimeType.startsWith('image/')) return 'images';
@@ -19,13 +37,10 @@ function getCategory(mimeType: string): FileCategory {
     mimeType.includes('spreadsheet') ||
     mimeType.includes('presentation') ||
     mimeType.startsWith('text/')
-  )
+  ) {
     return 'documents';
+  }
   return 'other';
-}
-
-function getCategoryIcon(cat: FileCategory): string {
-  return { images: '🖼️', documents: '📄', video: '🎬', audio: '🎵', other: '📦' }[cat];
 }
 
 function formatSize(bytes: number): string {
@@ -34,22 +49,50 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-// Can we show a preview for this MIME?
 function isPreviewable(mimeType: string): boolean {
   if (mimeType.startsWith('image/')) return true;
   if (mimeType.startsWith('video/')) return true;
   if (mimeType.startsWith('audio/')) return true;
   if (mimeType.startsWith('text/')) return true;
   if (mimeType === 'application/pdf') return true;
-  const officeTypes = [
+
+  return [
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'application/msword',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     'application/vnd.ms-excel',
     'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     'application/vnd.ms-powerpoint',
-  ];
-  return officeTypes.includes(mimeType);
+  ].includes(mimeType);
+}
+
+function ActionIcon({ type }: { type: 'view' | 'download' }) {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {type === 'view' ? (
+        <>
+          <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
+          <circle cx="12" cy="12" r="3" />
+        </>
+      ) : (
+        <>
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line x1="12" y1="15" x2="12" y2="3" />
+        </>
+      )}
+    </svg>
+  );
 }
 
 interface FileRowProps {
@@ -63,77 +106,83 @@ function FileRow({ file, onDownload, onPreview }: FileRowProps) {
   const canPreview = isPreviewable(file.mimeType);
 
   return (
-    <div style={styles.row}>
-      {/* Thumbnail or icon */}
-      <div style={styles.thumb}>
-        {category === 'images' && file.thumbnailKey ? (
-          <img
-            src={`/api/files/${file.id}/thumbnail`}
-            alt=""
-            style={styles.thumbImg}
-            loading="lazy"
-          />
-        ) : (
-          <span style={{ fontSize: 22 }}>{getCategoryIcon(category)}</span>
-        )}
+    <article className="lux-panel list-card" style={styles.row}>
+      <div style={styles.fileMark}>{CATEGORY_MARKS[category]}</div>
+      <div className="list-card__body">
+        <div className="list-card__title" title={file.originalName} style={styles.fileName}>
+          {file.originalName}
+        </div>
+        <div className="list-card__meta">
+          <span>{formatSize(file.sizeBytes)}</span>
+          <span>{formatDistanceToNow(new Date(file.createdAt), { addSuffix: true, locale: ru })}</span>
+          <span>{CATEGORY_LABELS[category]}</span>
+        </div>
       </div>
-
-      <div style={styles.rowInfo}>
-        <span style={styles.rowName}>{file.originalName}</span>
-        <span style={styles.rowMeta}>
-          {formatSize(file.sizeBytes)} · {formatDistanceToNow(new Date(file.createdAt), { addSuffix: true })}
-        </span>
-      </div>
-
-      <div style={styles.rowActions}>
+      <div className="list-card__actions">
         {canPreview && (
-          <button style={styles.previewBtn} onClick={() => onPreview(file)} title="Preview">
-            👁
+          <button className="icon-button" onClick={() => onPreview(file)} title="Просмотр" aria-label="Просмотр" type="button">
+            <ActionIcon type="view" />
           </button>
         )}
-        <button style={styles.downloadBtn} onClick={() => onDownload(file.id)} title="Download">
-          ↓
+        <button className="icon-button" onClick={() => onDownload(file.id)} title="Скачать" aria-label="Скачать" type="button">
+          <ActionIcon type="download" />
         </button>
       </div>
-    </div>
+    </article>
   );
 }
-
-const CATEGORIES: FileCategory[] = ['images', 'documents', 'video', 'audio', 'other'];
-const CATEGORY_LABELS: Record<FileCategory, string> = {
-  images: 'Images',
-  documents: 'Documents',
-  video: 'Video',
-  audio: 'Audio',
-  other: 'Other',
-};
 
 export function FilesPage() {
   const { currentOrg } = useOrganizationStore();
   const [files, setFiles] = useState<FileInfo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [activeCategory, setActiveCategory] = useState<FileCategory | 'all'>('all');
-
-  // Preview state
   const [previewFile, setPreviewFile] = useState<FileInfo | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string>('');
+  const [previewUrl, setPreviewUrl] = useState('');
   const [previewLoading, setPreviewLoading] = useState(false);
 
   useEffect(() => {
     if (!currentOrg) return;
+
+    setLoading(true);
+    setError('');
     filesApi
       .listFiles({ orgId: currentOrg.id })
       .then(setFiles)
+      .catch(() => {
+        setFiles([]);
+        setError('Хранилище временно недоступно. Попробуйте обновить страницу чуть позже.');
+      })
       .finally(() => setLoading(false));
   }, [currentOrg]);
 
+  const grouped = useMemo(
+    () =>
+      files.reduce<Record<FileCategory, FileInfo[]>>(
+        (accumulator, file) => {
+          accumulator[getCategory(file.mimeType)].push(file);
+          return accumulator;
+        },
+        { images: [], documents: [], video: [], audio: [], other: [] },
+      ),
+    [files],
+  );
+
+  const filteredCategories =
+    activeCategory === 'all'
+      ? CATEGORIES.filter((category) => grouped[category].length > 0)
+      : grouped[activeCategory].length > 0
+        ? [activeCategory]
+        : [];
+
   const handleDownload = useCallback(async (id: string) => {
     const { url } = await filesApi.getDownloadUrl(id);
-    const a = document.createElement('a');
-    a.href = url;
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    a.click();
+    const link = document.createElement('a');
+    link.href = url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.click();
   }, []);
 
   const handlePreview = useCallback(async (file: FileInfo) => {
@@ -154,151 +203,169 @@ export function FilesPage() {
     setPreviewUrl('');
   }, []);
 
-  const grouped = files.reduce<Record<FileCategory, FileInfo[]>>(
-    (acc, f) => { acc[getCategory(f.mimeType)].push(f); return acc; },
-    { images: [], documents: [], video: [], audio: [], other: [] },
-  );
-
-  const filteredCategories =
-    activeCategory === 'all'
-      ? CATEGORIES.filter((c) => grouped[c].length > 0)
-      : grouped[activeCategory].length > 0
-      ? [activeCategory]
-      : [];
-
   const totalCount = files.length;
 
   return (
-    <div style={styles.container}>
-      <div style={styles.header}>
-        <h1 style={styles.title}>Files</h1>
-        {!loading && (
-          <span style={styles.count}>{totalCount} file{totalCount !== 1 ? 's' : ''}</span>
+    <div className="page-shell">
+      <div className="page-shell__inner">
+        <section className="lux-panel page-hero">
+          <div className="page-hero__copy">
+            <div className="page-hero__kicker">Файлы</div>
+            <h1 className="page-hero__title">Все материалы пространства в одном аккуратном хранилище.</h1>
+            <p className="page-hero__description">
+              Документы, изображения, видео и вложения из чатов собраны в единую ленту с быстрым просмотром и скачиванием.
+            </p>
+            <div className="page-hero__meta">
+              <span className="lux-pill">{totalCount} файлов</span>
+              <span className="lux-pill">{grouped.documents.length} документов</span>
+              <span className="lux-pill">{grouped.images.length} изображений</span>
+            </div>
+          </div>
+        </section>
+
+        <div style={styles.tabs}>
+          {(['all', ...CATEGORIES] as const).map((category) => {
+            const count = category === 'all' ? totalCount : grouped[category].length;
+            if (category !== 'all' && count === 0) return null;
+            const label = category === 'all' ? 'Все' : CATEGORY_LABELS[category];
+
+            return (
+              <button
+                key={category}
+                className={activeCategory === category ? 'lux-chip is-active' : 'lux-chip'}
+                onClick={() => setActiveCategory(category)}
+                type="button"
+              >
+                {label}
+                {count > 0 && <span style={styles.tabBadge}>{count}</span>}
+              </button>
+            );
+          })}
+        </div>
+
+        {error && <div className="lux-alert">{error}</div>}
+
+        {loading && (
+          <section className="lux-panel" style={styles.centered}>
+            <LoadingSpinner />
+          </section>
+        )}
+
+        {!loading && totalCount === 0 && (
+          <section className="lux-panel" style={{ minHeight: 360 }}>
+            <EmptyState
+              title="Файлов пока нет"
+              description="Вложения из чатов и задач будут появляться здесь автоматически."
+            />
+          </section>
+        )}
+
+        {!loading && filteredCategories.length === 0 && totalCount > 0 && (
+          <section className="lux-panel" style={{ minHeight: 300 }}>
+            <EmptyState
+              title="В этой категории пусто"
+              description="Выберите другую категорию или откройте все файлы."
+            />
+          </section>
+        )}
+
+        {!loading &&
+          filteredCategories.map((category) => (
+            <section key={category} className="collection-list">
+              {activeCategory === 'all' && (
+                <div style={styles.groupHeader}>
+                  <span style={styles.groupMark}>{CATEGORY_MARKS[category]}</span>
+                  {CATEGORY_LABELS[category]}
+                </div>
+              )}
+              {grouped[category].map((file) => (
+                <FileRow key={file.id} file={file} onDownload={handleDownload} onPreview={handlePreview} />
+              ))}
+            </section>
+          ))}
+
+        {previewFile && !previewLoading && previewUrl && (
+          <FilePreviewModal file={previewFile} signedUrl={previewUrl} onClose={closePreview} />
+        )}
+
+        {previewLoading && (
+          <div style={styles.previewSpinner}>
+            <LoadingSpinner />
+          </div>
         )}
       </div>
-
-      {/* Category filter tabs */}
-      <div style={styles.tabs}>
-        {(['all', ...CATEGORIES] as const).map((cat) => {
-          const count = cat === 'all' ? totalCount : grouped[cat].length;
-          if (cat !== 'all' && count === 0) return null;
-          return (
-            <button
-              key={cat}
-              style={{ ...styles.tab, ...(activeCategory === cat ? styles.tabActive : {}) }}
-              onClick={() => setActiveCategory(cat)}
-            >
-              {cat === 'all' ? 'All' : `${getCategoryIcon(cat)} ${CATEGORY_LABELS[cat]}`}
-              {count > 0 && <span style={styles.tabBadge}>{count}</span>}
-            </button>
-          );
-        })}
-      </div>
-
-      {loading && <div style={styles.centered}><LoadingSpinner /></div>}
-
-      {!loading && totalCount === 0 && (
-        <EmptyState title="No files yet" description="Files shared in chats and tasks will appear here" />
-      )}
-
-      {!loading && filteredCategories.length === 0 && totalCount > 0 && (
-        <EmptyState title="No files in this category" description="" />
-      )}
-
-      {!loading &&
-        filteredCategories.map((cat) => (
-          <div key={cat} style={styles.group}>
-            {activeCategory === 'all' && (
-              <div style={styles.groupHeader}>
-                {getCategoryIcon(cat)} {CATEGORY_LABELS[cat]}
-              </div>
-            )}
-            {grouped[cat].map((file) => (
-              <FileRow
-                key={file.id}
-                file={file}
-                onDownload={handleDownload}
-                onPreview={handlePreview}
-              />
-            ))}
-          </div>
-        ))}
-
-      {/* Preview modal */}
-      {previewFile && !previewLoading && previewUrl && (
-        <FilePreviewModal
-          file={previewFile}
-          signedUrl={previewUrl}
-          onClose={closePreview}
-        />
-      )}
-      {previewLoading && (
-        <div style={styles.previewSpinner}>
-          <LoadingSpinner />
-        </div>
-      )}
     </div>
   );
 }
 
-const styles: Record<string, React.CSSProperties> = {
-  container: { padding: 'clamp(12px, 4vw, 24px)', maxWidth: 900, margin: '0 auto' },
-  header: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 },
-  title: { fontSize: 24, fontWeight: 700, margin: 0, color: 'var(--color-text)' },
-  count: { fontSize: 14, color: 'var(--color-text-secondary)' },
-  tabs: { display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' },
-  tab: {
-    display: 'flex', alignItems: 'center', gap: 6,
-    padding: '6px 14px', borderRadius: 'var(--radius-sm)',
-    border: '1px solid var(--color-border)', background: 'transparent',
-    cursor: 'pointer', fontSize: 13, fontWeight: 500, color: 'var(--color-text-secondary)',
-  },
-  tabActive: {
-    background: 'var(--color-primary)', color: '#fff', borderColor: 'var(--color-primary)',
+const styles = {
+  tabs: {
+    display: 'flex',
+    gap: 8,
+    flexWrap: 'wrap',
   },
   tabBadge: {
-    fontSize: 11, background: 'rgba(0,0,0,0.18)', borderRadius: 10,
-    padding: '1px 6px', fontWeight: 600,
+    marginLeft: 8,
+    minWidth: 22,
+    height: 22,
+    padding: '0 7px',
+    borderRadius: 999,
+    display: 'inline-grid',
+    placeItems: 'center',
+    background: 'rgba(255,255,255,0.42)',
+    fontSize: 11,
+    fontWeight: 900,
   },
-  centered: { display: 'flex', justifyContent: 'center', paddingTop: 40 },
-  group: { marginBottom: 24 },
+  centered: {
+    minHeight: 320,
+    display: 'grid',
+    placeItems: 'center',
+  },
   groupHeader: {
-    fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
-    color: 'var(--color-text-secondary)', padding: '6px 0',
-    borderBottom: '1px solid var(--color-border)', marginBottom: 4,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 8,
+    color: 'var(--color-text-secondary)',
+    fontSize: 12,
+    fontWeight: 900,
+    textTransform: 'uppercase',
+    letterSpacing: '0.12em',
+  },
+  groupMark: {
+    letterSpacing: 0,
+    color: 'var(--color-primary-dark)',
   },
   row: {
-    display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
-    borderRadius: 6, border: '1px solid var(--color-border)',
-    marginBottom: 4, background: 'var(--color-surface)',
-    transition: 'border-color 0.15s',
+    alignItems: 'center',
+    borderRadius: 18,
+    padding: '13px 14px',
   },
-  thumb: {
-    width: 40, height: 40, borderRadius: 4, overflow: 'hidden',
-    background: 'var(--color-bg-secondary)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  fileMark: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    display: 'grid',
+    placeItems: 'center',
+    color: 'var(--color-primary-dark)',
+    background: 'var(--color-primary-faint)',
+    border: '1px solid var(--color-border)',
+    fontSize: 11,
+    fontWeight: 900,
+    flexShrink: 0,
   },
-  thumbImg: { width: '100%', height: '100%', objectFit: 'cover' },
-  rowInfo: { flex: 1, minWidth: 0 },
-  rowName: {
-    display: 'block', fontSize: 14, fontWeight: 500, color: 'var(--color-text)',
-    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-  },
-  rowMeta: { display: 'block', fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 1 },
-  rowActions: { display: 'flex', gap: 4 },
-  previewBtn: {
-    width: 32, height: 32, borderRadius: 6, border: '1px solid var(--color-border)',
-    background: 'transparent', cursor: 'pointer', fontSize: 16,
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-  },
-  downloadBtn: {
-    width: 32, height: 32, borderRadius: 6, border: '1px solid var(--color-border)',
-    background: 'transparent', cursor: 'pointer', fontSize: 16,
-    color: 'var(--color-primary)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  fileName: {
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
   },
   previewSpinner: {
-    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000,
+    position: 'fixed',
+    inset: 0,
+    zIndex: 1900,
+    display: 'grid',
+    placeItems: 'center',
+    background: 'rgba(36, 27, 17, 0.26)',
+    backdropFilter: 'blur(12px)',
   },
-};
+} satisfies Record<string, CSSProperties>;

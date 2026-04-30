@@ -1,18 +1,39 @@
-import { useEffect, useState } from 'react';
-import * as orgsApi from '@/api/organizations.api';
+import { useEffect, useMemo, useState } from 'react';
+import { Avatar } from '@/components/common/Avatar';
 import { EmptyState } from '@/components/common/EmptyState';
+import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+import * as orgsApi from '@/api/organizations.api';
 import { useOrganizationStore } from '@/stores/organization.store';
+import type { OrganizationMember } from '@/stores/organization.store';
+
+function roleLabel(role: OrganizationMember['role']) {
+  if (role === 'owner') return 'Владелец';
+  if (role === 'admin') return 'Администратор';
+  return 'Участник';
+}
+
+function normalizeMembersResponse(response: unknown): OrganizationMember[] {
+  if (Array.isArray(response)) return response as OrganizationMember[];
+
+  const maybeResponse = response as { members?: unknown };
+  if (Array.isArray(maybeResponse?.members)) {
+    return maybeResponse.members as OrganizationMember[];
+  }
+
+  return [];
+}
 
 export function MembersPage() {
   const currentOrg = useOrganizationStore((state) => state.currentOrg);
   const organizations = useOrganizationStore((state) => state.organizations);
-  const members = useOrganizationStore((state) => state.members);
+  const rawMembers = useOrganizationStore((state) => state.members);
   const setMembers = useOrganizationStore((state) => state.setMembers);
   const setCurrentOrg = useOrganizationStore((state) => state.setCurrentOrg);
   const setOrganizations = useOrganizationStore((state) => state.setOrganizations);
   const removeMemberFromStore = useOrganizationStore((state) => state.removeMember);
   const updateMemberRole = useOrganizationStore((state) => state.updateMemberRole);
 
+  const members = Array.isArray(rawMembers) ? rawMembers : [];
   const [loading, setLoading] = useState(true);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<'admin' | 'member'>('member');
@@ -28,21 +49,27 @@ export function MembersPage() {
     }
 
     setLoading(true);
+    setError(null);
     orgsApi
       .getMembers(currentOrg.id)
-      .then((response) => {
-        setMembers(response.members);
-      })
+      .then((response) => setMembers(normalizeMembersResponse(response)))
       .catch(() => {
+        setMembers([]);
         setError('Не удалось загрузить список участников.');
       })
       .finally(() => setLoading(false));
   }, [currentOrg, setMembers]);
 
+  const stats = useMemo(() => {
+    const admins = members.filter((member) => member.role === 'admin' || member.role === 'owner').length;
+    return {
+      admins,
+      regular: Math.max(0, members.length - admins),
+    };
+  }, [members]);
+
   const syncMemberCount = (delta: number) => {
-    if (!currentOrg) {
-      return;
-    }
+    if (!currentOrg) return;
 
     const nextOrganization = {
       ...currentOrg,
@@ -54,9 +81,7 @@ export function MembersPage() {
   };
 
   const handleInvite = async () => {
-    if (!currentOrg || !inviteEmail.trim()) {
-      return;
-    }
+    if (!currentOrg || !inviteEmail.trim()) return;
 
     setInviting(true);
     setMessage(null);
@@ -69,18 +94,16 @@ export function MembersPage() {
       });
       setInviteEmail('');
       setInviteRole('member');
-      setMessage('Приглашение отправлено. После принятия новый участник появится в списке.');
-    } catch (inviteError) {
-      setError(inviteError instanceof Error ? inviteError.message : 'Не удалось отправить приглашение.');
+      setMessage('Приглашение отправлено. Новый участник появится в списке после принятия.');
+    } catch {
+      setError('Не удалось отправить приглашение.');
     } finally {
       setInviting(false);
     }
   };
 
   const handleRoleChange = async (userId: string, role: 'admin' | 'member') => {
-    if (!currentOrg) {
-      return;
-    }
+    if (!currentOrg) return;
 
     setBusyUserId(userId);
     setMessage(null);
@@ -90,17 +113,15 @@ export function MembersPage() {
       await orgsApi.changeRole(currentOrg.id, userId, role);
       updateMemberRole(userId, role);
       setMessage('Роль участника обновлена.');
-    } catch (roleError) {
-      setError(roleError instanceof Error ? roleError.message : 'Не удалось изменить роль.');
+    } catch {
+      setError('Не удалось изменить роль.');
     } finally {
       setBusyUserId(null);
     }
   };
 
   const handleRemove = async (userId: string) => {
-    if (!currentOrg || !window.confirm('Удалить участника из организации?')) {
-      return;
-    }
+    if (!currentOrg || !window.confirm('Удалить участника из организации?')) return;
 
     setBusyUserId(userId);
     setMessage(null);
@@ -111,8 +132,8 @@ export function MembersPage() {
       removeMemberFromStore(userId);
       syncMemberCount(-1);
       setMessage('Участник удалён из пространства.');
-    } catch (removeError) {
-      setError(removeError instanceof Error ? removeError.message : 'Не удалось удалить участника.');
+    } catch {
+      setError('Не удалось удалить участника.');
     } finally {
       setBusyUserId(null);
     }
@@ -123,7 +144,10 @@ export function MembersPage() {
       <div className="page-shell">
         <div className="page-shell__inner">
           <section className="lux-panel" style={{ minHeight: 340 }}>
-            <EmptyState title="Нет активной организации" description="Сначала выберите рабочее пространство, чтобы управлять его участниками." />
+            <EmptyState
+              title="Нет активной организации"
+              description="Сначала выберите рабочее пространство, чтобы управлять участниками."
+            />
           </section>
         </div>
       </div>
@@ -138,12 +162,12 @@ export function MembersPage() {
             <div className="page-hero__kicker">Участники</div>
             <h1 className="page-hero__title">Команда {currentOrg.name}</h1>
             <p className="page-hero__description">
-              Управляйте доступом, ролями и составом пространства из одной светлой панели без лишней административной
-              тяжести.
+              Управляйте доступом, ролями и составом пространства из одной спокойной панели.
             </p>
             <div className="page-hero__meta">
-              <span className="lux-pill">{members.length} в текущем списке</span>
-              <span className="lux-pill">{currentOrg.memberCount} всего в организации</span>
+              <span className="lux-pill">{members.length} в списке</span>
+              <span className="lux-pill">{currentOrg.memberCount} всего</span>
+              <span className="lux-pill">{stats.admins} администраторов</span>
             </div>
           </div>
         </section>
@@ -185,35 +209,8 @@ export function MembersPage() {
                 </select>
               </div>
 
-              {message && (
-                <div
-                  style={{
-                    padding: '12px 14px',
-                    borderRadius: 18,
-                    background: 'rgba(30, 157, 104, 0.1)',
-                    border: '1px solid rgba(30, 157, 104, 0.18)',
-                    color: 'var(--color-success)',
-                    fontSize: 14,
-                  }}
-                >
-                  {message}
-                </div>
-              )}
-
-              {error && (
-                <div
-                  style={{
-                    padding: '12px 14px',
-                    borderRadius: 18,
-                    background: 'rgba(212, 98, 98, 0.1)',
-                    border: '1px solid rgba(212, 98, 98, 0.18)',
-                    color: 'var(--color-error)',
-                    fontSize: 14,
-                  }}
-                >
-                  {error}
-                </div>
-              )}
+              {message && <div className="lux-alert lux-alert--success">{message}</div>}
+              {error && <div className="lux-alert">{error}</div>}
 
               <div className="form-actions">
                 <button className="lux-button" type="button" onClick={handleInvite} disabled={inviting || !inviteEmail.trim()}>
@@ -226,74 +223,68 @@ export function MembersPage() {
           <section className="lux-panel stat-card">
             <div className="auth-shell__form-copy" style={{ marginBottom: 20 }}>
               <div className="auth-shell__form-title">Состав команды</div>
-              <div className="auth-shell__form-subtitle">Роли, контакты и быстрые действия</div>
+              <div className="auth-shell__form-subtitle">
+                {stats.regular} участников и {stats.admins} с расширенными правами
+              </div>
             </div>
 
             {loading ? (
-              <div style={{ padding: '6px 0', color: 'var(--color-text-secondary)' }}>Загружаем участников...</div>
+              <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}>
+                <LoadingSpinner />
+              </div>
             ) : members.length === 0 ? (
-              <EmptyState title="Пока никого нет" description="Пригласите первого участника, чтобы открыть совместную работу." />
+              <EmptyState
+                title="Пока никого нет"
+                description="Пригласите первого участника, чтобы открыть совместную работу."
+              />
             ) : (
               <div className="collection-list">
-                {members.map((member) => (
-                  <article key={member.userId} className="list-card" style={{ alignItems: 'flex-start' }}>
-                    <div
-                      style={{
-                        width: 48,
-                        height: 48,
-                        borderRadius: '50%',
-                        display: 'grid',
-                        placeItems: 'center',
-                        background: 'linear-gradient(135deg, var(--color-primary-light), var(--color-primary))',
-                        color: '#1c1309',
-                        fontWeight: 800,
-                        flexShrink: 0,
-                      }}
-                    >
-                      {`${member.firstName[0] || ''}${member.lastName[0] || ''}`.trim() || 'U'}
-                    </div>
+                {members.map((member) => {
+                  const name = `${member.firstName} ${member.lastName}`.trim() || member.email;
 
-                    <div className="list-card__body">
-                      <div className="list-card__title">
-                        {member.firstName} {member.lastName}
+                  return (
+                    <article key={member.userId} className="list-card" style={{ alignItems: 'flex-start' }}>
+                      <Avatar name={name} src={member.avatar} size="md" />
+                      <div className="list-card__body">
+                        <div className="list-card__title">{name}</div>
+                        <div className="list-card__subtitle" style={{ marginTop: 6 }}>
+                          {member.email}
+                        </div>
+                        <div className="list-card__meta">
+                          <span>Роль: {roleLabel(member.role)}</span>
+                          <span>{member.department ? `Отдел: ${member.department}` : 'Без отдела'}</span>
+                          <span>С нами с {new Date(member.joinedAt).toLocaleDateString('ru-RU')}</span>
+                        </div>
                       </div>
-                      <div className="list-card__subtitle" style={{ marginTop: 6 }}>
-                        {member.email}
-                      </div>
-                      <div className="list-card__meta">
-                        <span>Роль: {member.role === 'owner' ? 'Владелец' : member.role === 'admin' ? 'Администратор' : 'Участник'}</span>
-                        <span>{member.department ? `Отдел: ${member.department}` : 'Без отдела'}</span>
-                        <span>С нами с {new Date(member.joinedAt).toLocaleDateString('ru-RU')}</span>
-                      </div>
-                    </div>
 
-                    <div className="list-card__actions" style={{ alignItems: 'stretch', flexDirection: 'column' }}>
-                      {member.role === 'owner' ? (
-                        <span className="lux-pill">Владелец</span>
-                      ) : (
-                        <>
-                          <select
-                            className="lux-select"
-                            value={member.role}
-                            onChange={(event) => handleRoleChange(member.userId, event.target.value as 'admin' | 'member')}
-                            disabled={busyUserId === member.userId}
-                          >
-                            <option value="member">Участник</option>
-                            <option value="admin">Администратор</option>
-                          </select>
-                          <button
-                            className="lux-button-danger"
-                            type="button"
-                            onClick={() => handleRemove(member.userId)}
-                            disabled={busyUserId === member.userId}
-                          >
-                            Удалить
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </article>
-                ))}
+                      <div className="list-card__actions" style={{ alignItems: 'stretch', flexDirection: 'column' }}>
+                        {member.role === 'owner' ? (
+                          <span className="lux-pill">Владелец</span>
+                        ) : (
+                          <>
+                            <select
+                              className="lux-select"
+                              value={member.role}
+                              onChange={(event) => handleRoleChange(member.userId, event.target.value as 'admin' | 'member')}
+                              disabled={busyUserId === member.userId}
+                            >
+                              <option value="member">Участник</option>
+                              <option value="admin">Администратор</option>
+                            </select>
+                            <button
+                              className="lux-button-danger"
+                              type="button"
+                              onClick={() => handleRemove(member.userId)}
+                              disabled={busyUserId === member.userId}
+                            >
+                              Удалить
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </article>
+                  );
+                })}
               </div>
             )}
           </section>

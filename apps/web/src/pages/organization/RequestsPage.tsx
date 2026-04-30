@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Avatar } from '@/components/common/Avatar';
+import { EmptyState } from '@/components/common/EmptyState';
+import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { useOrganizationStore } from '@/stores/organization.store';
 import * as orgsApi from '@/api/organizations.api';
 
@@ -12,13 +14,12 @@ export function RequestsPage() {
 
   useEffect(() => {
     if (!currentOrg) return;
+
     setLoading(true);
+    setError('');
     orgsApi
       .listJoinRequests(currentOrg.id)
-      .then((reqs) => {
-        setRequests(reqs);
-        setError('');
-      })
+      .then((reqs) => setRequests(reqs))
       .catch((err) => {
         setError(err.response?.data?.error?.message || 'Не удалось загрузить заявки');
       })
@@ -28,9 +29,10 @@ export function RequestsPage() {
   const handleApprove = async (requestId: string) => {
     if (!currentOrg) return;
     setBusyId(requestId);
+    setError('');
     try {
       await orgsApi.approveJoinRequest(currentOrg.id, requestId);
-      setRequests((prev) => prev.filter((r) => r.id !== requestId));
+      setRequests((prev) => prev.filter((request) => request.id !== requestId));
     } catch (err: any) {
       setError(err.response?.data?.error?.message || 'Не удалось одобрить заявку');
     } finally {
@@ -41,9 +43,10 @@ export function RequestsPage() {
   const handleReject = async (requestId: string) => {
     if (!currentOrg) return;
     setBusyId(requestId);
+    setError('');
     try {
       await orgsApi.rejectJoinRequest(currentOrg.id, requestId);
-      setRequests((prev) => prev.filter((r) => r.id !== requestId));
+      setRequests((prev) => prev.filter((request) => request.id !== requestId));
     } catch (err: any) {
       setError(err.response?.data?.error?.message || 'Не удалось отклонить заявку');
     } finally {
@@ -58,9 +61,9 @@ export function RequestsPage() {
           <section className="lux-panel page-hero">
             <div className="page-hero__copy">
               <div className="page-hero__kicker">Заявки</div>
-              <h1 className="page-hero__title">Выберите организацию</h1>
+              <h1 className="page-hero__title">Выберите организацию.</h1>
               <p className="page-hero__description">
-                Чтобы просматривать заявки на вступление, переключитесь на нужное рабочее пространство.
+                Чтобы просматривать запросы на вступление, переключитесь на нужное рабочее пространство.
               </p>
             </div>
           </section>
@@ -75,61 +78,69 @@ export function RequestsPage() {
         <section className="lux-panel page-hero">
           <div className="page-hero__copy">
             <div className="page-hero__kicker">Доступ</div>
-            <h1 className="page-hero__title">Заявки на вступление</h1>
+            <h1 className="page-hero__title">Заявки на вступление.</h1>
             <p className="page-hero__description">
-              Здесь видны запросы пользователей, которые хотят вступить в «{currentOrg.name}».
+              Здесь собраны пользователи, которые хотят попасть в «{currentOrg.name}». Одобрение сразу добавит человека в пространство.
             </p>
+            <div className="page-hero__meta">
+              <span className="lux-pill">Ожидают: {requests.length}</span>
+            </div>
           </div>
         </section>
 
         {error && <div className="lux-alert">{error}</div>}
 
-        <section className="lux-panel" style={{ marginTop: 18 }}>
+        <section className="lux-panel" style={{ padding: 16 }}>
           {loading ? (
-            <div style={{ textAlign: 'center', padding: 40, color: 'var(--color-text-secondary)' }}>Загрузка…</div>
+            <div style={{ display: 'flex', justifyContent: 'center', padding: 32 }}>
+              <LoadingSpinner />
+            </div>
           ) : requests.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 40, color: 'var(--color-text-tertiary)' }}>Нет ожидающих заявок</div>
+            <EmptyState
+              title="Нет ожидающих заявок"
+              description="Когда кто-то попросит доступ, заявка появится здесь."
+            />
           ) : (
             <div className="collection-list">
-              {requests.map((r) => (
-                <article key={r.id} className="list-card">
-                  <Avatar
-                    name={`${r.user?.firstName ?? ''} ${r.user?.lastName ?? ''}`}
-                    src={r.user?.avatarUrl}
-                    size="md"
-                  />
-                  <div className="list-card__body">
-                    <div className="list-card__title">
-                      {r.user?.firstName} {r.user?.lastName}
-                    </div>
-                    <div className="list-card__subtitle">{r.user?.email}</div>
-                    {r.message && (
-                      <div className="list-card__subtitle" style={{ marginTop: 6, fontStyle: 'italic' }}>
-                        «{r.message}»
+              {requests.map((request) => {
+                const name = [request.user?.firstName, request.user?.lastName].filter(Boolean).join(' ');
+
+                return (
+                  <article key={request.id} className="list-card">
+                    <Avatar name={name || request.user?.email || 'Пользователь'} src={request.user?.avatarUrl} size="md" />
+                    <div className="list-card__body">
+                      <div className="list-card__title">{name || 'Пользователь'}</div>
+                      <div className="list-card__subtitle">{request.user?.email}</div>
+                      {request.message && (
+                        <div className="list-card__subtitle" style={{ marginTop: 6, fontStyle: 'italic' }}>
+                          «{request.message}»
+                        </div>
+                      )}
+                      <div className="list-card__meta">
+                        <span>{new Date(request.createdAt).toLocaleString('ru-RU')}</span>
                       </div>
-                    )}
-                    <div className="list-card__subtitle" style={{ marginTop: 4 }}>
-                      {new Date(r.createdAt).toLocaleString('ru-RU')}
                     </div>
-                  </div>
-                  <div className="list-card__actions">
-                    <button
-                      className="lux-button"
-                      onClick={() => handleApprove(r.id)}
-                      disabled={busyId === r.id}
-                    >
-                      Одобрить
-                    </button>
-                    <button
-                      className="lux-button-danger"
-                      onClick={() => handleReject(r.id)}
-                      disabled={busyId === r.id}
-                    >
-                      Отклонить
-                    </button>
-                  </div>
-                </article>
-              ))}
+                    <div className="list-card__actions">
+                      <button
+                        className="lux-button"
+                        onClick={() => handleApprove(request.id)}
+                        disabled={busyId === request.id}
+                        type="button"
+                      >
+                        Одобрить
+                      </button>
+                      <button
+                        className="lux-button-danger"
+                        onClick={() => handleReject(request.id)}
+                        disabled={busyId === request.id}
+                        type="button"
+                      >
+                        Отклонить
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           )}
         </section>

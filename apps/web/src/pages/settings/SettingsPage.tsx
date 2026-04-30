@@ -25,10 +25,7 @@ export function SettingsPage() {
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-
-    if (!user) {
-      return;
-    }
+    if (!user) return;
 
     setUser({
       ...user,
@@ -45,14 +42,13 @@ export function SettingsPage() {
         <section className="lux-panel page-hero">
           <div className="page-hero__copy">
             <div className="page-hero__kicker">Настройки</div>
-            <h1 className="page-hero__title">Персональные параметры в светлом русском контуре.</h1>
+            <h1 className="page-hero__title">Профиль, тема и сессия.</h1>
             <p className="page-hero__description">
-              Здесь мы держим ваш профиль, визуальные предпочтения и быстрые точки контроля над сессией. Базовый язык
-              уже зафиксирован как русский, а тема по умолчанию переключена на светлую.
+              Всё персональное собрано здесь, чтобы боковое меню оставалось лёгким и не отвлекало от работы.
             </p>
             <div className="page-hero__meta">
-              <span className="lux-pill">Язык: Русский</span>
-              <span className="lux-pill">Тема: {theme === 'light' ? 'Светлая' : 'Тёмная'}</span>
+              <span className="lux-pill">Язык: русский</span>
+              <span className="lux-pill">Тема: {theme === 'light' ? 'светлая' : 'тёмная'}</span>
               {currentOrg && <span className="lux-pill">Организация: {currentOrg.name}</span>}
             </div>
           </div>
@@ -112,20 +108,7 @@ export function SettingsPage() {
                 />
               </div>
 
-              {message && (
-                <div
-                  style={{
-                    padding: '12px 14px',
-                    borderRadius: 18,
-                    background: 'rgba(30, 157, 104, 0.1)',
-                    border: '1px solid rgba(30, 157, 104, 0.18)',
-                    color: 'var(--color-success)',
-                    fontSize: 14,
-                  }}
-                >
-                  {message}
-                </div>
-              )}
+              {message && <div className="lux-alert lux-alert--success">{message}</div>}
 
               <div className="form-actions">
                 <button className="lux-button" type="submit">
@@ -139,22 +122,30 @@ export function SettingsPage() {
             <section className="lux-panel stat-card">
               <div className="auth-shell__form-copy" style={{ marginBottom: 18 }}>
                 <div className="auth-shell__form-title">Оформление</div>
-                <div className="auth-shell__form-subtitle">Текущий визуальный режим</div>
+                <div className="auth-shell__form-subtitle">Смена темы теперь живёт только здесь</div>
               </div>
-              <div className="form-actions" style={{ justifyContent: 'flex-start' }}>
+              <div className="theme-choice">
                 <button
-                  className={theme === 'light' ? 'lux-button' : 'lux-button-secondary'}
+                  className={theme === 'light' ? 'theme-choice__item is-active' : 'theme-choice__item'}
                   type="button"
                   onClick={() => setTheme('light')}
                 >
-                  Светлая
+                  <span className="theme-choice__swatch theme-choice__swatch--light" />
+                  <span>
+                    <strong>Светлая</strong>
+                    <small>Основная тема интерфейса</small>
+                  </span>
                 </button>
                 <button
-                  className={theme === 'dark' ? 'lux-button' : 'lux-button-secondary'}
+                  className={theme === 'dark' ? 'theme-choice__item is-active' : 'theme-choice__item'}
                   type="button"
                   onClick={() => setTheme('dark')}
                 >
-                  Тёмная
+                  <span className="theme-choice__swatch theme-choice__swatch--dark" />
+                  <span>
+                    <strong>Тёмная</strong>
+                    <small>Для вечерней работы</small>
+                  </span>
                 </button>
               </div>
             </section>
@@ -171,7 +162,7 @@ export function SettingsPage() {
                   <div className="list-card__body">
                     <div className="list-card__title">Основной язык</div>
                     <div className="list-card__subtitle" style={{ marginTop: 6 }}>
-                      Русский закреплён как основной язык интерфейса во всём приложении.
+                      Русский закреплён как основной язык интерфейса.
                     </div>
                   </div>
                 </article>
@@ -179,7 +170,7 @@ export function SettingsPage() {
                   <div className="list-card__body">
                     <div className="list-card__title">Статус 2FA</div>
                     <div className="list-card__subtitle" style={{ marginTop: 6 }}>
-                      {user?.twoFactorEnabled ? 'Дополнительный уровень защиты активен.' : 'При следующем проходе можно добавить управление 2FA через API.'}
+                      {user?.twoFactorEnabled ? 'Дополнительный уровень защиты активен.' : 'Управление 2FA можно добавить следующим шагом через API.'}
                     </div>
                   </div>
                 </article>
@@ -188,15 +179,15 @@ export function SettingsPage() {
 
             <section className="lux-panel stat-card">
               <div className="auth-shell__form-copy" style={{ marginBottom: 18 }}>
-                <div className="auth-shell__form-title">Сессия и рабочее пространство</div>
-                <div className="auth-shell__form-subtitle">Быстрые действия без переходов по меню</div>
+                <div className="auth-shell__form-title">Сессия</div>
+                <div className="auth-shell__form-subtitle">Быстрые действия без перегруза бокового меню</div>
               </div>
               <div className="collection-list" style={{ marginBottom: 18 }}>
                 <article className="list-card">
                   <div className="list-card__body">
                     <div className="list-card__title">{currentOrg?.name || 'Организация не выбрана'}</div>
                     <div className="list-card__subtitle" style={{ marginTop: 6 }}>
-                      {currentOrg ? 'Переходите к структуре, участникам и управлению пространством.' : 'Выберите организацию, чтобы открыть её внутренние настройки.'}
+                      {currentOrg ? 'Структура и управление пространством доступны в разделе организации.' : 'Выберите организацию, чтобы открыть её настройки.'}
                     </div>
                   </div>
                 </article>

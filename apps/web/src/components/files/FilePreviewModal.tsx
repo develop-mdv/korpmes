@@ -16,12 +16,12 @@ interface Props {
 type Category = 'image' | 'video' | 'audio' | 'pdf' | 'office' | 'text' | 'unknown';
 
 const OFFICE_TYPES = [
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // docx
-  'application/msword', // doc
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // xlsx
-  'application/vnd.ms-excel', // xls
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation', // pptx
-  'application/vnd.ms-powerpoint', // ppt
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/vnd.ms-powerpoint',
 ];
 
 function getCategory(mimeType: string): Category {
@@ -40,111 +40,81 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-/** Shows a text file (up to 64 KB). */
-function TextPreview({ url }: { url: string }) {
-  const [content, setContent] = useState<string | null>(null);
-  const [error, setError] = useState(false);
-
-  useEffect(() => {
-    fetch(url)
-      .then((r) => r.text())
-      .then((t) => setContent(t.slice(0, 65536)))
-      .catch(() => setError(true));
-  }, [url]);
-
-  if (error) return <p style={styles.msg}>Failed to load file content.</p>;
-  if (!content) return <p style={styles.msg}>Loading…</p>;
-
-  return (
-    <pre style={styles.pre}>{content}</pre>
-  );
-}
-
 function isPubliclyReachable(url: string): boolean {
   try {
-    const u = new URL(url);
-    if (u.protocol !== 'https:') return false;
-    const host = u.hostname;
-    if (host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0') return false;
-    // RFC1918 private ranges
-    if (/^10\./.test(host)) return false;
-    if (/^192\.168\./.test(host)) return false;
-    if (/^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host)) return false;
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:') return false;
+    if (['localhost', '127.0.0.1', '0.0.0.0'].includes(parsed.hostname)) return false;
+    if (/^10\./.test(parsed.hostname) || /^192\.168\./.test(parsed.hostname)) return false;
+    if (/^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(parsed.hostname)) return false;
     return true;
   } catch {
     return false;
   }
 }
 
-export function FilePreviewModal({ file, signedUrl, onClose }: Props) {
-  const cat = getCategory(file.mimeType);
-  const officeReachable = isPubliclyReachable(signedUrl);
+function TextPreview({ url }: { url: string }) {
+  const [content, setContent] = useState<string | null>(null);
+  const [error, setError] = useState(false);
 
-  // MS Office Online viewer needs a publicly reachable HTTPS URL — falls back gracefully on localhost/dev.
+  useEffect(() => {
+    fetch(url)
+      .then((response) => response.text())
+      .then((text) => setContent(text.slice(0, 65536)))
+      .catch(() => setError(true));
+  }, [url]);
+
+  if (error) return <p style={styles.msg}>Не удалось загрузить содержимое файла.</p>;
+  if (!content) return <p style={styles.msg}>Загрузка...</p>;
+  return <pre style={styles.pre}>{content}</pre>;
+}
+
+export function FilePreviewModal({ file, signedUrl, onClose }: Props) {
+  const category = getCategory(file.mimeType);
+  const officeReachable = isPubliclyReachable(signedUrl);
   const officeViewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(signedUrl)}`;
 
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) onClose();
+  const handleBackdropClick = (event: React.MouseEvent) => {
+    if (event.target === event.currentTarget) onClose();
   };
 
   return (
     <div style={styles.backdrop} onClick={handleBackdropClick}>
       <div style={styles.modal}>
-        {/* Header */}
         <div style={styles.header}>
           <div style={styles.headerLeft}>
             <span style={styles.filename} title={file.originalName}>
               {file.originalName}
             </span>
-            <span style={styles.meta}>{file.mimeType} · {formatSize(file.sizeBytes)}</span>
+            <span style={styles.meta}>
+              {file.mimeType} • {formatSize(file.sizeBytes)}
+            </span>
           </div>
           <div style={styles.headerRight}>
             <a href={signedUrl} download={file.originalName} style={styles.downloadBtn}>
-              ↓ Download
+              Скачать
             </a>
-            <button style={styles.closeBtn} onClick={onClose} aria-label="Close">
+            <button style={styles.closeBtn} onClick={onClose} aria-label="Закрыть">
               ×
             </button>
           </div>
         </div>
 
-        {/* Body */}
         <div style={styles.body}>
-          {cat === 'image' && (
-            <img
-              src={signedUrl}
-              alt={file.originalName}
-              style={styles.image}
-              draggable={false}
-            />
-          )}
+          {category === 'image' && <img src={signedUrl} alt={file.originalName} style={styles.image} draggable={false} />}
+          {category === 'video' && <video src={signedUrl} controls autoPlay={false} style={styles.video} />}
 
-          {cat === 'video' && (
-            <video
-              src={signedUrl}
-              controls
-              autoPlay={false}
-              style={styles.video}
-            />
-          )}
-
-          {cat === 'audio' && (
+          {category === 'audio' && (
             <div style={styles.audioWrap}>
-              <div style={styles.audioIcon}>🎵</div>
+              <div style={styles.audioIcon}>♪</div>
               <p style={styles.audioName}>{file.originalName}</p>
               <audio src={signedUrl} controls style={{ width: '100%', marginTop: 12 }} />
             </div>
           )}
 
-          {cat === 'pdf' && (
-            <iframe
-              src={signedUrl}
-              title={file.originalName}
-              style={styles.frame}
-            />
-          )}
+          {category === 'pdf' && <iframe src={signedUrl} title={file.originalName} style={styles.frame} />}
 
-          {cat === 'office' && officeReachable && (
+          {category === 'office' && officeReachable && (
             <iframe
               src={officeViewerUrl}
               title={file.originalName}
@@ -153,28 +123,27 @@ export function FilePreviewModal({ file, signedUrl, onClose }: Props) {
             />
           )}
 
-          {cat === 'office' && !officeReachable && (
+          {category === 'office' && !officeReachable && (
             <div style={styles.unknownBox}>
-              <span style={styles.unknownIcon}>📊</span>
+              <span style={styles.unknownIcon}>DOC</span>
               <p style={styles.unknownText}>
-                Предпросмотр Word/Excel/PowerPoint доступен только в продакшене
-                (Microsoft Office Online не может открыть файл с локального
-                адреса). Скачай файл, чтобы посмотреть.
+                Предпросмотр Word, Excel и PowerPoint доступен только для публичного HTTPS-адреса. В локальной среде
+                файл можно скачать и открыть на устройстве.
               </p>
               <a href={signedUrl} download={file.originalName} style={styles.dlLink}>
-                ↓ Скачать {file.originalName}
+                Скачать {file.originalName}
               </a>
             </div>
           )}
 
-          {cat === 'text' && <TextPreview url={signedUrl} />}
+          {category === 'text' && <TextPreview url={signedUrl} />}
 
-          {cat === 'unknown' && (
+          {category === 'unknown' && (
             <div style={styles.unknownBox}>
-              <span style={styles.unknownIcon}>📄</span>
-              <p style={styles.unknownText}>Preview not available for this file type.</p>
+              <span style={styles.unknownIcon}>FILE</span>
+              <p style={styles.unknownText}>Для этого типа файла встроенный просмотр пока недоступен.</p>
               <a href={signedUrl} download={file.originalName} style={styles.dlLink}>
-                ↓ Download {file.originalName}
+                Скачать {file.originalName}
               </a>
             </div>
           )}
@@ -186,62 +155,165 @@ export function FilePreviewModal({ file, signedUrl, onClose }: Props) {
 
 const styles: Record<string, React.CSSProperties> = {
   backdrop: {
-    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.82)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000,
+    position: 'fixed',
+    inset: 0,
+    zIndex: 2000,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    background: 'rgba(36, 27, 17, 0.24)',
+    backdropFilter: 'blur(18px)',
   },
   modal: {
-    background: '#1F2937', borderRadius: 12, width: '92vw', maxWidth: 1100,
-    height: '88vh', display: 'flex', flexDirection: 'column', overflow: 'hidden',
-    boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
+    width: 'min(1120px, 94vw)',
+    height: 'min(820px, 90dvh)',
+    display: 'flex',
+    flexDirection: 'column',
+    overflow: 'hidden',
+    borderRadius: 24,
+    background: 'var(--color-surface-strong)',
+    border: '1px solid var(--color-border)',
+    boxShadow: 'var(--shadow-lg)',
   },
   header: {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '12px 20px', borderBottom: '1px solid #374151', flexShrink: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 14,
+    padding: '14px 18px',
+    borderBottom: '1px solid var(--color-border)',
+    flexShrink: 0,
   },
-  headerLeft: { display: 'flex', flexDirection: 'column', gap: 2, overflow: 'hidden' },
+  headerLeft: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 4,
+    minWidth: 0,
+  },
   filename: {
-    color: '#F9FAFB', fontSize: 15, fontWeight: 600,
-    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '60vw',
+    color: 'var(--color-text)',
+    fontSize: 16,
+    fontWeight: 800,
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    maxWidth: '62vw',
   },
-  meta: { color: '#9CA3AF', fontSize: 12 },
-  headerRight: { display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 },
+  meta: {
+    color: 'var(--color-text-secondary)',
+    fontSize: 12,
+  },
+  headerRight: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 0,
+  },
   downloadBtn: {
-    padding: '6px 14px', background: '#374151', color: '#D1D5DB',
-    borderRadius: 6, textDecoration: 'none', fontSize: 13, fontWeight: 500,
+    minHeight: 38,
+    display: 'inline-grid',
+    placeItems: 'center',
+    padding: '0 15px',
+    borderRadius: 999,
+    color: '#1c1309',
+    background: 'linear-gradient(135deg, var(--color-primary-light), var(--color-primary))',
+    textDecoration: 'none',
+    fontSize: 13,
+    fontWeight: 800,
   },
   closeBtn: {
-    width: 32, height: 32, borderRadius: '50%', border: 'none',
-    background: '#374151', color: '#9CA3AF', fontSize: 20, cursor: 'pointer',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    width: 38,
+    height: 38,
+    borderRadius: 14,
+    border: '1px solid var(--color-border)',
+    background: 'var(--color-surface-soft)',
+    color: 'var(--color-text-secondary)',
+    fontSize: 22,
+    cursor: 'pointer',
+    display: 'grid',
+    placeItems: 'center',
     lineHeight: 1,
   },
   body: {
-    flex: 1, overflow: 'auto', display: 'flex', alignItems: 'center',
-    justifyContent: 'center', background: '#111827',
+    flex: 1,
+    minHeight: 0,
+    overflow: 'auto',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background:
+      'radial-gradient(circle at top left, rgba(159, 122, 61, 0.1), transparent 28%), linear-gradient(180deg, var(--color-bg-secondary), var(--color-bg))',
   },
   image: { maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' },
   video: { maxWidth: '100%', maxHeight: '100%' },
   audioWrap: {
-    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
-    padding: 40, width: '100%', maxWidth: 500,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 8,
+    padding: 32,
+    width: 'min(520px, 100%)',
   },
-  audioIcon: { fontSize: 64 },
-  audioName: { color: '#D1D5DB', fontSize: 15, margin: 0, textAlign: 'center' },
+  audioIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 24,
+    display: 'grid',
+    placeItems: 'center',
+    background: 'var(--color-primary-faint)',
+    color: 'var(--color-primary-dark)',
+    fontSize: 34,
+    fontWeight: 800,
+  },
+  audioName: { color: 'var(--color-text)', fontSize: 15, margin: 0, textAlign: 'center' },
   frame: { width: '100%', height: '100%', border: 'none' },
   pre: {
-    margin: 0, padding: 24, color: '#D1D5DB', fontFamily: 'monospace', fontSize: 13,
-    overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-    width: '100%', boxSizing: 'border-box',
+    margin: 0,
+    padding: 24,
+    color: 'var(--color-text)',
+    fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace',
+    fontSize: 13,
+    overflowX: 'auto',
+    whiteSpace: 'pre-wrap',
+    wordBreak: 'break-word',
+    width: '100%',
+    boxSizing: 'border-box',
   },
-  msg: { color: '#9CA3AF', padding: 24 },
+  msg: { color: 'var(--color-text-secondary)', padding: 24 },
   unknownBox: {
-    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,
-    color: '#9CA3AF', padding: 40,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 12,
+    maxWidth: 520,
+    color: 'var(--color-text-secondary)',
+    padding: 32,
+    textAlign: 'center',
   },
-  unknownIcon: { fontSize: 72 },
+  unknownIcon: {
+    width: 74,
+    height: 74,
+    borderRadius: 22,
+    display: 'grid',
+    placeItems: 'center',
+    color: 'var(--color-primary-dark)',
+    background: 'var(--color-primary-faint)',
+    fontSize: 15,
+    fontWeight: 900,
+  },
   unknownText: { fontSize: 15, margin: 0 },
   dlLink: {
-    padding: '10px 24px', background: '#4F46E5', color: '#fff', borderRadius: 8,
-    textDecoration: 'none', fontWeight: 600, fontSize: 14,
+    minHeight: 42,
+    display: 'inline-grid',
+    placeItems: 'center',
+    padding: '0 18px',
+    color: 'var(--color-text)',
+    background: 'var(--color-bg-tertiary)',
+    border: '1px solid var(--color-border)',
+    borderRadius: 999,
+    textDecoration: 'none',
+    fontWeight: 800,
+    fontSize: 14,
   },
 };

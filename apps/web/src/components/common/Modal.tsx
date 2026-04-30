@@ -106,7 +106,7 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
       <div style={cardStyle} onClick={(e) => e.stopPropagation()}>
         <div style={headerStyle}>
           <h2 style={titleStyle}>{title}</h2>
-          <button style={closeButtonStyle} onClick={onClose} aria-label="Close">
+          <button style={closeButtonStyle} onClick={onClose} aria-label="Закрыть">
             &#x2715;
           </button>
         </div>

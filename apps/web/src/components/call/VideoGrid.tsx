@@ -42,7 +42,7 @@ export function VideoTile({
 
   const tileStyle: React.CSSProperties = {
     ...styles.tile,
-    ...(isActiveSpeaker ? { outline: '2px solid #10B981', outlineOffset: -2 } : {}),
+    ...(isActiveSpeaker ? { outline: '2px solid #d4b16a', outlineOffset: -2 } : {}),
     ...style,
   };
 
@@ -66,7 +66,7 @@ export function VideoTile({
         </div>
       )}
       <span style={styles.label}>
-        {isScreenShare ? '🖥 Screen' : isLocal ? 'You' : label}
+        {isScreenShare ? 'Экран' : isLocal ? 'Вы' : label}
       </span>
     </div>
   );
@@ -240,7 +240,7 @@ export function VideoGrid({
       {localUserId && (
         <VideoTile
           stream={localStream}
-          label="You"
+          label="Вы"
           isLocal
           isActiveSpeaker={localUserId === activeSpeakerId}
           onDoubleClick={() => setFullscreenUserId(localUserId)}
@@ -254,7 +254,7 @@ const styles: Record<string, React.CSSProperties> = {
   fillContainer: {
     width: '100%',
     height: '100%',
-    background: '#000',
+    background: '#101217',
     overflow: 'hidden',
   },
   grid: {
@@ -262,8 +262,8 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 4,
     width: '100%',
     height: '100%',
-    background: '#000',
-    padding: 4,
+    background: '#101217',
+    padding: 6,
     boxSizing: 'border-box',
     gridAutoRows: '1fr',
   },
@@ -272,9 +272,9 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     width: '100%',
     height: '100%',
-    background: '#000',
-    gap: 4,
-    padding: 4,
+    background: '#101217',
+    gap: 6,
+    padding: 6,
     boxSizing: 'border-box',
   },
   speakerMain: {
@@ -298,14 +298,15 @@ const styles: Record<string, React.CSSProperties> = {
   },
   tile: {
     position: 'relative',
-    background: '#1F2937',
+    background: 'linear-gradient(145deg, #181b22, #101217)',
     overflow: 'hidden',
-    borderRadius: 4,
+    borderRadius: 12,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 120,
     cursor: 'pointer',
+    border: '1px solid rgba(255,255,255,0.08)',
   },
   video: { width: '100%', height: '100%' },
   avatarBox: {
@@ -321,9 +322,9 @@ const styles: Record<string, React.CSSProperties> = {
     left: 10,
     color: '#fff',
     fontSize: 12,
-    background: 'rgba(0,0,0,0.55)',
-    padding: '2px 6px',
-    borderRadius: 4,
+    background: 'rgba(0,0,0,0.58)',
+    padding: '4px 8px',
+    borderRadius: 999,
     pointerEvents: 'none',
   },
 };

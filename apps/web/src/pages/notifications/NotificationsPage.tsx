@@ -1,17 +1,19 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { LoadingSpinner } from '@/components/common/LoadingSpinner';
-import { EmptyState } from '@/components/common/EmptyState';
-import * as notificationsApi from '@/api/notifications.api';
+import { useCallback, useEffect, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { formatDistanceToNow } from 'date-fns';
+import { ru } from 'date-fns/locale';
+import { EmptyState } from '@/components/common/EmptyState';
+import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+import * as notificationsApi from '@/api/notifications.api';
 
 type NotificationItem = notificationsApi.NotificationItem;
 
-const TYPE_ICONS: Record<string, string> = {
-  message: '💬',
-  mention: '@',
-  task: '✅',
-  call: '📞',
-  system: 'ℹ️',
+const TYPE_META: Record<string, { mark: string; label: string }> = {
+  message: { mark: 'MSG', label: 'Сообщение' },
+  mention: { mark: '@', label: 'Упоминание' },
+  task: { mark: 'TASK', label: 'Задача' },
+  call: { mark: 'CALL', label: 'Звонок' },
+  system: { mark: 'SYS', label: 'Система' },
 };
 
 function NotificationRow({
@@ -21,29 +23,34 @@ function NotificationRow({
   item: NotificationItem;
   onMarkRead: (id: string) => void;
 }) {
+  const type = TYPE_META[item.type] ?? TYPE_META.system;
+
   return (
-    <div
+    <button
+      className="list-card"
       style={{
         ...styles.row,
         ...(item.isRead ? {} : styles.rowUnread),
       }}
       onClick={() => !item.isRead && onMarkRead(item.id)}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => e.key === 'Enter' && !item.isRead && onMarkRead(item.id)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' && !item.isRead) onMarkRead(item.id);
+      }}
+      type="button"
     >
-      <div style={styles.icon}>{TYPE_ICONS[item.type] ?? 'ℹ️'}</div>
-      <div style={styles.body}>
-        <div style={styles.rowTitle}>{item.title}</div>
-        {item.body && <div style={styles.rowBody}>{item.body}</div>}
-      </div>
-      <div style={styles.meta}>
-        <span style={styles.time}>
-          {formatDistanceToNow(new Date(item.createdAt), { addSuffix: true })}
+      <span style={styles.typeMark}>{type.mark}</span>
+      <span className="list-card__body">
+        <span style={styles.rowTop}>
+          <span className="list-card__title">{item.title}</span>
+          <span className="lux-pill">{type.label}</span>
         </span>
-        {!item.isRead && <span style={styles.dot} />}
-      </div>
-    </div>
+        {item.body && <span className="list-card__subtitle" style={styles.bodyText}>{item.body}</span>}
+        <span className="list-card__meta">
+          {formatDistanceToNow(new Date(item.createdAt), { addSuffix: true, locale: ru })}
+        </span>
+      </span>
+      {!item.isRead && <span style={styles.unreadDot} aria-label="Не прочитано" />}
+    </button>
   );
 }
 
@@ -52,13 +59,19 @@ export function NotificationsPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [markingAll, setMarkingAll] = useState(false);
+  const [error, setError] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError('');
     try {
       const res = await notificationsApi.listNotifications();
       setItems(res.items);
       setTotal(res.total);
+    } catch (err: any) {
+      setError(err.response?.data?.error?.message || 'Не удалось загрузить уведомления');
+      setItems([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
@@ -70,9 +83,7 @@ export function NotificationsPage() {
 
   const handleMarkRead = useCallback(async (id: string) => {
     await notificationsApi.markAsRead(id);
-    setItems((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)),
-    );
+    setItems((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)));
   }, []);
 
   const handleMarkAllRead = useCallback(async () => {
@@ -88,88 +99,106 @@ export function NotificationsPage() {
   const unreadCount = items.filter((n) => !n.isRead).length;
 
   return (
-    <div style={styles.container}>
-      <div style={styles.header}>
-        <h1 style={styles.title}>Notifications</h1>
-        {unreadCount > 0 && (
-          <button
-            style={styles.markAllBtn}
-            onClick={handleMarkAllRead}
-            disabled={markingAll}
-          >
-            {markingAll ? 'Marking…' : `Mark all read (${unreadCount})`}
-          </button>
-        )}
+    <div className="page-shell">
+      <div className="page-shell__inner">
+        <section className="lux-panel page-hero">
+          <div className="page-hero__copy">
+            <div className="page-hero__kicker">Сигналы</div>
+            <h1 className="page-hero__title">Уведомления под контролем.</h1>
+            <p className="page-hero__description">
+              Только важные обновления: сообщения, задачи, звонки и системные события, чтобы ничего не потерялось в рабочем темпе.
+            </p>
+            <div className="page-hero__meta">
+              <span className="lux-pill">Всего: {total}</span>
+              <span className="lux-pill">Новых: {unreadCount}</span>
+            </div>
+          </div>
+          {unreadCount > 0 && (
+            <div className="page-hero__actions">
+              <button
+                className="lux-button-secondary"
+                onClick={handleMarkAllRead}
+                disabled={markingAll}
+                type="button"
+              >
+                {markingAll ? 'Отмечаем...' : `Прочитать все (${unreadCount})`}
+              </button>
+            </div>
+          )}
+        </section>
+
+        {error && <div className="lux-alert">{error}</div>}
+
+        <section className="lux-panel" style={{ padding: 16 }}>
+          {loading ? (
+            <div style={styles.centered}>
+              <LoadingSpinner />
+            </div>
+          ) : items.length === 0 ? (
+            <EmptyState
+              title="Пока уведомлений нет"
+              description="Когда появится что-то важное, мы покажем это здесь спокойной аккуратной лентой."
+            />
+          ) : (
+            <div className="collection-list">
+              {items.map((item) => (
+                <NotificationRow key={item.id} item={item} onMarkRead={handleMarkRead} />
+              ))}
+            </div>
+          )}
+        </section>
       </div>
-
-      {loading && (
-        <div style={styles.centered}>
-          <LoadingSpinner />
-        </div>
-      )}
-
-      {!loading && items.length === 0 && (
-        <EmptyState title="No notifications" description="You're all caught up!" />
-      )}
-
-      {!loading && items.length > 0 && (
-        <div style={styles.list}>
-          {items.map((item) => (
-            <NotificationRow key={item.id} item={item} onMarkRead={handleMarkRead} />
-          ))}
-        </div>
-      )}
     </div>
   );
 }
 
-const styles: Record<string, React.CSSProperties> = {
-  container: { padding: 'clamp(12px, 4vw, 24px)', maxWidth: 720, margin: '0 auto' },
-  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
-  title: { fontSize: 24, fontWeight: 700, margin: 0, color: 'var(--color-text)' },
-  markAllBtn: {
-    padding: '7px 14px',
-    borderRadius: 'var(--radius-sm)',
-    border: '1px solid var(--color-border)',
-    background: 'transparent',
-    cursor: 'pointer',
-    fontSize: 13,
-    fontWeight: 500,
-    color: 'var(--color-primary)',
-  },
-  centered: { display: 'flex', justifyContent: 'center', paddingTop: 40 },
-  list: { display: 'flex', flexDirection: 'column', gap: 4 },
-  row: {
+const styles = {
+  centered: {
     display: 'flex',
+    justifyContent: 'center',
+    padding: 32,
+  },
+  row: {
     alignItems: 'flex-start',
-    gap: 12,
-    padding: '12px 16px',
-    borderRadius: 8,
-    border: '1px solid var(--color-border)',
-    background: 'var(--color-surface)',
+    gap: 14,
     cursor: 'pointer',
   },
   rowUnread: {
-    borderColor: 'var(--color-primary)',
-    background: 'var(--color-primary-faint, rgba(79,70,229,0.04))',
+    borderColor: 'rgba(212, 177, 106, 0.4)',
+    background:
+      'linear-gradient(135deg, rgba(212, 177, 106, 0.13), rgba(255, 255, 255, 0.66))',
   },
-  icon: {
-    fontSize: 18,
-    minWidth: 24,
-    display: 'flex',
+  typeMark: {
+    display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: 1,
+    width: 48,
+    height: 48,
+    flex: '0 0 48px',
+    borderRadius: 16,
+    border: '1px solid rgba(212, 177, 106, 0.28)',
+    background: 'linear-gradient(135deg, rgba(212, 177, 106, 0.22), rgba(255, 255, 255, 0.72))',
+    color: '#7a5a16',
+    fontSize: 11,
+    fontWeight: 900,
+    letterSpacing: '0.08em',
   },
-  body: { flex: 1, minWidth: 0 },
-  rowTitle: { fontSize: 14, fontWeight: 600, color: 'var(--color-text)' },
-  rowBody: { fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 2 },
-  meta: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, paddingTop: 1 },
-  time: { fontSize: 11, color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' },
-  dot: {
-    width: 8,
-    height: 8,
+  rowTop: {
+    display: 'flex',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  bodyText: {
+    display: 'block',
+    marginTop: 6,
+  },
+  unreadDot: {
+    width: 10,
+    height: 10,
+    marginTop: 10,
     borderRadius: '50%',
     background: 'var(--color-primary)',
+    boxShadow: '0 0 0 6px rgba(212, 177, 106, 0.13)',
   },
-};
+} satisfies Record<string, CSSProperties>;

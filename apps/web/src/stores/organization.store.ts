@@ -43,19 +43,19 @@ export const useOrganizationStore = create<OrganizationState>()((set) => ({
 
   setCurrentOrg: (currentOrg) => set({ currentOrg }),
 
-  setMembers: (members) => set({ members }),
+  setMembers: (members) => set({ members: Array.isArray(members) ? members : [] }),
 
   addMember: (member) =>
-    set((state) => ({ members: [...state.members, member] })),
+    set((state) => ({ members: [...(state.members ?? []), member] })),
 
   removeMember: (userId) =>
     set((state) => ({
-      members: state.members.filter((m) => m.userId !== userId),
+      members: (state.members ?? []).filter((m) => m.userId !== userId),
     })),
 
   updateMemberRole: (userId, role) =>
     set((state) => ({
-      members: state.members.map((m) =>
+      members: (state.members ?? []).map((m) =>
         m.userId === userId ? { ...m, role } : m,
       ),
     })),
