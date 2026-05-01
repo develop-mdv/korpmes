@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
+import { MAX_FILE_SIZE_BYTES } from '@corp/shared-constants';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { FilesService } from './files.service';
@@ -24,7 +25,11 @@ export class FilesController {
 
   @Post('upload')
   @ApiConsumes('multipart/form-data')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: MAX_FILE_SIZE_BYTES },
+    }),
+  )
   async upload(
     @UploadedFile() file: Express.Multer.File,
     @CurrentUser() user: { id: string },

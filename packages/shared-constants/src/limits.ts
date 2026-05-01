@@ -1,6 +1,6 @@
 export const MAX_MESSAGE_LENGTH = 4096;
-export const MAX_FILE_SIZE_BYTES = 52428800; // 50MB
-export const MAX_FILE_SIZE_GUEST_BYTES = 10485760; // 10MB
+export const MAX_FILE_SIZE_BYTES = 2147483648; // 2 GB
+export const MAX_FILE_SIZE_GUEST_BYTES = 524288000; // 500 MB
 export const MAX_GROUP_MEMBERS = 500;
 export const MAX_CHANNEL_MEMBERS = 5000;
 export const MAX_ORGS_PER_USER = 10;
