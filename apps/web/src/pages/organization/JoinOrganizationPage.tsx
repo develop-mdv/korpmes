@@ -1,148 +1,251 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import * as orgsApi from '@/api/organizations.api';
-
-interface OrgResult {
-  id: string;
-  name: string;
-  description?: string;
-  memberCount: number;
-}
+import { useOrganizationStore } from '@/stores/organization.store';
 
 export function JoinOrganizationPage() {
   const navigate = useNavigate();
+  const organizations = useOrganizationStore((state) => state.organizations);
+  const setOrganizations = useOrganizationStore((state) => state.setOrganizations);
+  const setCurrentOrg = useOrganizationStore((state) => state.setCurrentOrg);
+
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<OrgResult[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [pendingByOrg, setPendingByOrg] = useState<Record<string, boolean>>({});
-  const [error, setError] = useState('');
-  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const [results, setResults] = useState<orgsApi.Organization[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [requestingId, setRequestingId] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  // Load top orgs and current pending requests on mount
   useEffect(() => {
-    setSearching(true);
-    Promise.all([
-      orgsApi.searchOrganizations('').catch(() => [] as OrgResult[]),
-      orgsApi.getMyAllPendingRequests().catch(() => [] as orgsApi.JoinRequest[]),
-    ])
-      .then(([orgs, pending]) => {
-        setResults(orgs);
-        const map: Record<string, boolean> = {};
-        for (const r of pending) map[r.organizationId] = true;
-        setPendingByOrg(map);
+    if (organizations.length > 0) {
+      return;
+    }
+
+    orgsApi
+      .getOrganizations()
+      .then((items) => {
+        setOrganizations(items);
       })
-      .finally(() => setSearching(false));
-  }, []);
+      .catch(() => {
+        // Best-effort load for quick access cards.
+      });
+  }, [organizations.length, setOrganizations]);
 
-  // Debounced search on query change
   useEffect(() => {
-    clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(async () => {
-      setSearching(true);
-      try {
-        const orgs = await orgsApi.searchOrganizations(query);
-        setResults(orgs);
-      } catch {
-        setResults([]);
-      } finally {
-        setSearching(false);
-      }
-    }, 300);
+    const trimmedQuery = query.trim();
 
-    return () => clearTimeout(timerRef.current);
+    if (trimmedQuery.length < 2) {
+      setResults([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    const timeoutId = window.setTimeout(() => {
+      orgsApi
+        .searchOrganizations(trimmedQuery)
+        .then((items) => setResults(items))
+        .catch(() => setError('Не удалось выполнить поиск. Попробуйте повторить запрос.'))
+        .finally(() => setLoading(false));
+    }, 260);
+
+    return () => window.clearTimeout(timeoutId);
   }, [query]);
 
-  const handleRequestJoin = async (orgId: string) => {
-    setError('');
+  const handleEnter = (organization: orgsApi.Organization) => {
+    setCurrentOrg(organization);
+    navigate('/chats');
+  };
+
+  const handleRequestJoin = async (organizationId: string) => {
+    setRequestingId(organizationId);
+    setMessage(null);
+    setError(null);
+
     try {
-      await orgsApi.requestJoin(orgId);
-      setPendingByOrg((prev) => ({ ...prev, [orgId]: true }));
-    } catch (err: any) {
-      setError(err.response?.data?.error?.message || 'Не удалось отправить запрос');
+      await orgsApi.requestJoin(organizationId);
+      setMessage('Запрос на вступление отправлен. Как только доступ подтвердят, пространство появится в списке.');
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Не удалось отправить запрос на вступление.');
+    } finally {
+      setRequestingId(null);
     }
   };
 
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
-        <h1 style={styles.title}>Присоединиться к организации</h1>
-        <p style={styles.subtitle}>Найдите рабочее пространство вашей компании</p>
+    <main className="page-shell" style={{ minHeight: '100vh', display: 'grid', alignContent: 'center' }}>
+      <div className="page-shell__inner" style={{ width: 'min(1180px, 100%)' }}>
+        <section className="lux-panel page-hero">
+          <div className="page-hero__copy">
+            <div className="page-hero__kicker">Доступ к организации</div>
+            <h1 className="page-hero__title">Найдите нужное пространство и отправьте деликатный запрос на вход.</h1>
+            <p className="page-hero__description">
+              Мы сделали поток максимально мягким: если вы уже состоите в организации, можно сразу войти внутрь. Если
+              доступа пока нет, достаточно одного запроса без лишней бюрократии.
+            </p>
+            <div className="page-hero__meta">
+              <span className="lux-pill">{organizations.length} доступных пространств</span>
+              <span className="lux-pill">Поиск по названию</span>
+            </div>
+          </div>
+          <div className="page-hero__actions">
+            <Link className="lux-button-secondary" to="/create-organization">
+              Создать своё пространство
+            </Link>
+          </div>
+        </section>
 
-        {error && <div style={styles.error}>{error}</div>}
+        <div className="page-grid page-grid--two">
+          <section className="lux-panel stat-card">
+            <div className="auth-shell__form-copy" style={{ marginBottom: 20 }}>
+              <div className="auth-shell__form-title">Поиск организаций</div>
+              <div className="auth-shell__form-subtitle">Введите часть названия</div>
+              <div className="auth-shell__form-description">Например: холдинг, совет, штаб, studio, capital.</div>
+            </div>
 
-        <input
-          style={styles.input}
-          placeholder="Поиск организаций..."
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          autoFocus
-        />
-
-        <div style={styles.resultsList}>
-          {searching && <p style={styles.hint}>Поиск...</p>}
-          {!searching && query && results.length === 0 && (
-            <p style={styles.hint}>Организации не найдены</p>
-          )}
-          {results.map((org) => (
-            <div key={org.id} style={styles.resultItem}>
-              <div style={styles.orgIcon}>🏢</div>
-              <div style={styles.orgInfo}>
-                <div style={styles.orgName}>{org.name}</div>
-                <div style={styles.orgMeta}>
-                  {org.memberCount} участников
-                  {org.description ? ` · ${org.description}` : ''}
-                </div>
+            <div className="inline-form">
+              <div className="field-group">
+                <label className="field-group__label" htmlFor="org-search">
+                  Запрос
+                </label>
+                <input
+                  id="org-search"
+                  className="lux-input"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Начните вводить название организации"
+                  autoFocus
+                />
               </div>
-              {pendingByOrg[org.id] ? (
-                <span style={styles.sentBadge}>Запрос отправлен</span>
+
+              {message && (
+                <div
+                  style={{
+                    padding: '12px 14px',
+                    borderRadius: 18,
+                    background: 'rgba(30, 157, 104, 0.1)',
+                    border: '1px solid rgba(30, 157, 104, 0.18)',
+                    color: 'var(--color-success)',
+                    fontSize: 14,
+                  }}
+                >
+                  {message}
+                </div>
+              )}
+
+              {error && (
+                <div
+                  style={{
+                    padding: '12px 14px',
+                    borderRadius: 18,
+                    background: 'rgba(212, 98, 98, 0.1)',
+                    border: '1px solid rgba(212, 98, 98, 0.18)',
+                    color: 'var(--color-error)',
+                    fontSize: 14,
+                  }}
+                >
+                  {error}
+                </div>
+              )}
+
+              <div className="collection-list">
+                {loading ? (
+                  <div className="list-card">
+                    <div className="list-card__body">
+                      <div className="list-card__title">Ищем подходящие организации...</div>
+                    </div>
+                  </div>
+                ) : results.length > 0 ? (
+                  results.map((organization) => (
+                    <article key={organization.id} className="list-card">
+                      <div className="list-card__body">
+                        <div className="list-card__title">{organization.name}</div>
+                        <div className="list-card__subtitle" style={{ marginTop: 6 }}>
+                          {organization.description || 'Описание пока не заполнено.'}
+                        </div>
+                        <div className="list-card__meta">
+                          <span>{organization.memberCount} участников</span>
+                          <span>Обновлено {new Date(organization.updatedAt).toLocaleDateString('ru-RU')}</span>
+                        </div>
+                      </div>
+                      <div className="list-card__actions">
+                        <button
+                          className="lux-button"
+                          type="button"
+                          onClick={() => handleRequestJoin(organization.id)}
+                          disabled={requestingId === organization.id}
+                        >
+                          {requestingId === organization.id ? 'Отправляем...' : 'Запросить доступ'}
+                        </button>
+                      </div>
+                    </article>
+                  ))
+                ) : query.trim().length >= 2 ? (
+                  <div className="list-card">
+                    <div className="list-card__body">
+                      <div className="list-card__title">Совпадений пока нет</div>
+                      <div className="list-card__subtitle" style={{ marginTop: 6 }}>
+                        Попробуйте другую формулировку или попросите владельца выслать прямое приглашение.
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="list-card">
+                    <div className="list-card__body">
+                      <div className="list-card__title">Ожидаем запрос</div>
+                      <div className="list-card__subtitle" style={{ marginTop: 6 }}>
+                        Поиск начнётся, когда вы введёте хотя бы две буквы.
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+
+          <section className="lux-panel stat-card">
+            <div className="auth-shell__form-copy" style={{ marginBottom: 20 }}>
+              <div className="auth-shell__form-title">Ваши пространства</div>
+              <div className="auth-shell__form-subtitle">Мгновенный вход туда, где доступ уже открыт.</div>
+            </div>
+
+            <div className="collection-list">
+              {organizations.length === 0 ? (
+                <div className="list-card">
+                  <div className="list-card__body">
+                    <div className="list-card__title">Пока пусто</div>
+                    <div className="list-card__subtitle" style={{ marginTop: 6 }}>
+                      После подтверждения доступа организация появится здесь и станет доступна для быстрого входа.
+                    </div>
+                  </div>
+                </div>
               ) : (
-                <button style={styles.joinBtn} onClick={() => handleRequestJoin(org.id)}>
-                  Подать заявку
-                </button>
+                organizations.map((organization) => (
+                  <article key={organization.id} className="list-card">
+                    <div className="list-card__body">
+                      <div className="list-card__title">{organization.name}</div>
+                      <div className="list-card__subtitle" style={{ marginTop: 6 }}>
+                        {organization.description || 'Пространство готово к работе.'}
+                      </div>
+                      <div className="list-card__meta">
+                        <span>{organization.memberCount} участников</span>
+                        <span>Создано {new Date(organization.createdAt).toLocaleDateString('ru-RU')}</span>
+                      </div>
+                    </div>
+                    <div className="list-card__actions">
+                      <button className="lux-button-secondary" type="button" onClick={() => handleEnter(organization)}>
+                        Открыть
+                      </button>
+                    </div>
+                  </article>
+                ))
               )}
             </div>
-          ))}
-          {!query && !searching && results.length > 0 && (
-            <p style={{ ...styles.hint, marginBottom: 4 }}>Популярные организации</p>
-          )}
-          {!query && !searching && results.length === 0 && (
-            <p style={styles.hint}>Пока нет доступных организаций</p>
-          )}
-        </div>
-
-        <div style={styles.footer}>
-          <span style={styles.footerText}>Не нашли свою?</span>
-          <Link to="/create-organization" style={styles.link}>
-            Создать новую организацию
-          </Link>
-          <span style={styles.footerDivider}>·</span>
-          <Link to="/chats" style={styles.link}>
-            Пропустить
-          </Link>
+          </section>
         </div>
       </div>
-    </div>
+    </main>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  container: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-bg-secondary)', padding: 16 },
-  card: { background: 'var(--color-surface)', borderRadius: 'var(--radius-lg)', padding: 'clamp(20px, 5vw, 32px)', width: '100%', maxWidth: 500, boxShadow: 'var(--shadow-lg)' },
-  title: { fontSize: 22, fontWeight: 700, color: 'var(--color-text)', margin: '0 0 4px', textAlign: 'center' },
-  subtitle: { fontSize: 14, color: 'var(--color-text-secondary)', marginBottom: 20, textAlign: 'center' },
-  error: { background: '#FEE2E2', color: '#DC2626', padding: '8px 12px', borderRadius: 'var(--radius-sm)', fontSize: 13, marginBottom: 12 },
-  input: { width: '100%', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)', fontSize: 14, outline: 'none', boxSizing: 'border-box' as const, color: 'var(--color-text)', background: 'var(--color-bg-secondary)', marginBottom: 12 },
-  resultsList: { minHeight: 120, maxHeight: 300, overflowY: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', padding: 4, marginBottom: 16 },
-  resultItem: { display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 'var(--radius-sm)' },
-  orgIcon: { fontSize: 28, flexShrink: 0 },
-  orgInfo: { flex: 1 },
-  orgName: { fontSize: 15, fontWeight: 600, color: 'var(--color-text)' },
-  orgMeta: { fontSize: 12, color: 'var(--color-text-secondary)' },
-  joinBtn: { padding: '6px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-primary)', background: 'transparent', color: 'var(--color-primary)', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' },
-  sentBadge: { padding: '6px 14px', borderRadius: 'var(--radius-sm)', background: 'var(--color-bg-tertiary)', color: 'var(--color-text-secondary)', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' },
-  hint: { fontSize: 13, color: 'var(--color-text-tertiary)', textAlign: 'center', margin: '20px 8px' },
-  footer: { textAlign: 'center', fontSize: 14 },
-  footerText: { color: 'var(--color-text-secondary)', marginRight: 6 },
-  link: { color: 'var(--color-primary)', textDecoration: 'none', fontWeight: 500 },
-  footerDivider: { margin: '0 8px', color: 'var(--color-text-tertiary)' },
-};

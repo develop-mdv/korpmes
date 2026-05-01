@@ -60,23 +60,26 @@ export function TopBar({ title }: TopBarProps) {
       <input
         style={searchStyle}
         type="text"
-        placeholder="Search..."
+        placeholder="Поиск..."
         onFocus={() => navigate('/search')}
         readOnly
       />
       <button
         style={notifBtnStyle}
-        aria-label="Notifications"
+        aria-label="Уведомления"
         onClick={() => navigate('/notifications')}
       >
-        <span>&#x1F514;</span>
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 7h18s-3 0-3-7" />
+          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+        </svg>
         {unreadCount > 0 && (
           <span style={{ position: 'absolute', top: -4, right: -4 }}>
             <Badge count={unreadCount} />
           </span>
         )}
       </button>
-      <Avatar name={user ? `${user.firstName} ${user.lastName}` : 'U'} size="sm" />
+      <Avatar name={user ? `${user.firstName} ${user.lastName}` : 'Пользователь'} size="sm" />
     </div>
   );
 }

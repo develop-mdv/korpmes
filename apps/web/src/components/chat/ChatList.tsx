@@ -1,4 +1,5 @@
-import { CSSProperties, useState } from 'react';
+import { useState } from 'react';
+import clsx from 'clsx';
 import { ChatListItem } from './ChatListItem';
 import type { Chat } from '@/stores/chat.store';
 import { useAuthStore } from '@/stores/auth.store';
@@ -11,100 +12,52 @@ interface ChatListProps {
   unreadCounts: Record<string, number>;
 }
 
-const containerStyle: CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  height: '100%',
-  backgroundColor: 'var(--color-bg-secondary)',
-  borderRight: '1px solid var(--color-border)',
-};
+const tabs = ['Все', 'Личные', 'Группы', 'Каналы'] as const;
+type TabType = (typeof tabs)[number];
 
-const searchContainerStyle: CSSProperties = {
-  padding: '12px 16px',
-  borderBottom: '1px solid var(--color-border)',
-};
-
-const searchInputStyle: CSSProperties = {
-  width: '100%',
-  padding: '8px 12px',
-  borderRadius: 'var(--radius-full)',
-  border: '1px solid var(--color-border)',
-  backgroundColor: 'var(--color-bg-tertiary)',
-  color: 'var(--color-text)',
-  fontSize: 13,
-  outline: 'none',
-};
-
-const tabsStyle: CSSProperties = {
-  display: 'flex',
-  padding: '0 16px',
-  gap: 4,
-  borderBottom: '1px solid var(--color-border)',
-};
-
-const listStyle: CSSProperties = {
-  flex: 1,
-  overflowY: 'auto',
-};
-
-const tabs = ['All', 'Personal', 'Groups', 'Channels'] as const;
-type TabType = typeof tabs[number];
-const tabTypeMap: Record<TabType, string | null> = {
-  All: null,
-  Personal: 'PERSONAL',
-  Groups: 'GROUP',
-  Channels: 'CHANNEL',
+const tabMap: Record<TabType, Chat['type'] | null> = {
+  Все: null,
+  Личные: 'PERSONAL',
+  Группы: 'GROUP',
+  Каналы: 'CHANNEL',
 };
 
 export function ChatList({ chats, activeChatId, onSelectChat, unreadCounts }: ChatListProps) {
-  const [search, setSearch] = useState('');
-  const [activeTab, setActiveTab] = useState<TabType>('All');
-  const currentUserId = useAuthStore((s) => s.user?.id);
+  const [query, setQuery] = useState('');
+  const [activeTab, setActiveTab] = useState<TabType>('Все');
+  const currentUserId = useAuthStore((state) => state.user?.id);
 
-  const filtered = chats.filter((chat) => {
-    const displayName = getChatDisplayName(chat, currentUserId);
-    const matchesSearch = displayName.toLowerCase().includes(search.toLowerCase());
-    const typeFilter = tabTypeMap[activeTab];
-    const matchesType = !typeFilter || chat.type === typeFilter;
-    return matchesSearch && matchesType;
-  });
-
-  const tabBtnStyle = (isActive: boolean): CSSProperties => ({
-    padding: '8px 12px',
-    border: 'none',
-    background: 'none',
-    fontSize: 12,
-    fontWeight: 600,
-    color: isActive ? 'var(--color-primary)' : 'var(--color-text-secondary)',
-    borderBottom: isActive ? '2px solid var(--color-primary)' : '2px solid transparent',
-    cursor: 'pointer',
-    transition: 'color 0.15s',
+  const filteredChats = chats.filter((chat) => {
+    const matchesQuery = getChatDisplayName(chat, currentUserId).toLowerCase().includes(query.toLowerCase());
+    const type = tabMap[activeTab];
+    return matchesQuery && (!type || chat.type === type);
   });
 
   return (
-    <div style={containerStyle}>
-      <div style={searchContainerStyle}>
+    <>
+      <div className="chat-rail__search">
         <input
-          style={searchInputStyle}
-          type="text"
-          placeholder="Search conversations..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          className="lux-input"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Поиск по чатам..."
         />
       </div>
-      <div style={tabsStyle}>
+
+      <div className="chat-rail__tabs">
         {tabs.map((tab) => (
           <button
             key={tab}
-            style={tabBtnStyle(activeTab === tab)}
+            className={clsx('lux-chip', activeTab === tab && 'is-active')}
             onClick={() => setActiveTab(tab)}
           >
             {tab}
           </button>
         ))}
       </div>
-      <div style={listStyle}>
-        {filtered.map((chat) => (
+
+      <div className="chat-rail__list stagger-in">
+        {filteredChats.map((chat) => (
           <ChatListItem
             key={chat.id}
             chat={chat}
@@ -113,7 +66,15 @@ export function ChatList({ chats, activeChatId, onSelectChat, unreadCounts }: Ch
             onClick={() => onSelectChat(chat.id)}
           />
         ))}
+        {filteredChats.length === 0 && (
+          <div className="lux-panel" style={{ padding: 18 }}>
+            <div className="list-card__title">Ничего не найдено</div>
+            <div className="list-card__subtitle" style={{ marginTop: 6 }}>
+              Уточните запрос или создайте новый чат.
+            </div>
+          </div>
+        )}
       </div>
-    </div>
+    </>
   );
 }

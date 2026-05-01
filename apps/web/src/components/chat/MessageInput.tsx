@@ -1,6 +1,14 @@
-import React, { useState, useRef, useCallback, KeyboardEvent } from 'react';
+import {
+  ChangeEvent,
+  CSSProperties,
+  DragEvent,
+  KeyboardEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import type { StagedFile } from '@/hooks/useAttachmentStaging';
-import { useBreakpoint } from '@/hooks/useBreakpoint';
 
 interface MessageInputProps {
   onSend: (content: string) => void;
@@ -18,17 +26,93 @@ function formatSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-function StagedAttachment({
-  item,
-  onRemove,
-}: {
-  item: StagedFile;
-  onRemove: () => void;
-}) {
-  const isImage = item.file.type.startsWith('image/');
-  const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
+const stagedStyles: Record<string, CSSProperties> = {
+  strip: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: 8,
+    padding: '10px 18px',
+    background: 'var(--color-surface-soft)',
+    borderTop: '1px solid var(--color-border)',
+  },
+  item: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    background: 'var(--color-surface-strong)',
+    borderRadius: 14,
+    padding: 8,
+    maxWidth: 260,
+    minWidth: 180,
+    position: 'relative',
+  },
+  thumb: { width: 40, height: 40, objectFit: 'cover', borderRadius: 8, flexShrink: 0 },
+  fileIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: 'rgba(255,255,255,0.06)',
+    fontSize: 20,
+    flexShrink: 0,
+  },
+  info: { flex: 1, minWidth: 0 },
+  name: {
+    fontSize: 12,
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  meta: { fontSize: 11, color: 'var(--color-text-secondary)' },
+  progressBar: {
+    height: 3,
+    background: 'var(--color-border)',
+    borderRadius: 2,
+    marginTop: 4,
+    overflow: 'hidden',
+  },
+  progressFill: { height: '100%', background: 'var(--color-primary)', transition: 'width 0.15s' },
+  removeBtn: {
+    width: 22,
+    height: 22,
+    borderRadius: '50%',
+    border: 'none',
+    background: 'rgba(0,0,0,0.12)',
+    color: 'var(--color-text-primary)',
+    cursor: 'pointer',
+    fontSize: 12,
+    lineHeight: 1,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  dropOverlay: {
+    position: 'absolute',
+    inset: 0,
+    zIndex: 20,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: 'rgba(159, 122, 61, 0.12)',
+    border: '2px dashed var(--color-primary)',
+    borderRadius: 18,
+    color: 'var(--color-primary)',
+    fontSize: 14,
+    fontWeight: 600,
+    pointerEvents: 'none',
+  },
+};
 
-  React.useEffect(() => {
+function StagedAttachment({ item, onRemove }: { item: StagedFile; onRemove: () => void }) {
+  const isImage = item.file.type.startsWith('image/');
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
     if (!isImage) return;
     const url = URL.createObjectURL(item.file);
     setPreviewUrl(url);
@@ -57,7 +141,7 @@ function StagedAttachment({
           </div>
         )}
       </div>
-      <button style={stagedStyles.removeBtn} onClick={onRemove} title="Remove">
+      <button style={stagedStyles.removeBtn} onClick={onRemove} title="Убрать">
         ✕
       </button>
     </div>
@@ -70,24 +154,13 @@ export function MessageInput({
   onAttach,
   stagedFiles = [],
   onRemoveStaged,
-  disabled,
-  disableSend,
+  disabled = false,
+  disableSend = false,
 }: MessageInputProps) {
   const [text, setText] = useState('');
   const [isDragOver, setIsDragOver] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { isMobile } = useBreakpoint();
-
-  const containerStyle: React.CSSProperties = isMobile
-    ? { ...styles.container, padding: '10px 10px' }
-    : styles.container;
-  const attachBtnStyle: React.CSSProperties = isMobile
-    ? { ...styles.attachBtn, width: 40, height: 40 }
-    : styles.attachBtn;
-  const sendBtnStyle: React.CSSProperties = isMobile
-    ? { ...styles.sendBtn, width: 40, height: 40 }
-    : styles.sendBtn;
 
   const hasReadyFiles = stagedFiles.some((s) => s.status === 'done');
   const canSend = !disableSend && (text.trim().length > 0 || hasReadyFiles);
@@ -97,126 +170,108 @@ export function MessageInput({
     onSend(text.trim());
     setText('');
     if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = '48px';
     }
-  }, [text, onSend, canSend]);
+  }, [canSend, onSend, text]);
 
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
+  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
       handleSend();
     }
   };
 
-  const handleInput = (value: string) => {
+  const resizeInput = (value: string) => {
     setText(value);
     onTyping?.();
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 120) + 'px';
+    if (!textareaRef.current) return;
+    textareaRef.current.style.height = '48px';
+    textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 150)}px`;
+  };
+
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files && event.target.files.length > 0) {
+      onAttach?.(event.target.files);
+      event.target.value = '';
     }
   };
 
-  const handleFileClick = () => fileInputRef.current?.click();
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      onAttach?.(e.target.files);
-      e.target.value = '';
-    }
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleDragOver = (event: DragEvent) => {
     if (!onAttach) return;
-    if (!e.dataTransfer?.types?.includes('Files')) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'copy';
+    if (!event.dataTransfer?.types?.includes('Files')) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
     if (!isDragOver) setIsDragOver(true);
   };
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
+  const handleDragLeave = (event: DragEvent) => {
+    event.preventDefault();
     setIsDragOver(false);
   };
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = (event: DragEvent) => {
     if (!onAttach) return;
-    e.preventDefault();
+    event.preventDefault();
     setIsDragOver(false);
-    const files = e.dataTransfer?.files;
+    const files = event.dataTransfer?.files;
     if (files && files.length > 0) onAttach(files);
   };
 
   return (
     <div onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop} style={{ position: 'relative' }}>
-      {isDragOver && !isMobile && (
+      {isDragOver && (
         <div style={stagedStyles.dropOverlay}>
-          <span>📎 Drop files to attach (up to 10)</span>
+          <span>📎 Отпустите, чтобы прикрепить (до 10 файлов)</span>
         </div>
       )}
       {stagedFiles.length > 0 && (
         <div style={stagedStyles.strip}>
           {stagedFiles.map((s) => (
-            <StagedAttachment
-              key={s.localId}
-              item={s}
-              onRemove={() => onRemoveStaged?.(s.localId)}
-            />
+            <StagedAttachment key={s.localId} item={s} onRemove={() => onRemoveStaged?.(s.localId)} />
           ))}
         </div>
       )}
-      <div style={containerStyle}>
-        <button style={attachBtnStyle} onClick={handleFileClick} title="Attach file">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
+      <div className="composer">
+        <button
+          className="composer__attach"
+          onClick={() => fileInputRef.current?.click()}
+          title="Прикрепить файл"
+          disabled={!onAttach}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
           </svg>
         </button>
-        <input ref={fileInputRef} type="file" multiple style={{ display: 'none' }} onChange={handleFileChange} />
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          style={{ display: 'none' }}
+          onChange={handleFileChange}
+        />
+
         <textarea
           ref={textareaRef}
-          style={styles.textarea}
+          className="composer__input"
           value={text}
-          onChange={(e) => handleInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Type a message..."
           rows={1}
+          placeholder="Напишите сообщение..."
           disabled={disabled}
+          onChange={(event) => resizeInput(event.target.value)}
+          onKeyDown={handleKeyDown}
         />
+
         <button
-          style={{ ...sendBtnStyle, opacity: canSend ? 1 : 0.4 }}
+          className="composer__send"
           onClick={handleSend}
           disabled={!canSend || disabled}
+          title="Отправить"
+          style={{ opacity: canSend ? 1 : 0.5 }}
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z" />
           </svg>
         </button>
       </div>
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  container: { display: 'flex', alignItems: 'flex-end', gap: 8, padding: '12px 16px', background: 'var(--color-surface)' },
-  attachBtn: { width: 36, height: 36, borderRadius: 'var(--radius-md)', border: 'none', background: 'transparent', color: 'var(--color-text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  textarea: { flex: 1, resize: 'none', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: '10px 14px', fontSize: 14, fontFamily: 'inherit', lineHeight: 1.5, maxHeight: 120, outline: 'none', color: 'var(--color-text)', background: 'var(--color-bg-secondary)' },
-  sendBtn: { width: 36, height: 36, borderRadius: 'var(--radius-md)', border: 'none', background: 'var(--color-primary)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-};
-
-const stagedStyles: Record<string, React.CSSProperties> = {
-  strip: { display: 'flex', flexWrap: 'wrap', gap: 8, padding: '8px 16px', background: 'var(--color-surface)', borderBottom: '1px solid var(--color-border)' },
-  item: { display: 'flex', alignItems: 'center', gap: 8, background: 'var(--color-bg-tertiary)', borderRadius: 8, padding: 6, maxWidth: 260, minWidth: 180, position: 'relative' },
-  thumb: { width: 40, height: 40, objectFit: 'cover', borderRadius: 4, flexShrink: 0 },
-  fileIcon: { width: 40, height: 40, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-bg-secondary)', fontSize: 20, flexShrink: 0 },
-  info: { flex: 1, minWidth: 0 },
-  name: { fontSize: 12, fontWeight: 500, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  meta: { fontSize: 11, color: 'var(--color-text-secondary)' },
-  progressBar: { height: 3, background: 'var(--color-border)', borderRadius: 2, marginTop: 4, overflow: 'hidden' },
-  progressFill: { height: '100%', background: 'var(--color-primary)', transition: 'width 0.15s' },
-  removeBtn: { width: 20, height: 20, borderRadius: '50%', border: 'none', background: 'rgba(0,0,0,0.12)', color: 'var(--color-text)', cursor: 'pointer', fontSize: 12, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  dropOverlay: {
-    position: 'absolute', inset: 0, zIndex: 20, display: 'flex',
-    alignItems: 'center', justifyContent: 'center',
-    background: 'rgba(79, 70, 229, 0.12)',
-    border: '2px dashed var(--color-primary)', borderRadius: 8,
-    color: 'var(--color-primary)', fontSize: 14, fontWeight: 600,
-    pointerEvents: 'none',
-  },
-};

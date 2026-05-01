@@ -1,4 +1,5 @@
 import { CSSProperties, useEffect, useRef } from 'react';
+import clsx from 'clsx';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { CallOverlay } from '@/components/call/CallOverlay';
@@ -10,13 +11,19 @@ import { useAppHeight } from '@/hooks/useAppHeight';
 export function AppLayout() {
   useSocket();
   useAppHeight();
+
   const sidebarOpen = useUIStore((s) => s.sidebarOpen);
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
+  const theme = useUIStore((s) => s.theme);
   const { isMobile } = useBreakpoint();
   const initialMobileCloseRef = useRef(false);
   const location = useLocation();
   const isInsideChat = /^\/chats\/[^/]+/.test(location.pathname);
   const showHamburger = isMobile && !sidebarOpen && !isInsideChat;
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
 
   useEffect(() => {
     if (isMobile && !initialMobileCloseRef.current) {
@@ -27,68 +34,32 @@ export function AppLayout() {
     }
   }, [isMobile, toggleSidebar]);
 
-  const layoutStyle: CSSProperties = {
-    display: 'flex',
-    height: 'var(--app-height, 100vh)',
-    overflow: 'hidden',
-  };
-
-  const mainStyle: CSSProperties = {
-    flex: 1,
-    display: 'flex',
-    flexDirection: 'column',
-    overflow: 'hidden',
-    marginLeft: isMobile ? 0 : sidebarOpen ? 260 : 72,
-    paddingTop: showHamburger ? 56 : 0,
-    transition: 'margin-left 0.2s ease',
-  };
-
-  const backdropStyle: CSSProperties = {
-    position: 'fixed',
-    inset: 0,
-    background: 'rgba(0, 0, 0, 0.4)',
-    zIndex: 99,
-  };
-
-  const hamburgerStyle: CSSProperties = {
-    position: 'fixed',
-    top: 12,
-    left: 12,
-    zIndex: 90,
-    width: 40,
-    height: 40,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    background: 'var(--color-surface)',
-    border: '1px solid var(--color-border)',
-    borderRadius: 'var(--radius-md)',
-    boxShadow: 'var(--shadow-sm)',
-    color: 'var(--color-text)',
-    fontSize: 20,
-    cursor: 'pointer',
-    padding: 0,
-  };
+  const mainStyle = {
+    '--sidebar-offset': sidebarOpen ? '320px' : '102px',
+  } as CSSProperties;
 
   return (
-    <div style={layoutStyle}>
-      {isMobile && sidebarOpen && (
-        <div style={backdropStyle} onClick={toggleSidebar} aria-hidden />
-      )}
-      <Sidebar />
+    <div className="app-shell">
       {showHamburger && (
-        <button
-          type="button"
-          style={hamburgerStyle}
-          onClick={toggleSidebar}
-          aria-label="Open menu"
-        >
-          {'☰'}
+        <button className="app-shell__mobile-toggle" onClick={toggleSidebar} aria-label="Открыть навигацию" type="button">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+            <line x1="4" y1="7" x2="20" y2="7" />
+            <line x1="4" y1="12" x2="20" y2="12" />
+            <line x1="4" y1="17" x2="20" y2="17" />
+          </svg>
+          <span>Меню</span>
         </button>
       )}
-      <main style={mainStyle}>
-        <Outlet />
+
+      <div className={clsx('app-shell__backdrop', sidebarOpen && 'is-visible')} onClick={toggleSidebar} />
+      <Sidebar />
+
+      <main className="app-shell__main" style={mainStyle}>
+        <div className="app-stage">
+          <Outlet />
+        </div>
       </main>
+
       <CallOverlay />
     </div>
   );

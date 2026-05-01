@@ -1,4 +1,5 @@
-import { CSSProperties } from 'react';
+import { ReactNode, useState } from 'react';
+import clsx from 'clsx';
 import { NavLink } from 'react-router-dom';
 import { useAuthStore } from '@/stores/auth.store';
 import { useUIStore } from '@/stores/ui.store';
@@ -7,16 +8,122 @@ import { Avatar } from '@/components/common/Avatar';
 import { useAuth } from '@/hooks/useAuth';
 import { useBreakpoint } from '@/hooks/useBreakpoint';
 
-const navItems = [
-  { path: '/chats', label: 'Chats', icon: '\u{1F4AC}' },
-  { path: '/tasks', label: 'Tasks', icon: '\u{2705}' },
-  { path: '/calls', label: 'Calls', icon: '\u{1F4DE}' },
-  { path: '/files', label: 'Files', icon: '\u{1F4C2}' },
-  { path: '/notifications', label: 'Notifications', icon: '\u{1F514}' },
-  { path: '/search', label: 'Search', icon: '\u{1F50D}' },
-  { path: '/organization', label: 'Organization', icon: '\u{1F3E2}' },
-  { path: '/audit', label: 'Audit Log', icon: '\u{1F4CB}' },
-  { path: '/settings', label: 'Settings', icon: '\u{2699}' },
+type NavItem = {
+  path: string;
+  label: string;
+  caption: string;
+  icon: ReactNode;
+};
+
+function LineIcon({ children }: { children: ReactNode }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      {children}
+    </svg>
+  );
+}
+
+const navItems: NavItem[] = [
+  {
+    path: '/chats',
+    label: 'Чаты',
+    caption: 'Личные линии',
+    icon: (
+      <LineIcon>
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+      </LineIcon>
+    ),
+  },
+  {
+    path: '/tasks',
+    label: 'Задачи',
+    caption: 'Контур исполнения',
+    icon: (
+      <LineIcon>
+        <path d="M9 11l3 3L22 4" />
+        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+      </LineIcon>
+    ),
+  },
+  {
+    path: '/calls',
+    label: 'Звонки',
+    caption: 'Живое присутствие',
+    icon: (
+      <LineIcon>
+        <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.1 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .3 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.5c.9.4 1.8.6 2.8.7a2 2 0 0 1 1.7 2.1z" />
+      </LineIcon>
+    ),
+  },
+  {
+    path: '/files',
+    label: 'Файлы',
+    caption: 'Общее хранилище',
+    icon: (
+      <LineIcon>
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v1" />
+      </LineIcon>
+    ),
+  },
+  {
+    path: '/notifications',
+    label: 'Сигналы',
+    caption: 'Приоритетные события',
+    icon: (
+      <LineIcon>
+        <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+        <path d="M13.7 21a2 2 0 0 1-3.4 0" />
+      </LineIcon>
+    ),
+  },
+  {
+    path: '/search',
+    label: 'Поиск',
+    caption: 'Глобальный обзор',
+    icon: (
+      <LineIcon>
+        <circle cx="11" cy="11" r="7" />
+        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+      </LineIcon>
+    ),
+  },
+  {
+    path: '/organization',
+    label: 'Организация',
+    caption: 'Структура',
+    icon: (
+      <LineIcon>
+        <path d="M3 21h18" />
+        <path d="M5 21V7l7-4 7 4v14" />
+        <path d="M9 9h.01" />
+        <path d="M15 9h.01" />
+      </LineIcon>
+    ),
+  },
+  {
+    path: '/audit',
+    label: 'Аудит',
+    caption: 'Журнал контроля',
+    icon: (
+      <LineIcon>
+        <path d="M9 12h6" />
+        <path d="M9 16h6" />
+        <path d="M9 8h6" />
+        <path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
+      </LineIcon>
+    ),
+  },
+  {
+    path: '/settings',
+    label: 'Настройки',
+    caption: 'Профиль и тема',
+    icon: (
+      <LineIcon>
+        <circle cx="12" cy="12" r="3" />
+        <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.2a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.2a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1A1.7 1.7 0 0 0 10 3.2V3a2 2 0 1 1 4 0v.2a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.2a1.7 1.7 0 0 0-1.4 1z" />
+      </LineIcon>
+    ),
+  },
 ];
 
 export function Sidebar() {
@@ -28,137 +135,7 @@ export function Sidebar() {
   const setCurrentOrg = useOrganizationStore((s) => s.setCurrentOrg);
   const { logout } = useAuth();
   const { isMobile } = useBreakpoint();
-
-  const showLabels = isMobile ? true : sidebarOpen;
-
-  const sidebarStyle: CSSProperties = isMobile
-    ? {
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        height: 'var(--app-height, 100vh)',
-        width: '85vw',
-        maxWidth: 320,
-        backgroundColor: 'var(--color-bg-secondary)',
-        borderRight: '1px solid var(--color-border)',
-        display: 'flex',
-        flexDirection: 'column',
-        transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
-        transition: 'transform 0.2s ease',
-        zIndex: 100,
-        overflow: 'hidden',
-        boxShadow: sidebarOpen ? 'var(--shadow-lg)' : 'none',
-      }
-    : {
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        bottom: 0,
-        width: sidebarOpen ? 260 : 72,
-        backgroundColor: 'var(--color-bg-secondary)',
-        borderRight: '1px solid var(--color-border)',
-        display: 'flex',
-        flexDirection: 'column',
-        transition: 'width 0.2s ease',
-        zIndex: 100,
-        overflow: 'hidden',
-      };
-
-  const logoAreaStyle: CSSProperties = {
-    padding: '16px 16px 12px',
-    display: 'flex',
-    alignItems: 'center',
-    gap: 12,
-    borderBottom: '1px solid var(--color-border)',
-  };
-
-  const logoTextStyle: CSSProperties = {
-    fontSize: 18,
-    fontWeight: 700,
-    color: 'var(--color-primary)',
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-  };
-
-  const toggleBtnStyle: CSSProperties = {
-    background: 'none',
-    border: 'none',
-    fontSize: isMobile ? 22 : 18,
-    color: 'var(--color-text-secondary)',
-    cursor: 'pointer',
-    marginLeft: 'auto',
-    padding: isMobile ? 0 : 4,
-    width: isMobile ? 40 : 'auto',
-    height: isMobile ? 40 : 'auto',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    lineHeight: 1,
-  };
-
-  const orgSwitcherStyle: CSSProperties = {
-    padding: '12px 16px',
-    borderBottom: '1px solid var(--color-border)',
-  };
-
-  const selectStyle: CSSProperties = {
-    width: '100%',
-    padding: isMobile ? '10px 10px' : '8px 10px',
-    borderRadius: 'var(--radius-sm)',
-    border: '1px solid var(--color-border)',
-    backgroundColor: 'var(--color-surface)',
-    color: 'var(--color-text)',
-    fontSize: 13,
-    cursor: 'pointer',
-  };
-
-  const navStyle: CSSProperties = {
-    flex: 1,
-    padding: '12px 8px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 2,
-    overflowY: 'auto',
-  };
-
-  const linkBaseStyle: CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 12,
-    padding: '10px 12px',
-    borderRadius: 'var(--radius-md)',
-    textDecoration: 'none',
-    color: 'var(--color-text-secondary)',
-    fontSize: 14,
-    fontWeight: 500,
-    transition: 'background 0.15s, color 0.15s',
-    whiteSpace: 'nowrap',
-  };
-
-  const userAreaStyle: CSSProperties = {
-    padding: '12px 16px',
-    borderTop: '1px solid var(--color-border)',
-    display: 'flex',
-    alignItems: 'center',
-    gap: 10,
-  };
-
-  const userInfoStyle: CSSProperties = {
-    flex: 1,
-    overflow: 'hidden',
-    display: showLabels ? 'block' : 'none',
-  };
-
-  const logoutBtnStyle: CSSProperties = {
-    background: 'none',
-    border: 'none',
-    color: 'var(--color-text-tertiary)',
-    cursor: 'pointer',
-    fontSize: 14,
-    padding: '4px 8px',
-    borderRadius: 'var(--radius-sm)',
-    display: showLabels ? 'block' : 'none',
-  };
+  const [orgMenuOpen, setOrgMenuOpen] = useState(false);
 
   const handleNavClick = () => {
     if (isMobile && sidebarOpen) {
@@ -166,64 +143,89 @@ export function Sidebar() {
     }
   };
 
+  const handleSelectOrg = (orgId: string) => {
+    const org = organizations.find((item) => item.id === orgId);
+    if (!org) return;
+    setCurrentOrg(org);
+    setOrgMenuOpen(false);
+  };
+
   return (
-    <aside style={sidebarStyle}>
-      <div style={logoAreaStyle}>
-        <span style={{ fontSize: 24, color: 'var(--color-primary)' }}>C</span>
-        {showLabels && <span style={logoTextStyle}>CorpMessenger</span>}
-        <button style={toggleBtnStyle} onClick={toggleSidebar} aria-label="Toggle sidebar">
-          {isMobile ? '\u{2715}' : sidebarOpen ? '\u{25C0}' : '\u{25B6}'}
+    <aside className={clsx('sidebar-shell', sidebarOpen ? 'sidebar-shell--open' : 'sidebar-shell--compact')}>
+      <div className="sidebar-shell__brand">
+        <div className="brand-mark">S</div>
+        <div className="sidebar-shell__brand-copy">
+          <div className="sidebar-shell__title">StaffHub</div>
+        </div>
+        <button className="sidebar-shell__toggle" onClick={toggleSidebar} aria-label="Переключить навигацию" type="button">
+          {sidebarOpen ? '‹' : '›'}
         </button>
       </div>
 
-      {showLabels && organizations.length > 0 && (
-        <div style={orgSwitcherStyle}>
-          <select
-            style={selectStyle}
-            value={currentOrg?.id || ''}
-            onChange={(e) => {
-              const org = organizations.find((o) => o.id === e.target.value);
-              if (org) setCurrentOrg(org);
-            }}
-          >
-            {organizations.map((org) => (
-              <option key={org.id} value={org.id}>
-                {org.name}
-              </option>
-            ))}
-          </select>
+      {organizations.length > 0 && (
+        <div className="sidebar-shell__org-wrap">
+          <div className="org-switcher">
+            <button
+              className="org-switcher__button"
+              onClick={() => setOrgMenuOpen((value) => !value)}
+              aria-expanded={orgMenuOpen}
+              type="button"
+            >
+              <span className="org-switcher__avatar">{currentOrg?.name?.[0] || 'S'}</span>
+              <span className="org-switcher__text">
+                <span className="org-switcher__name">{currentOrg?.name || 'Выберите пространство'}</span>
+              </span>
+              <svg className="org-switcher__chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+
+            {orgMenuOpen && (
+              <div className="org-switcher__menu">
+                {organizations.map((org) => (
+                  <button
+                    key={org.id}
+                    className={clsx('org-switcher__option', currentOrg?.id === org.id && 'is-active')}
+                    onClick={() => handleSelectOrg(org.id)}
+                    type="button"
+                  >
+                    <span className="org-switcher__avatar org-switcher__avatar--small">{org.name[0] || 'S'}</span>
+                    <span>
+                      <span className="org-switcher__name">{org.name}</span>
+                      <span className="org-switcher__meta">{org.memberCount} участников</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
-      <nav style={navStyle}>
+      <nav className="sidebar-shell__nav">
         {navItems.map((item) => (
           <NavLink
             key={item.path}
             to={item.path}
             onClick={handleNavClick}
-            style={({ isActive }: { isActive: boolean }) => ({
-              ...linkBaseStyle,
-              backgroundColor: isActive ? 'var(--color-primary)' : 'transparent',
-              color: isActive ? '#fff' : 'var(--color-text-secondary)',
-              justifyContent: showLabels ? 'flex-start' : 'center',
-            })}
+            className={({ isActive }: { isActive: boolean }) => clsx('sidebar-shell__nav-item', isActive && 'is-active')}
           >
-            <span style={{ fontSize: 18 }}>{item.icon}</span>
-            {showLabels && <span>{item.label}</span>}
+            <span className="sidebar-shell__nav-icon">{item.icon}</span>
+            <span className="sidebar-shell__nav-label">
+              <span className="sidebar-shell__nav-title">{item.label}</span>
+              <span className="sidebar-shell__nav-caption">{item.caption}</span>
+            </span>
           </NavLink>
         ))}
       </nav>
 
-      <div style={userAreaStyle}>
-        <Avatar name={user ? `${user.firstName} ${user.lastName}` : 'U'} size="sm" online />
-        <div style={userInfoStyle}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)' }}>
-            {user ? `${user.firstName} ${user.lastName}` : 'User'}
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--color-success)' }}>Online</div>
+      <div className="sidebar-shell__footer">
+        <Avatar name={user ? `${user.firstName} ${user.lastName}` : 'SH'} size="md" online />
+        <div className="sidebar-shell__footer-copy">
+          <div className="sidebar-shell__name">{user ? `${user.firstName} ${user.lastName}` : 'Участник'}</div>
         </div>
-        <button style={logoutBtnStyle} onClick={logout}>
-          Logout
+        <button className="lux-button-secondary sidebar-shell__logout" onClick={logout} type="button">
+          Выйти
         </button>
       </div>
     </aside>

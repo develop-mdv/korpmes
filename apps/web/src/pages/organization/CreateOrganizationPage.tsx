@@ -1,12 +1,13 @@
-import React, { useState, FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useOrganizationStore } from '@/stores/organization.store';
+import { ChangeEvent, FormEvent, useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import * as orgsApi from '@/api/organizations.api';
+import { useOrganizationStore } from '@/stores/organization.store';
 
-function toSlug(name: string): string {
-  return name
+function slugify(value: string) {
+  return value
     .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
+    .trim()
+    .replace(/[^\p{L}\p{N}\s-]+/gu, '')
     .replace(/\s+/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '');
@@ -14,104 +15,186 @@ function toSlug(name: string): string {
 
 export function CreateOrganizationPage() {
   const navigate = useNavigate();
-  const { setOrganizations, setCurrentOrg } = useOrganizationStore();
+  const organizations = useOrganizationStore((state) => state.organizations);
+  const setOrganizations = useOrganizationStore((state) => state.setOrganizations);
+  const setCurrentOrg = useOrganizationStore((state) => state.setCurrentOrg);
+
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
-  const [slugEdited, setSlugEdited] = useState(false);
   const [description, setDescription] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [slugTouched, setSlugTouched] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleNameChange = (val: string) => {
-    setName(val);
-    if (!slugEdited) {
-      setSlug(toSlug(val));
+  const generatedSlug = useMemo(() => slugify(name), [name]);
+  const effectiveSlug = slugTouched ? slug : generatedSlug;
+
+  const handleNameChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setName(event.target.value);
+    if (!slugTouched) {
+      setSlug(slugify(event.target.value));
     }
   };
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const normalizedName = name.trim();
+    const normalizedSlug = slugify(effectiveSlug);
+
+    if (!normalizedName || !normalizedSlug) {
+      setError('Укажите название и короткий адрес пространства.');
+      return;
+    }
+
+    setCreating(true);
+    setError(null);
 
     try {
-      const org = await orgsApi.createOrganization({
-        name,
-        slug: slug || toSlug(name),
-        description: description || undefined,
+      const organization = await orgsApi.createOrganization({
+        name: normalizedName,
+        slug: normalizedSlug,
+        description: description.trim() || undefined,
       });
-      setOrganizations([org]);
-      setCurrentOrg(org);
+
+      setOrganizations([organization, ...organizations.filter((item) => item.id !== organization.id)]);
+      setCurrentOrg(organization);
       navigate('/chats');
-    } catch (err: any) {
-      setError(err.response?.data?.error?.message || 'Failed to create organization');
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : 'Не удалось создать пространство. Попробуйте ещё раз.');
     } finally {
-      setLoading(false);
+      setCreating(false);
     }
   };
 
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
-        <div style={styles.logoIcon}>CM</div>
-        <h1 style={styles.title}>Create your workspace</h1>
-        <p style={styles.subtitle}>Set up an organization to start using CorpMessenger</p>
-
-        {error && <div style={styles.error}>{error}</div>}
-
-        <form onSubmit={handleSubmit}>
-          <div style={styles.field}>
-            <label style={styles.label}>Organization Name *</label>
-            <input
-              style={styles.input}
-              value={name}
-              onChange={(e) => handleNameChange(e.target.value)}
-              placeholder="My Company"
-              required
-              autoFocus
-            />
+    <main className="page-shell" style={{ minHeight: '100vh', display: 'grid', alignContent: 'center' }}>
+      <div className="page-shell__inner" style={{ width: 'min(1180px, 100%)' }}>
+        <section className="lux-panel page-hero">
+          <div className="page-hero__copy">
+            <div className="page-hero__kicker">Новая организация</div>
+            <h1 className="page-hero__title">Запустите своё закрытое рабочее пространство в светлом премиальном стиле.</h1>
+            <p className="page-hero__description">
+              Пространство станет центральной точкой для чатов, задач, файлов и управленческих процессов. Мы оставляем
+              интерфейс чистым и статусным, чтобы команда чувствовала собранность с первого экрана.
+            </p>
+            <div className="page-hero__meta">
+              <span className="lux-pill">Русский интерфейс</span>
+              <span className="lux-pill">Мгновенный старт</span>
+            </div>
           </div>
-
-          <div style={styles.field}>
-            <label style={styles.label}>Slug</label>
-            <input
-              style={styles.input}
-              value={slug}
-              onChange={(e) => { setSlug(e.target.value); setSlugEdited(true); }}
-              placeholder="my-company"
-            />
-            <p style={styles.hint}>Used in URLs. Auto-generated from name.</p>
+          <div className="page-hero__actions">
+            <Link className="lux-button-secondary" to="/join-organization">
+              Запросить доступ
+            </Link>
+            <Link className="lux-button-ghost" to="/login">
+              Вернуться ко входу
+            </Link>
           </div>
+        </section>
 
-          <div style={styles.field}>
-            <label style={styles.label}>Description (optional)</label>
-            <textarea
-              style={{ ...styles.input, minHeight: 60, resize: 'vertical' }}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="What does your organization do?"
-            />
-          </div>
+        <div className="page-grid page-grid--two">
+          <section className="lux-panel stat-card">
+            <div className="collection-list">
+              {[
+                ['Личные каналы', 'Чаты, правые панели и рабочие контуры уже готовы к использованию.'],
+                ['Управление доступом', 'После создания можно сразу приглашать людей и распределять роли.'],
+                ['Единый стандарт', 'Организация автоматически откроется в обновлённом светлом интерфейсе.'],
+              ].map(([title, description]) => (
+                <article key={title} className="list-card">
+                  <div className="list-card__body">
+                    <div className="list-card__title">{title}</div>
+                    <div className="list-card__subtitle" style={{ marginTop: 6 }}>
+                      {description}
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
 
-          <button style={styles.button} type="submit" disabled={loading || !name.trim()}>
-            {loading ? 'Creating...' : 'Create Organization'}
-          </button>
-        </form>
+          <section className="lux-panel stat-card">
+            <div className="auth-shell__form-copy" style={{ marginBottom: 20 }}>
+              <div className="auth-shell__form-title">Создание пространства</div>
+              <div className="auth-shell__form-subtitle">Пара штрихов, и можно заходить внутрь.</div>
+              <div className="auth-shell__form-description">Короткий адрес используется в ссылках и внутренних интеграциях.</div>
+            </div>
+
+            <form className="inline-form" onSubmit={handleSubmit}>
+              <div className="field-group">
+                <label className="field-group__label" htmlFor="org-name">
+                  Название
+                </label>
+                <input
+                  id="org-name"
+                  className="lux-input"
+                  value={name}
+                  onChange={handleNameChange}
+                  placeholder="Совет директоров"
+                  autoFocus
+                  required
+                />
+              </div>
+
+              <div className="field-group">
+                <label className="field-group__label" htmlFor="org-slug">
+                  Короткий адрес
+                </label>
+                <input
+                  id="org-slug"
+                  className="lux-input"
+                  value={effectiveSlug}
+                  onChange={(event) => {
+                    setSlugTouched(true);
+                    setSlug(event.target.value);
+                  }}
+                  placeholder="executive-council"
+                  required
+                />
+              </div>
+
+              <div className="field-group">
+                <label className="field-group__label" htmlFor="org-description">
+                  Описание
+                </label>
+                <textarea
+                  id="org-description"
+                  className="lux-input"
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  placeholder="Коротко опишите назначение пространства и круг участников."
+                  rows={5}
+                  style={{ resize: 'vertical' }}
+                />
+              </div>
+
+              {error && (
+                <div
+                  style={{
+                    padding: '12px 14px',
+                    borderRadius: 18,
+                    background: 'rgba(212, 98, 98, 0.1)',
+                    border: '1px solid rgba(212, 98, 98, 0.18)',
+                    color: 'var(--color-error)',
+                    fontSize: 14,
+                  }}
+                >
+                  {error}
+                </div>
+              )}
+
+              <div className="form-actions">
+                <Link className="lux-button-ghost" to="/join-organization">
+                  Есть приглашение
+                </Link>
+                <button className="lux-button" type="submit" disabled={creating}>
+                  {creating ? 'Создаём пространство...' : 'Создать организацию'}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
       </div>
-    </div>
+    </main>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  container: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-bg-secondary)', padding: 16 },
-  card: { background: 'var(--color-surface)', borderRadius: 'var(--radius-lg)', padding: 'clamp(20px, 5vw, 40px)', width: '100%', maxWidth: 460, boxShadow: 'var(--shadow-lg)', textAlign: 'center' },
-  logoIcon: { width: 48, height: 48, borderRadius: 12, background: 'var(--color-primary)', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 18, marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: 700, color: 'var(--color-text)', margin: '0 0 4px' },
-  subtitle: { fontSize: 14, color: 'var(--color-text-secondary)', marginBottom: 24 },
-  error: { background: '#FEE2E2', color: '#DC2626', padding: '10px 14px', borderRadius: 'var(--radius-sm)', fontSize: 14, marginBottom: 16, textAlign: 'left' },
-  field: { marginBottom: 16, textAlign: 'left' },
-  label: { display: 'block', fontSize: 14, fontWeight: 500, color: 'var(--color-text)', marginBottom: 6 },
-  input: { width: '100%', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)', fontSize: 15, color: 'var(--color-text)', background: 'var(--color-bg-secondary)', outline: 'none', boxSizing: 'border-box' as const, fontFamily: 'inherit' },
-  hint: { fontSize: 12, color: 'var(--color-text-tertiary)', marginTop: 4 },
-  button: { width: '100%', padding: 12, borderRadius: 'var(--radius-md)', border: 'none', background: 'var(--color-primary)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', marginTop: 8 },
-};

@@ -10,10 +10,12 @@ import {
   Pressable,
   Text,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { MessageBubble } from '../../components/MessageBubble';
 import { MessageInput } from '../../components/MessageInput';
 import { EmptyState } from '../../components/EmptyState';
+import { useTheme } from '../../theme';
 import { useMessageStore } from '../../stores/message.store';
 import { useAuthStore } from '../../stores/auth.store';
 import { useChatStore } from '../../stores/chat.store';
@@ -57,6 +59,7 @@ function withTimeout<T>(
 }
 
 export function ChatViewScreen({ route, navigation }: Props) {
+  const theme = useTheme();
   const { chatId } = route.params;
   const flatListRef = useRef<FlatList<Message>>(null);
   const userId = useAuthStore((state) => state.user?.id);
@@ -89,21 +92,18 @@ export function ChatViewScreen({ route, navigation }: Props) {
       }
 
       if (activeCall) {
-        Alert.alert('Call in progress', 'Finish the current call before starting a new one.');
+        Alert.alert('Звонок уже идёт', 'Завершите текущий звонок перед началом нового.');
         return;
       }
 
       if (chat.type !== 'PERSONAL') {
-        Alert.alert(
-          'Unsupported chat',
-          'Mobile currently supports calls only in direct chats.',
-        );
+        Alert.alert('Недоступно', 'Звонки на мобильном пока работают только в личных чатах.');
         return;
       }
 
       const otherMember = chat.members.find((member) => member.userId !== userId);
       if (!otherMember) {
-        Alert.alert('Call unavailable', 'Could not determine the other participant.');
+        Alert.alert('Звонок недоступен', 'Не удалось определить собеседника.');
         return;
       }
 
@@ -121,7 +121,7 @@ export function ChatViewScreen({ route, navigation }: Props) {
         });
       } catch (error) {
         console.error('Failed to initiate call:', error);
-        Alert.alert('Call failed', 'Could not start the call. Please try again.');
+        Alert.alert('Не удалось позвонить', 'Попробуйте снова через несколько секунд.');
       }
     },
     [activeCall, chat, chatId, setActiveCall, userId],
@@ -129,31 +129,37 @@ export function ChatViewScreen({ route, navigation }: Props) {
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      title: chat?.name || 'Chat',
+      title: chat?.name || 'Диалог',
       headerRight: canStartDirectCall
         ? () => (
             <View style={styles.headerActions}>
               <Pressable
-                style={styles.headerButton}
+                style={({ pressed }) => [
+                  styles.headerButton,
+                  { backgroundColor: theme.colors.surfaceSoft, opacity: pressed ? 0.7 : 1 },
+                ]}
                 onPress={() => {
                   void handleInitiateCall('AUDIO');
                 }}
               >
-                <Text style={styles.headerButtonText}>Call</Text>
+                <Ionicons name="call" size={18} color={theme.colors.primary} />
               </Pressable>
               <Pressable
-                style={styles.headerButton}
+                style={({ pressed }) => [
+                  styles.headerButton,
+                  { backgroundColor: theme.colors.surfaceSoft, opacity: pressed ? 0.7 : 1 },
+                ]}
                 onPress={() => {
                   void handleInitiateCall('VIDEO');
                 }}
               >
-                <Text style={styles.headerButtonText}>Video</Text>
+                <Ionicons name="videocam" size={18} color={theme.colors.primary} />
               </Pressable>
             </View>
           )
         : undefined,
     });
-  }, [canStartDirectCall, chat?.name, handleInitiateCall, navigation]);
+  }, [canStartDirectCall, chat?.name, handleInitiateCall, navigation, theme]);
 
   useEffect(() => {
     const socket = getExistingSocket();
@@ -189,7 +195,7 @@ export function ChatViewScreen({ route, navigation }: Props) {
       }
     } catch (err) {
       console.error('Failed to fetch messages:', err);
-      setLoadError('Could not load messages. Please try opening the chat again.');
+      setLoadError('Не удалось загрузить сообщения. Откройте чат заново.');
       if (showFullScreenLoader) {
         setMessages(chatId, [], false, undefined);
       }
@@ -275,13 +281,13 @@ export function ChatViewScreen({ route, navigation }: Props) {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: theme.colors.bg }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       {initialLoading && messages.length === 0 ? (
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#4F46E5" />
+          <ActivityIndicator size="large" color={theme.colors.primary} />
         </View>
       ) : (
         <FlatList
@@ -293,25 +299,23 @@ export function ChatViewScreen({ route, navigation }: Props) {
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={
             <EmptyState
-              title={loadError ? 'Could not load messages' : 'No messages yet'}
-              description={
-                loadError || 'Send a message to start the conversation'
-              }
+              title={loadError ? 'Не удалось загрузить сообщения' : 'Пока пусто'}
+              description={loadError || 'Напишите первое сообщение, чтобы начать диалог.'}
             />
           }
           ListFooterComponent={
             hasMore && cursor ? (
               <View style={styles.paginationContainer}>
                 {loadingMore ? (
-                  <ActivityIndicator style={styles.loader} color="#4F46E5" />
+                  <ActivityIndicator style={styles.loader} color={theme.colors.primary} />
                 ) : (
                   <Pressable
-                    style={styles.paginationButton}
+                    style={[styles.paginationButton, { backgroundColor: theme.colors.surfaceSoft, borderColor: theme.colors.borderStrong }]}
                     onPress={() => {
                       void loadMore();
                     }}
                   >
-                    <Text style={styles.paginationButtonText}>Load older messages</Text>
+                    <Text style={[styles.paginationButtonText, { color: theme.colors.primary }]}>Загрузить ранние сообщения</Text>
                   </Pressable>
                 )}
               </View>
@@ -331,50 +335,24 @@ export function ChatViewScreen({ route, navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
+  container: { flex: 1 },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  listContent: { paddingVertical: 10, flexGrow: 1 },
+  loader: { paddingVertical: 16 },
+  paginationContainer: { alignItems: 'center', paddingVertical: 16 },
+  paginationButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
   },
-  centered: {
-    flex: 1,
+  paginationButtonText: { fontSize: 13, fontWeight: '600' },
+  headerActions: { flexDirection: 'row', gap: 6, paddingRight: 6 },
+  headerButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  listContent: {
-    paddingVertical: 8,
-    flexGrow: 1,
-  },
-  loader: {
-    paddingVertical: 16,
-  },
-  paginationContainer: {
-    alignItems: 'center',
-    paddingVertical: 16,
-  },
-  paginationButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 16,
-    backgroundColor: '#EEF2FF',
-  },
-  paginationButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#4338CA',
-  },
-  headerActions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  headerButton: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: '#EEF2FF',
-  },
-  headerButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#4338CA',
   },
 });

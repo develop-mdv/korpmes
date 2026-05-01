@@ -1,56 +1,50 @@
 import React, { useState, useCallback } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  Pressable,
-  StyleSheet,
-  SafeAreaView,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  ActivityIndicator,
-  Alert,
-} from 'react-native';
+import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useAuth } from '../../hooks/useAuth';
+import { AuthLayout } from '../../components/auth/AuthLayout';
+import { FormField } from '../../components/auth/FormField';
+import { PrimaryButton } from '../../components/auth/PrimaryButton';
+import { useTheme } from '../../theme';
 import type { AuthStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Register'>;
 
+const e164PhonePattern = /^\+[1-9]\d{1,14}$/;
+const strongPasswordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*])/;
+
 export function RegisterScreen({ navigation }: Props) {
+  const theme = useTheme();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const { register, isLoading } = useAuth();
-  const e164PhonePattern = /^\+[1-9]\d{1,14}$/;
-  const strongPasswordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*])/;
 
   const handleRegister = useCallback(async () => {
     if (!firstName.trim() || !lastName.trim() || !email.trim() || !password.trim()) {
-      Alert.alert('Validation Error', 'Please fill in all required fields');
+      Alert.alert('Заполните форму', 'Заполните все обязательные поля');
       return;
     }
 
     if (password.length < 8) {
-      Alert.alert('Validation Error', 'Password must be at least 8 characters');
+      Alert.alert('Пароль', 'Пароль должен быть не короче 8 символов');
       return;
     }
 
     if (!strongPasswordPattern.test(password)) {
       Alert.alert(
-        'Validation Error',
-        'Password must include uppercase, lowercase, digit and one special character: !@#$%^&*',
+        'Пароль',
+        'Пароль должен содержать заглавную букву, строчную букву, цифру и спецсимвол: !@#$%^&*',
       );
       return;
     }
 
     if (phone.trim() && !e164PhonePattern.test(phone.trim())) {
       Alert.alert(
-        'Validation Error',
-        'Phone number must be in international format, for example +79991234567',
+        'Телефон',
+        'Номер должен быть в международном формате, например +79991234567',
       );
       return;
     }
@@ -64,197 +58,81 @@ export function RegisterScreen({ navigation }: Props) {
         password,
       });
     } catch (err: any) {
-      Alert.alert('Registration Failed', err.message);
+      Alert.alert('Не удалось создать аккаунт', err.message);
     }
-  }, [firstName, lastName, email, phone, password, register, strongPasswordPattern]);
+  }, [firstName, lastName, email, phone, password, register]);
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <ScrollView
-          contentContainerStyle={styles.container}
-          keyboardShouldPersistTaps="handled"
-        >
-          <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Join your team on CorpMessenger</Text>
-
-          <View style={styles.form}>
-            <View style={styles.row}>
-              <View style={[styles.inputGroup, styles.flex]}>
-                <Text style={styles.label}>First Name *</Text>
-                <TextInput
-                  style={styles.input}
-                  value={firstName}
-                  onChangeText={setFirstName}
-                  placeholder="John"
-                  placeholderTextColor="#9CA3AF"
-                  autoCapitalize="words"
-                  editable={!isLoading}
-                />
-              </View>
-              <View style={[styles.inputGroup, styles.flex]}>
-                <Text style={styles.label}>Last Name *</Text>
-                <TextInput
-                  style={styles.input}
-                  value={lastName}
-                  onChangeText={setLastName}
-                  placeholder="Doe"
-                  placeholderTextColor="#9CA3AF"
-                  autoCapitalize="words"
-                  editable={!isLoading}
-                />
-              </View>
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Email *</Text>
-              <TextInput
-                style={styles.input}
-                value={email}
-                onChangeText={setEmail}
-                placeholder="you@company.com"
-                placeholderTextColor="#9CA3AF"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                editable={!isLoading}
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Phone (optional)</Text>
-              <TextInput
-                style={styles.input}
-                value={phone}
-                onChangeText={setPhone}
-                placeholder="+1 (555) 000-0000"
-                placeholderTextColor="#9CA3AF"
-                keyboardType="phone-pad"
-                editable={!isLoading}
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Password *</Text>
-              <TextInput
-                style={styles.input}
-                value={password}
-                onChangeText={setPassword}
-                placeholder="Minimum 8 characters"
-                placeholderTextColor="#9CA3AF"
-                secureTextEntry
-                editable={!isLoading}
-              />
-            </View>
-
-            <Pressable
-              style={[styles.button, isLoading && styles.buttonDisabled]}
-              onPress={handleRegister}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={styles.buttonText}>Create Account</Text>
-              )}
-            </Pressable>
-
-            <Pressable
-              style={styles.linkContainer}
-              onPress={() => navigation.goBack()}
-            >
-              <Text style={styles.linkText}>
-                Already have an account? <Text style={styles.link}>Sign In</Text>
-              </Text>
-            </Pressable>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+    <AuthLayout
+      kicker="Премиум-контур"
+      title="Создать аккаунт"
+      description="Присоединитесь к команде в StaffHub за пару минут."
+      footer={
+        <Pressable onPress={() => navigation.goBack()} style={styles.linkRow}>
+          <Text style={[styles.linkText, { color: theme.colors.textSecondary }]}>
+            Уже есть аккаунт?{' '}
+            <Text style={[styles.link, { color: theme.colors.primary }]}>Войти</Text>
+          </Text>
+        </Pressable>
+      }
+    >
+      <View style={styles.row}>
+        <View style={styles.flex}>
+          <FormField
+            label="Имя"
+            value={firstName}
+            onChangeText={setFirstName}
+            placeholder="Иван"
+            autoCapitalize="words"
+            editable={!isLoading}
+          />
+        </View>
+        <View style={styles.flex}>
+          <FormField
+            label="Фамилия"
+            value={lastName}
+            onChangeText={setLastName}
+            placeholder="Петров"
+            autoCapitalize="words"
+            editable={!isLoading}
+          />
+        </View>
+      </View>
+      <FormField
+        label="Email"
+        value={email}
+        onChangeText={setEmail}
+        placeholder="you@company.com"
+        keyboardType="email-address"
+        autoCapitalize="none"
+        autoCorrect={false}
+        editable={!isLoading}
+      />
+      <FormField
+        label="Телефон (необязательно)"
+        value={phone}
+        onChangeText={setPhone}
+        placeholder="+79991234567"
+        keyboardType="phone-pad"
+        editable={!isLoading}
+      />
+      <FormField
+        label="Пароль"
+        value={password}
+        onChangeText={setPassword}
+        placeholder="Минимум 8 символов"
+        secureTextEntry
+        editable={!isLoading}
+      />
+      <PrimaryButton label="Создать аккаунт" onPress={handleRegister} loading={isLoading} />
+    </AuthLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  flex: {
-    flex: 1,
-  },
-  container: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 32,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#111827',
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 15,
-    color: '#6B7280',
-    textAlign: 'center',
-    marginTop: 4,
-    marginBottom: 32,
-  },
-  form: {
-    gap: 16,
-  },
-  row: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  inputGroup: {
-    gap: 6,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
-  },
-  input: {
-    height: 48,
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    fontSize: 15,
-    color: '#111827',
-    backgroundColor: '#FFFFFF',
-  },
-  button: {
-    height: 48,
-    borderRadius: 10,
-    backgroundColor: '#4F46E5',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 8,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  linkContainer: {
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  linkText: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  link: {
-    color: '#4F46E5',
-    fontWeight: '500',
-  },
+  row: { flexDirection: 'row', gap: 12 },
+  flex: { flex: 1 },
+  linkRow: { alignItems: 'center' },
+  linkText: { fontSize: 14 },
+  link: { fontWeight: '700' },
 });

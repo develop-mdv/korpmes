@@ -1,309 +1,311 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { Modal } from '@/components/common/Modal';
-import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+import { useEffect, useMemo, useState } from 'react';
+import * as departmentsApi from '@/api/departments.api';
 import { EmptyState } from '@/components/common/EmptyState';
 import { useOrganizationStore } from '@/stores/organization.store';
-import * as deptsApi from '@/api/departments.api';
 
-type Department = deptsApi.Department;
-
-function DeptNode({
-  dept,
-  depth,
-  onEdit,
-  onDelete,
-  onAddChild,
-}: {
-  dept: Department;
+type DepartmentWithDepth = departmentsApi.Department & {
   depth: number;
-  onEdit: (dept: Department) => void;
-  onDelete: (dept: Department) => void;
-  onAddChild: (parent: Department) => void;
-}) {
-  return (
-    <div style={{ marginLeft: depth * 20 }}>
-      <div style={styles.deptRow}>
-        <span style={styles.deptName}>
-          {depth > 0 && <span style={styles.indent}>└ </span>}
-          {dept.name}
-        </span>
-        {dept.description && <span style={styles.deptDesc}>{dept.description}</span>}
-        <div style={styles.deptActions}>
-          <button style={styles.actionBtn} onClick={() => onAddChild(dept)} title="Add sub-department">
-            +
-          </button>
-          <button style={styles.actionBtn} onClick={() => onEdit(dept)} title="Edit">
-            ✎
-          </button>
-          <button
-            style={{ ...styles.actionBtn, color: 'var(--color-error)' }}
-            onClick={() => onDelete(dept)}
-            title="Delete"
-          >
-            ✕
-          </button>
-        </div>
-      </div>
-      {dept.children?.map((child) => (
-        <DeptNode
-          key={child.id}
-          dept={child}
-          depth={depth + 1}
-          onEdit={onEdit}
-          onDelete={onDelete}
-          onAddChild={onAddChild}
-        />
-      ))}
-    </div>
-  );
-}
+  parentName?: string;
+};
 
-interface FormState {
-  name: string;
-  description: string;
+function flattenDepartments(
+  departments: departmentsApi.Department[],
+  parentName?: string,
+  depth = 0,
+): DepartmentWithDepth[] {
+  return departments.flatMap((department) => [
+    {
+      ...department,
+      depth,
+      parentName,
+    },
+    ...flattenDepartments(department.children ?? [], department.name, depth + 1),
+  ]);
 }
 
 export function DepartmentsPage() {
-  const { currentOrg } = useOrganizationStore();
-  const [depts, setDepts] = useState<Department[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editTarget, setEditTarget] = useState<Department | null>(null);
-  const [parentTarget, setParentTarget] = useState<Department | null>(null);
-  const [form, setForm] = useState<FormState>({ name: '', description: '' });
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
+  const currentOrg = useOrganizationStore((state) => state.currentOrg);
 
-  const reload = useCallback(async () => {
-    if (!currentOrg) return;
+  const [departments, setDepartments] = useState<departmentsApi.Department[]>([]);
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [parentDepartmentId, setParentDepartmentId] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const flatDepartments = useMemo(() => flattenDepartments(departments), [departments]);
+
+  const loadDepartments = async () => {
+    if (!currentOrg) {
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
+    setError(null);
+
     try {
-      const data = await deptsApi.listDepartments(currentOrg.id);
-      setDepts(data);
+      const response = await departmentsApi.listDepartments(currentOrg.id);
+      setDepartments(response);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'Не удалось загрузить отделы.');
     } finally {
       setLoading(false);
     }
-  }, [currentOrg]);
+  };
 
   useEffect(() => {
-    reload();
-  }, [reload]);
+    loadDepartments();
+  }, [currentOrg]);
 
-  const openCreate = (parent?: Department) => {
-    setEditTarget(null);
-    setParentTarget(parent ?? null);
-    setForm({ name: '', description: '' });
-    setError('');
-    setModalOpen(true);
+  const resetForm = () => {
+    setEditingId(null);
+    setName('');
+    setDescription('');
+    setParentDepartmentId('');
   };
 
-  const openEdit = (dept: Department) => {
-    setEditTarget(dept);
-    setParentTarget(null);
-    setForm({ name: dept.name, description: dept.description ?? '' });
-    setError('');
-    setModalOpen(true);
-  };
-
-  const handleDelete = useCallback(
-    async (dept: Department) => {
-      if (!currentOrg) return;
-      if (!confirm(`Delete department "${dept.name}"? This cannot be undone.`)) return;
-      await deptsApi.deleteDepartment(currentOrg.id, dept.id);
-      await reload();
-    },
-    [currentOrg, reload],
-  );
-
-  const handleSave = async () => {
-    if (!form.name.trim()) {
-      setError('Department name is required');
+  const handleSubmit = async () => {
+    if (!currentOrg || !name.trim()) {
       return;
     }
-    if (!currentOrg) return;
+
     setSaving(true);
-    setError('');
+    setMessage(null);
+    setError(null);
+
     try {
-      if (editTarget) {
-        await deptsApi.updateDepartment(currentOrg.id, editTarget.id, {
-          name: form.name.trim(),
-          description: form.description.trim() || undefined,
-        });
+      const payload = {
+        name: name.trim(),
+        description: description.trim() || undefined,
+        parentDepartmentId: parentDepartmentId || undefined,
+      };
+
+      if (editingId) {
+        await departmentsApi.updateDepartment(currentOrg.id, editingId, payload);
+        setMessage('Отдел обновлён.');
       } else {
-        await deptsApi.createDepartment(currentOrg.id, {
-          name: form.name.trim(),
-          description: form.description.trim() || undefined,
-          parentDepartmentId: parentTarget?.id,
-        });
+        await departmentsApi.createDepartment(currentOrg.id, payload);
+        setMessage('Отдел создан.');
       }
-      setModalOpen(false);
-      await reload();
-    } catch {
-      setError('Failed to save. Please try again.');
+
+      resetForm();
+      await loadDepartments();
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : 'Не удалось сохранить отдел.');
     } finally {
       setSaving(false);
     }
   };
 
-  return (
-    <div style={styles.container}>
-      <div style={styles.header}>
-        <h1 style={styles.title}>Departments</h1>
-        <button style={styles.createBtn} onClick={() => openCreate()}>
-          + New Department
-        </button>
+  const handleEdit = (department: DepartmentWithDepth) => {
+    setEditingId(department.id);
+    setName(department.name);
+    setDescription(department.description ?? '');
+    setParentDepartmentId(department.parentDepartmentId ?? '');
+    setMessage(null);
+    setError(null);
+  };
+
+  const handleDelete = async (departmentId: string) => {
+    if (!currentOrg || !window.confirm('Удалить отдел?')) {
+      return;
+    }
+
+    setMessage(null);
+    setError(null);
+
+    try {
+      await departmentsApi.deleteDepartment(currentOrg.id, departmentId);
+      if (editingId === departmentId) {
+        resetForm();
+      }
+      setMessage('Отдел удалён.');
+      await loadDepartments();
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : 'Не удалось удалить отдел.');
+    }
+  };
+
+  if (!currentOrg) {
+    return (
+      <div className="page-shell">
+        <div className="page-shell__inner">
+          <section className="lux-panel" style={{ minHeight: 340 }}>
+            <EmptyState title="Нет активной организации" description="Сначала выберите рабочее пространство, чтобы управлять его структурой." />
+          </section>
+        </div>
       </div>
+    );
+  }
 
-      {loading && (
-        <div style={styles.centered}>
-          <LoadingSpinner />
-        </div>
-      )}
-
-      {!loading && depts.length === 0 && (
-        <EmptyState
-          title="No departments yet"
-          description="Create departments to organize your teams"
-        />
-      )}
-
-      {!loading && depts.length > 0 && (
-        <div style={styles.tree}>
-          {depts.map((dept) => (
-            <DeptNode
-              key={dept.id}
-              dept={dept}
-              depth={0}
-              onEdit={openEdit}
-              onDelete={handleDelete}
-              onAddChild={(parent) => openCreate(parent)}
-            />
-          ))}
-        </div>
-      )}
-
-      <Modal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        title={editTarget ? 'Edit Department' : parentTarget ? `Add sub-department to "${parentTarget.name}"` : 'New Department'}
-      >
-        <div style={styles.form}>
-          <label style={styles.label}>
-            Name *
-            <input
-              style={styles.input}
-              value={form.name}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              placeholder="e.g. Engineering"
-              autoFocus
-            />
-          </label>
-          <label style={styles.label}>
-            Description
-            <input
-              style={styles.input}
-              value={form.description}
-              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-              placeholder="Optional description"
-            />
-          </label>
-          {error && <p style={styles.error}>{error}</p>}
-          <div style={styles.modalActions}>
-            <button style={styles.cancelBtn} onClick={() => setModalOpen(false)}>
-              Cancel
-            </button>
-            <button style={styles.saveBtn} onClick={handleSave} disabled={saving}>
-              {saving ? 'Saving…' : editTarget ? 'Save Changes' : 'Create'}
-            </button>
+  return (
+    <div className="page-shell">
+      <div className="page-shell__inner">
+        <section className="lux-panel page-hero">
+          <div className="page-hero__copy">
+            <div className="page-hero__kicker">Отделы</div>
+            <h1 className="page-hero__title">Структура организации без визуального шума.</h1>
+            <p className="page-hero__description">
+              Настройте направления, команды и вложенность отделов так, чтобы управленческая карта пространства читалась
+              мгновенно.
+            </p>
+            <div className="page-hero__meta">
+              <span className="lux-pill">{flatDepartments.length} отделов</span>
+              <span className="lux-pill">{currentOrg.name}</span>
+            </div>
           </div>
+        </section>
+
+        <div className="page-grid page-grid--two">
+          <section className="lux-panel stat-card">
+            <div className="auth-shell__form-copy" style={{ marginBottom: 20 }}>
+              <div className="auth-shell__form-title">{editingId ? 'Редактирование' : 'Новый отдел'}</div>
+              <div className="auth-shell__form-subtitle">
+                {editingId ? 'Обновите название, описание и родительский отдел.' : 'Добавьте новый блок в структуру организации.'}
+              </div>
+            </div>
+
+            <div className="inline-form">
+              <div className="field-group">
+                <label className="field-group__label" htmlFor="department-name">
+                  Название
+                </label>
+                <input
+                  id="department-name"
+                  className="lux-input"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder="Стратегия и развитие"
+                />
+              </div>
+
+              <div className="field-group">
+                <label className="field-group__label" htmlFor="department-parent">
+                  Родительский отдел
+                </label>
+                <select
+                  id="department-parent"
+                  className="lux-select"
+                  value={parentDepartmentId}
+                  onChange={(event) => setParentDepartmentId(event.target.value)}
+                >
+                  <option value="">Без родителя</option>
+                  {flatDepartments
+                    .filter((department) => department.id !== editingId)
+                    .map((department) => (
+                      <option key={department.id} value={department.id}>
+                        {'· '.repeat(department.depth)}
+                        {department.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div className="field-group">
+                <label className="field-group__label" htmlFor="department-description">
+                  Описание
+                </label>
+                <textarea
+                  id="department-description"
+                  className="lux-input"
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  rows={6}
+                  placeholder="Коротко обозначьте зону ответственности отдела."
+                  style={{ resize: 'vertical' }}
+                />
+              </div>
+
+              {message && (
+                <div
+                  style={{
+                    padding: '12px 14px',
+                    borderRadius: 18,
+                    background: 'rgba(30, 157, 104, 0.1)',
+                    border: '1px solid rgba(30, 157, 104, 0.18)',
+                    color: 'var(--color-success)',
+                    fontSize: 14,
+                  }}
+                >
+                  {message}
+                </div>
+              )}
+
+              {error && (
+                <div
+                  style={{
+                    padding: '12px 14px',
+                    borderRadius: 18,
+                    background: 'rgba(212, 98, 98, 0.1)',
+                    border: '1px solid rgba(212, 98, 98, 0.18)',
+                    color: 'var(--color-error)',
+                    fontSize: 14,
+                  }}
+                >
+                  {error}
+                </div>
+              )}
+
+              <div className="form-actions">
+                {editingId && (
+                  <button className="lux-button-ghost" type="button" onClick={resetForm}>
+                    Отменить редактирование
+                  </button>
+                )}
+                <button className="lux-button" type="button" onClick={handleSubmit} disabled={saving || !name.trim()}>
+                  {saving ? 'Сохраняем...' : editingId ? 'Сохранить отдел' : 'Создать отдел'}
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section className="lux-panel stat-card">
+            <div className="auth-shell__form-copy" style={{ marginBottom: 20 }}>
+              <div className="auth-shell__form-title">Текущая структура</div>
+              <div className="auth-shell__form-subtitle">Все отделы и их положение в иерархии</div>
+            </div>
+
+            {loading ? (
+              <div style={{ padding: '6px 0', color: 'var(--color-text-secondary)' }}>Загружаем структуру...</div>
+            ) : flatDepartments.length === 0 ? (
+              <EmptyState title="Пока нет отделов" description="Создайте первый отдел, чтобы начать собирать структуру организации." />
+            ) : (
+              <div className="collection-list">
+                {flatDepartments.map((department) => (
+                  <article
+                    key={department.id}
+                    className="list-card"
+                    style={{ marginLeft: department.depth > 0 ? Math.min(department.depth * 14, 42) : 0 }}
+                  >
+                    <div className="list-card__body">
+                      <div className="list-card__title">{department.name}</div>
+                      <div className="list-card__subtitle" style={{ marginTop: 6 }}>
+                        {department.description || 'Описание ещё не добавлено.'}
+                      </div>
+                      <div className="list-card__meta">
+                        <span>{department.parentName ? `Внутри: ${department.parentName}` : 'Корневой отдел'}</span>
+                        <span>{department.children?.length ? `${department.children.length} подотделов` : 'Без вложенных отделов'}</span>
+                      </div>
+                    </div>
+                    <div className="list-card__actions">
+                      <button className="lux-button-secondary" type="button" onClick={() => handleEdit(department)}>
+                        Изменить
+                      </button>
+                      <button className="lux-button-danger" type="button" onClick={() => handleDelete(department.id)}>
+                        Удалить
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
         </div>
-      </Modal>
+      </div>
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  container: { padding: 'clamp(12px, 4vw, 24px)', maxWidth: 720, margin: '0 auto' },
-  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
-  title: { fontSize: 24, fontWeight: 700, margin: 0, color: 'var(--color-text)' },
-  createBtn: {
-    padding: '8px 16px',
-    borderRadius: 'var(--radius-sm)',
-    border: 'none',
-    background: 'var(--color-primary)',
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: 600,
-    cursor: 'pointer',
-  },
-  centered: { display: 'flex', justifyContent: 'center', paddingTop: 40 },
-  tree: {
-    background: 'var(--color-surface)',
-    border: '1px solid var(--color-border)',
-    borderRadius: 'var(--radius-md)',
-    padding: 16,
-  },
-  deptRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 10,
-    padding: '8px 0',
-    borderBottom: '1px solid var(--color-border)',
-  },
-  deptName: { fontSize: 14, fontWeight: 600, color: 'var(--color-text)', flex: '0 0 auto' },
-  indent: { color: 'var(--color-text-tertiary)' },
-  deptDesc: {
-    flex: 1,
-    fontSize: 13,
-    color: 'var(--color-text-secondary)',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-  },
-  deptActions: { display: 'flex', gap: 4, marginLeft: 'auto' },
-  actionBtn: {
-    width: 26,
-    height: 26,
-    borderRadius: 4,
-    border: '1px solid var(--color-border)',
-    background: 'transparent',
-    cursor: 'pointer',
-    fontSize: 13,
-    color: 'var(--color-text-secondary)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 0,
-  },
-  form: { display: 'flex', flexDirection: 'column', gap: 14 },
-  label: { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13, fontWeight: 500, color: 'var(--color-text)' },
-  input: {
-    padding: '8px 12px',
-    border: '1px solid var(--color-border)',
-    borderRadius: 'var(--radius-sm)',
-    fontSize: 14,
-    outline: 'none',
-    background: 'var(--color-bg)',
-    color: 'var(--color-text)',
-  },
-  error: { color: 'var(--color-error)', fontSize: 13, margin: 0 },
-  modalActions: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 },
-  cancelBtn: {
-    padding: '8px 16px',
-    borderRadius: 'var(--radius-sm)',
-    border: '1px solid var(--color-border)',
-    background: 'transparent',
-    cursor: 'pointer',
-    fontSize: 13,
-  },
-  saveBtn: {
-    padding: '8px 16px',
-    borderRadius: 'var(--radius-sm)',
-    border: 'none',
-    background: 'var(--color-primary)',
-    color: '#fff',
-    cursor: 'pointer',
-    fontSize: 13,
-    fontWeight: 600,
-  },
-};

@@ -1,11 +1,11 @@
-import React, { useState, FormEvent } from 'react';
-import { useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { useAuthStore } from '@/stores/auth.store';
+import { FormEvent, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import * as authApi from '@/api/auth.api';
+import { AuthShell } from '@/components/layout/AuthShell';
+import { useAuthStore } from '@/stores/auth.store';
 
 function safeNext(next: string | null): string {
   if (!next) return '/chats';
-  // Only allow internal paths to prevent open-redirect.
   if (next.startsWith('/') && !next.startsWith('//')) return next;
   return '/chats';
 }
@@ -22,8 +22,8 @@ export function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
     setError('');
     setLoading(true);
 
@@ -41,186 +41,58 @@ export function LoginPage() {
         refreshToken: response.refreshToken,
       });
       navigate(next);
-    } catch (err: any) {
-      setError(err.response?.data?.error?.message || 'Login failed');
+    } catch (value: any) {
+      setError(value.response?.data?.error?.message || 'Не удалось войти');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
-        <div style={styles.logo}>
-          <div style={styles.logoIcon}>CM</div>
-          <h1 style={styles.title}>CorpMessenger</h1>
+    <AuthShell
+      eyebrow="Светлый премиум"
+      title="Коммуникации для команд, которым важны вкус, контроль и скорость."
+      description="StaffHub открывает приватное рабочее пространство с чатами, задачами, звонками и структурой компании в едином светлом премиум-интерфейсе."
+      formEyebrow="Безопасный вход"
+      formTitle="Войти в StaffHub"
+      formDescription="Авторизуйтесь и вернитесь в своё рабочее пространство."
+      quote="Когда продукт выглядит уверенно, работать в нём хочется дольше."
+      stats={[
+        { label: 'Скорость', value: '< 1 сек' },
+        { label: 'Пространства', value: 'Закрытые' },
+        { label: 'Защита', value: '2FA' },
+      ]}
+      footer={
+        <>
+          <Link to="/forgot-password">Забыли пароль?</Link> {' · '}
+          <Link to="/register">Создать аккаунт</Link>
+        </>
+      }
+    >
+      <form className="auth-shell__form" onSubmit={handleSubmit}>
+        {error && <div className="lux-alert">{error}</div>}
+
+        <div className="field-group">
+          <label className="field-group__label">Email</label>
+          <input className="lux-input" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@company.com" autoFocus required />
         </div>
-        <p style={styles.subtitle}>Sign in to your workspace</p>
 
-        {error && <div style={styles.error}>{error}</div>}
-
-        <form onSubmit={handleSubmit}>
-          <div style={styles.field}>
-            <label style={styles.label}>Email</label>
-            <input
-              style={styles.input}
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@company.com"
-              required
-              autoFocus
-            />
-          </div>
-
-          <div style={styles.field}>
-            <label style={styles.label}>Password</label>
-            <input
-              style={styles.input}
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter your password"
-              required
-            />
-          </div>
-
-          {requiresTwoFactor && (
-            <div style={styles.field}>
-              <label style={styles.label}>Two-Factor Code</label>
-              <input
-                style={styles.input}
-                type="text"
-                value={twoFactorCode}
-                onChange={(e) => setTwoFactorCode(e.target.value)}
-                placeholder="Enter 6-digit code"
-                maxLength={6}
-                autoFocus
-              />
-            </div>
-          )}
-
-          <button style={styles.button} type="submit" disabled={loading}>
-            {loading ? 'Signing in...' : 'Sign In'}
-          </button>
-        </form>
-
-        <div style={styles.links}>
-          <Link to="/forgot-password" style={styles.link}>Forgot password?</Link>
-          <span style={styles.separator}>|</span>
-          <Link
-            to={next === '/chats' ? '/register' : `/register?next=${encodeURIComponent(next)}`}
-            style={styles.link}
-          >
-            Create account
-          </Link>
+        <div className="field-group">
+          <label className="field-group__label">Пароль</label>
+          <input className="lux-input" type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Введите пароль" required />
         </div>
-      </div>
-    </div>
+
+        {requiresTwoFactor && (
+          <div className="field-group">
+            <label className="field-group__label">Код двухфакторной защиты</label>
+            <input className="lux-input" type="text" value={twoFactorCode} onChange={(event) => setTwoFactorCode(event.target.value)} placeholder="6-значный код" maxLength={6} autoFocus />
+          </div>
+        )}
+
+        <button className="lux-button" type="submit" disabled={loading}>
+          {loading ? 'Проверяем доступ...' : 'Войти'}
+        </button>
+      </form>
+    </AuthShell>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    minHeight: '100vh',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    background: 'var(--color-bg-secondary)',
-    padding: 16,
-  },
-  card: {
-    background: 'var(--color-surface)',
-    borderRadius: 'var(--radius-lg)',
-    padding: 'clamp(20px, 5vw, 40px)',
-    width: '100%',
-    maxWidth: 420,
-    boxShadow: 'var(--shadow-lg)',
-  },
-  logo: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  logoIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    background: 'var(--color-primary)',
-    color: '#fff',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontWeight: 700,
-    fontSize: 18,
-    marginBottom: 12,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 700,
-    color: 'var(--color-text)',
-    margin: 0,
-  },
-  subtitle: {
-    textAlign: 'center',
-    color: 'var(--color-text-secondary)',
-    marginBottom: 24,
-    fontSize: 14,
-  },
-  error: {
-    background: '#FEE2E2',
-    color: '#DC2626',
-    padding: '10px 14px',
-    borderRadius: 'var(--radius-sm)',
-    fontSize: 14,
-    marginBottom: 16,
-  },
-  field: {
-    marginBottom: 16,
-  },
-  label: {
-    display: 'block',
-    fontSize: 14,
-    fontWeight: 500,
-    color: 'var(--color-text)',
-    marginBottom: 6,
-  },
-  input: {
-    width: '100%',
-    padding: '10px 14px',
-    borderRadius: 'var(--radius-sm)',
-    border: '1px solid var(--color-border)',
-    fontSize: 15,
-    color: 'var(--color-text)',
-    background: 'var(--color-bg-secondary)',
-    outline: 'none',
-    boxSizing: 'border-box',
-  },
-  button: {
-    width: '100%',
-    padding: '12px',
-    borderRadius: 'var(--radius-md)',
-    border: 'none',
-    background: 'var(--color-primary)',
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: 600,
-    cursor: 'pointer',
-    marginTop: 8,
-  },
-  links: {
-    textAlign: 'center',
-    marginTop: 20,
-    fontSize: 14,
-  },
-  link: {
-    color: 'var(--color-primary)',
-    textDecoration: 'none',
-    fontWeight: 500,
-  },
-  separator: {
-    margin: '0 8px',
-    color: 'var(--color-text-tertiary)',
-  },
-};

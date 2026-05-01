@@ -8,14 +8,19 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallStore } from '../../stores/call.store';
 import { useWebRTC } from '../../hooks/useWebRTC';
 import { setWebRTCHandlers } from '../../socket/events';
 import * as callsApi from '../../api/calls.api';
 import { getExistingSocket } from '../../socket/socket';
+import { useTheme } from '../../theme';
+import type { ComponentProps } from 'react';
 import type { RootStackParamList } from '../../navigation/types';
 import { QualityIndicator } from '../../components/calls/QualityIndicator';
+
+type IonName = ComponentProps<typeof Ionicons>['name'];
 
 // RTCView is from react-native-webrtc — imported lazily to avoid crash if not installed
 let RTCView: React.ComponentType<{
@@ -39,6 +44,7 @@ function formatDuration(seconds: number): string {
 }
 
 export function ActiveCallScreen({ navigation }: Props) {
+  const theme = useTheme();
   const { activeCall, localStream, remoteStream, isMuted, isVideoOff, connectionQuality, audioOutput } = useCallStore();
   const { startCall, handleOffer, handleAnswer, handleIceCandidate, toggleMute, toggleVideo, toggleAudioOutput, upgradeToVideo, downgradeToAudio, cleanup } = useWebRTC();
   const durationRef = useRef(0);
@@ -182,13 +188,13 @@ export function ActiveCallScreen({ navigation }: Props) {
         <View style={styles.header}>
           <Text style={styles.participantName}>{activeCall.participantName}</Text>
           <Text style={styles.callStatus}>
-            {isRinging && isIncoming && 'Incoming call…'}
-            {isRinging && !isIncoming && 'Calling…'}
+            {isRinging && isIncoming && 'Входящий звонок…'}
+            {isRinging && !isIncoming && 'Соединение…'}
             {isActive && formatDuration(duration)}
           </Text>
           {!isVideo && isActive && (
             <View style={styles.qualityRow}>
-              <Text style={styles.qualityLabel}>Connection</Text>
+              <Text style={styles.qualityLabel}>Качество связи</Text>
               <QualityIndicator quality={connectionQuality} size="md" />
             </View>
           )}
@@ -209,54 +215,37 @@ export function ActiveCallScreen({ navigation }: Props) {
           {isActive && (
             <>
               <ControlButton
-                label={isMuted ? 'Unmute' : 'Mute'}
-                icon={isMuted ? '🔇' : '🎤'}
+                label={isMuted ? 'Включить' : 'Микрофон'}
+                icon={isMuted ? 'mic-off' : 'mic'}
                 onPress={toggleMute}
               />
               <ControlButton
-                label={audioOutput === 'speaker' ? 'Speaker' : 'Earpiece'}
-                icon={audioOutput === 'speaker' ? '🔊' : '📞'}
+                label={audioOutput === 'speaker' ? 'Динамик' : 'Разговор'}
+                icon={audioOutput === 'speaker' ? 'volume-high' : 'call'}
                 onPress={toggleAudioOutput}
               />
-              {!isVideo && (
-                <ControlButton
-                  label="Video"
-                  icon="📹"
-                  onPress={upgradeToVideo}
-                />
-              )}
+              {!isVideo && <ControlButton label="Видео" icon="videocam-outline" onPress={upgradeToVideo} />}
               {isVideo && (
                 <ControlButton
-                  label={isVideoOff ? 'Start Video' : 'Stop Video'}
-                  icon={isVideoOff ? '📷' : '🎥'}
+                  label={isVideoOff ? 'Включить' : 'Камера'}
+                  icon={isVideoOff ? 'videocam-off' : 'videocam'}
                   onPress={toggleVideo}
                 />
               )}
-              {isVideo && (
-                <ControlButton
-                  label="Audio"
-                  icon="🔊"
-                  onPress={downgradeToAudio}
-                />
-              )}
-              <ControlButton
-                label="End"
-                icon="📵"
-                onPress={handleHangup}
-                danger
-              />
+              {isVideo && <ControlButton label="Аудио" icon="volume-high" onPress={downgradeToAudio} />}
+              <ControlButton label="Завершить" icon="close" onPress={handleHangup} variant="danger" theme={theme} />
             </>
           )}
 
           {isRinging && isIncoming && (
             <>
-              <ControlButton label="Decline" icon="📵" onPress={handleReject} danger />
-              <ControlButton label="Accept" icon="📞" onPress={handleAccept} success />
+              <ControlButton label="Отклонить" icon="close" onPress={handleReject} variant="danger" theme={theme} />
+              <ControlButton label="Принять" icon="call" onPress={handleAccept} variant="success" theme={theme} />
             </>
           )}
 
           {isRinging && !isIncoming && (
-            <ControlButton label="Cancel" icon="📵" onPress={handleHangup} danger />
+            <ControlButton label="Отмена" icon="close" onPress={handleHangup} variant="danger" theme={theme} />
           )}
         </View>
       </SafeAreaView>
@@ -268,19 +257,24 @@ function ControlButton({
   label,
   icon,
   onPress,
-  danger,
-  success,
+  variant,
+  theme,
 }: {
   label: string;
-  icon: string;
+  icon: IonName;
   onPress: () => void;
-  danger?: boolean;
-  success?: boolean;
+  variant?: 'danger' | 'success';
+  theme?: ReturnType<typeof useTheme>;
 }) {
-  const bg = danger ? '#EF4444' : success ? '#10B981' : 'rgba(255,255,255,0.15)';
+  const bg =
+    variant === 'danger'
+      ? theme?.colors.error ?? '#d46262'
+      : variant === 'success'
+      ? theme?.colors.success ?? '#1e9d68'
+      : 'rgba(255,255,255,0.18)';
   return (
-    <TouchableOpacity style={[styles.controlBtn, { backgroundColor: bg }]} onPress={onPress}>
-      <Text style={styles.controlIcon}>{icon}</Text>
+    <TouchableOpacity style={[styles.controlBtn, { backgroundColor: bg }]} onPress={onPress} activeOpacity={0.85}>
+      <Ionicons name={icon} size={26} color="#FFFFFF" />
       <Text style={styles.controlLabel}>{label}</Text>
     </TouchableOpacity>
   );
@@ -340,13 +334,11 @@ const styles = StyleSheet.create({
     height: 72,
     borderRadius: 36,
   },
-  controlIcon: {
-    fontSize: 24,
-  },
   controlLabel: {
     fontSize: 11,
     color: '#FFFFFF',
-    marginTop: 4,
+    marginTop: 6,
+    fontWeight: '600',
   },
   qualityOverlay: {
     position: 'absolute',

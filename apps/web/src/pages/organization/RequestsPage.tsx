@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Avatar } from '@/components/common/Avatar';
+import { EmptyState } from '@/components/common/EmptyState';
+import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { useOrganizationStore } from '@/stores/organization.store';
 import * as orgsApi from '@/api/organizations.api';
 
@@ -12,13 +14,12 @@ export function RequestsPage() {
 
   useEffect(() => {
     if (!currentOrg) return;
+
     setLoading(true);
+    setError('');
     orgsApi
       .listJoinRequests(currentOrg.id)
-      .then((reqs) => {
-        setRequests(reqs);
-        setError('');
-      })
+      .then((reqs) => setRequests(reqs))
       .catch((err) => {
         setError(err.response?.data?.error?.message || 'Не удалось загрузить заявки');
       })
@@ -28,9 +29,10 @@ export function RequestsPage() {
   const handleApprove = async (requestId: string) => {
     if (!currentOrg) return;
     setBusyId(requestId);
+    setError('');
     try {
       await orgsApi.approveJoinRequest(currentOrg.id, requestId);
-      setRequests((prev) => prev.filter((r) => r.id !== requestId));
+      setRequests((prev) => prev.filter((request) => request.id !== requestId));
     } catch (err: any) {
       setError(err.response?.data?.error?.message || 'Не удалось одобрить заявку');
     } finally {
@@ -41,9 +43,10 @@ export function RequestsPage() {
   const handleReject = async (requestId: string) => {
     if (!currentOrg) return;
     setBusyId(requestId);
+    setError('');
     try {
       await orgsApi.rejectJoinRequest(currentOrg.id, requestId);
-      setRequests((prev) => prev.filter((r) => r.id !== requestId));
+      setRequests((prev) => prev.filter((request) => request.id !== requestId));
     } catch (err: any) {
       setError(err.response?.data?.error?.message || 'Не удалось отклонить заявку');
     } finally {
@@ -53,82 +56,95 @@ export function RequestsPage() {
 
   if (!currentOrg) {
     return (
-      <div style={{ padding: 24, color: 'var(--color-text-secondary)' }}>
-        Выберите организацию
+      <div className="page-shell">
+        <div className="page-shell__inner">
+          <section className="lux-panel page-hero">
+            <div className="page-hero__copy">
+              <div className="page-hero__kicker">Заявки</div>
+              <h1 className="page-hero__title">Выберите организацию.</h1>
+              <p className="page-hero__description">
+                Чтобы просматривать запросы на вступление, переключитесь на нужное рабочее пространство.
+              </p>
+            </div>
+          </section>
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={styles.container}>
-      <h1 style={styles.title}>Заявки на вступление</h1>
-      <p style={styles.subtitle}>
-        Здесь видны запросы пользователей, которые хотят вступить в «{currentOrg.name}».
-      </p>
-
-      {error && <div style={styles.error}>{error}</div>}
-
-      {loading ? (
-        <div style={styles.empty}>Загрузка...</div>
-      ) : requests.length === 0 ? (
-        <div style={styles.empty}>Нет ожидающих заявок</div>
-      ) : (
-        <div style={styles.list}>
-          {requests.map((r) => (
-            <div key={r.id} style={styles.row}>
-              <Avatar
-                name={`${r.user?.firstName ?? ''} ${r.user?.lastName ?? ''}`}
-                src={r.user?.avatarUrl}
-                size="md"
-              />
-              <div style={styles.info}>
-                <div style={styles.name}>
-                  {r.user?.firstName} {r.user?.lastName}
-                </div>
-                <div style={styles.email}>{r.user?.email}</div>
-                {r.message && <div style={styles.message}>«{r.message}»</div>}
-                <div style={styles.date}>
-                  {new Date(r.createdAt).toLocaleString()}
-                </div>
-              </div>
-              <div style={styles.actions}>
-                <button
-                  style={styles.approveBtn}
-                  onClick={() => handleApprove(r.id)}
-                  disabled={busyId === r.id}
-                >
-                  Одобрить
-                </button>
-                <button
-                  style={styles.rejectBtn}
-                  onClick={() => handleReject(r.id)}
-                  disabled={busyId === r.id}
-                >
-                  Отклонить
-                </button>
-              </div>
+    <div className="page-shell">
+      <div className="page-shell__inner">
+        <section className="lux-panel page-hero">
+          <div className="page-hero__copy">
+            <div className="page-hero__kicker">Доступ</div>
+            <h1 className="page-hero__title">Заявки на вступление.</h1>
+            <p className="page-hero__description">
+              Здесь собраны пользователи, которые хотят попасть в «{currentOrg.name}». Одобрение сразу добавит человека в пространство.
+            </p>
+            <div className="page-hero__meta">
+              <span className="lux-pill">Ожидают: {requests.length}</span>
             </div>
-          ))}
-        </div>
-      )}
+          </div>
+        </section>
+
+        {error && <div className="lux-alert">{error}</div>}
+
+        <section className="lux-panel" style={{ padding: 16 }}>
+          {loading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: 32 }}>
+              <LoadingSpinner />
+            </div>
+          ) : requests.length === 0 ? (
+            <EmptyState
+              title="Нет ожидающих заявок"
+              description="Когда кто-то попросит доступ, заявка появится здесь."
+            />
+          ) : (
+            <div className="collection-list">
+              {requests.map((request) => {
+                const name = [request.user?.firstName, request.user?.lastName].filter(Boolean).join(' ');
+
+                return (
+                  <article key={request.id} className="list-card">
+                    <Avatar name={name || request.user?.email || 'Пользователь'} src={request.user?.avatarUrl} size="md" />
+                    <div className="list-card__body">
+                      <div className="list-card__title">{name || 'Пользователь'}</div>
+                      <div className="list-card__subtitle">{request.user?.email}</div>
+                      {request.message && (
+                        <div className="list-card__subtitle" style={{ marginTop: 6, fontStyle: 'italic' }}>
+                          «{request.message}»
+                        </div>
+                      )}
+                      <div className="list-card__meta">
+                        <span>{new Date(request.createdAt).toLocaleString('ru-RU')}</span>
+                      </div>
+                    </div>
+                    <div className="list-card__actions">
+                      <button
+                        className="lux-button"
+                        onClick={() => handleApprove(request.id)}
+                        disabled={busyId === request.id}
+                        type="button"
+                      >
+                        Одобрить
+                      </button>
+                      <button
+                        className="lux-button-danger"
+                        onClick={() => handleReject(request.id)}
+                        disabled={busyId === request.id}
+                        type="button"
+                      >
+                        Отклонить
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      </div>
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  container: { padding: 'clamp(12px, 4vw, 24px)', maxWidth: 800, margin: '0 auto' },
-  title: { fontSize: 24, fontWeight: 700, margin: '0 0 4px' },
-  subtitle: { fontSize: 14, color: 'var(--color-text-secondary)', marginBottom: 20 },
-  error: { background: '#FEE2E2', color: '#DC2626', padding: '8px 12px', borderRadius: 'var(--radius-sm)', fontSize: 13, marginBottom: 12 },
-  empty: { textAlign: 'center', padding: 40, color: 'var(--color-text-tertiary)', fontSize: 14, border: '1px dashed var(--color-border)', borderRadius: 'var(--radius-md)' },
-  list: { display: 'flex', flexDirection: 'column', gap: 12 },
-  row: { display: 'flex', alignItems: 'center', gap: 16, padding: 16, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', background: 'var(--color-surface)' },
-  info: { flex: 1, minWidth: 0 },
-  name: { fontSize: 15, fontWeight: 600, color: 'var(--color-text)' },
-  email: { fontSize: 13, color: 'var(--color-text-secondary)' },
-  message: { fontSize: 13, color: 'var(--color-text)', marginTop: 6, fontStyle: 'italic' },
-  date: { fontSize: 12, color: 'var(--color-text-tertiary)', marginTop: 4 },
-  actions: { display: 'flex', gap: 8, flexShrink: 0 },
-  approveBtn: { padding: '8px 14px', borderRadius: 'var(--radius-sm)', border: 'none', background: 'var(--color-primary)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
-  rejectBtn: { padding: '8px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid #EF4444', background: 'transparent', color: '#EF4444', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
-};

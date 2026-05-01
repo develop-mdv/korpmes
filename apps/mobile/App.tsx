@@ -4,6 +4,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { useSettingsStore } from './src/stores/settings.store';
+import { ThemeProvider } from './src/theme';
 
 const linking = {
   prefixes: ['corpmessenger://', 'https://korpmes.ru', 'https://corpmessenger.com'],
@@ -50,10 +51,12 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <NavigationContainer linking={linking as any}>
-        <RootNavigator />
-      </NavigationContainer>
-      <StatusBar style="auto" />
+      <ThemeProvider>
+        <NavigationContainer linking={linking as any}>
+          <RootNavigator />
+        </NavigationContainer>
+        <StatusBar style="auto" />
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }

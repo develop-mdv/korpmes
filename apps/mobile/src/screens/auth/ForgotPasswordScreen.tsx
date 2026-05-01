@@ -1,19 +1,16 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-} from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { AuthLayout } from '../../components/auth/AuthLayout';
+import { FormField } from '../../components/auth/FormField';
+import { PrimaryButton } from '../../components/auth/PrimaryButton';
+import { useTheme } from '../../theme';
 import type { AuthStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'ForgotPassword'>;
 
 export function ForgotPasswordScreen({ navigation }: Props) {
+  const theme = useTheme();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
@@ -21,16 +18,16 @@ export function ForgotPasswordScreen({ navigation }: Props) {
 
   const handleSubmit = async () => {
     if (!email.trim()) {
-      setError('Please enter your email');
+      setError('Введите email');
       return;
     }
     setLoading(true);
     setError('');
     try {
-      // TODO: call forgotPassword API
+      // TODO: вызвать forgotPassword API
       setSent(true);
     } catch {
-      setError('Failed to send reset link');
+      setError('Не удалось отправить ссылку');
     } finally {
       setLoading(false);
     }
@@ -38,130 +35,47 @@ export function ForgotPasswordScreen({ navigation }: Props) {
 
   if (sent) {
     return (
-      <View style={styles.container}>
-        <View style={styles.card}>
-          <Text style={styles.title}>Check Your Email</Text>
-          <Text style={styles.subtitle}>
-            We've sent a password reset link to {email}
-          </Text>
-          <TouchableOpacity
-            style={styles.button}
-            onPress={() => navigation.navigate('Login')}
-          >
-            <Text style={styles.buttonText}>Back to Login</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+      <AuthLayout
+        kicker="Письмо отправлено"
+        title="Проверьте почту"
+        description={`Мы отправили ссылку для сброса пароля на ${email}.`}
+      >
+        <PrimaryButton label="Вернуться ко входу" onPress={() => navigation.navigate('Login')} />
+      </AuthLayout>
     );
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    <AuthLayout
+      kicker="Восстановление"
+      title="Сбросить пароль"
+      description="Укажите email, и мы вышлем ссылку для восстановления доступа."
+      footer={
+        <Pressable onPress={() => navigation.navigate('Login')} style={styles.linkRow}>
+          <Text style={[styles.link, { color: theme.colors.primary }]}>Вернуться ко входу</Text>
+        </Pressable>
+      }
     >
-      <View style={styles.card}>
-        <Text style={styles.title}>Reset Password</Text>
-        <Text style={styles.subtitle}>
-          Enter your email and we'll send you a reset link
-        </Text>
-
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          autoComplete="email"
-        />
-
-        <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
-          onPress={handleSubmit}
-          disabled={loading}
-        >
-          <Text style={styles.buttonText}>
-            {loading ? 'Sending...' : 'Send Reset Link'}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-          <Text style={styles.link}>Back to Login</Text>
-        </TouchableOpacity>
-      </View>
-    </KeyboardAvoidingView>
+      <FormField
+        label="Email"
+        value={email}
+        onChangeText={setEmail}
+        placeholder="you@company.com"
+        keyboardType="email-address"
+        autoCapitalize="none"
+        autoComplete="email"
+        error={error}
+      />
+      <PrimaryButton
+        label={loading ? 'Отправка…' : 'Отправить ссылку'}
+        onPress={handleSubmit}
+        loading={loading}
+      />
+    </AuthLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#111827',
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
-    marginTop: 8,
-    marginBottom: 24,
-  },
-  error: {
-    fontSize: 14,
-    color: '#EF4444',
-    textAlign: 'center',
-    marginBottom: 12,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: '#111827',
-    backgroundColor: '#F9FAFB',
-    marginBottom: 16,
-  },
-  button: {
-    backgroundColor: '#4F46E5',
-    borderRadius: 8,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  link: {
-    color: '#4F46E5',
-    fontSize: 14,
-    fontWeight: '500',
-    textAlign: 'center',
-  },
+  linkRow: { alignItems: 'center', paddingVertical: 8 },
+  link: { fontSize: 14, fontWeight: '600' },
 });

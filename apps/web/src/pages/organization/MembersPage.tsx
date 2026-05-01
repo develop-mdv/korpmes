@@ -1,278 +1,295 @@
-import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
 import { Avatar } from '@/components/common/Avatar';
-import { Modal } from '@/components/common/Modal';
-import { useOrganizationStore } from '@/stores/organization.store';
-import { useAuthStore } from '@/stores/auth.store';
+import { EmptyState } from '@/components/common/EmptyState';
+import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import * as orgsApi from '@/api/organizations.api';
+import { useOrganizationStore } from '@/stores/organization.store';
+import type { OrganizationMember } from '@/stores/organization.store';
 
-interface Member {
-  id: string;
-  userId: string;
-  user: { firstName: string; lastName: string; email: string; avatarUrl?: string };
-  role: string;
-  joinedAt: string;
+function roleLabel(role: OrganizationMember['role']) {
+  if (role === 'owner') return 'Владелец';
+  if (role === 'admin') return 'Администратор';
+  return 'Участник';
 }
 
-const ROLES = ['OWNER', 'ADMIN', 'MANAGER', 'EMPLOYEE', 'GUEST'];
+function normalizeMembersResponse(response: unknown): OrganizationMember[] {
+  if (Array.isArray(response)) return response as OrganizationMember[];
+
+  const maybeResponse = response as { members?: unknown };
+  if (Array.isArray(maybeResponse?.members)) {
+    return maybeResponse.members as OrganizationMember[];
+  }
+
+  return [];
+}
 
 export function MembersPage() {
-  const { currentOrg } = useOrganizationStore();
-  const currentUser = useAuthStore((s) => s.user);
-  const [members, setMembers] = useState<Member[]>([]);
-  const [search, setSearch] = useState('');
-  const [showInvite, setShowInvite] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState('EMPLOYEE');
-  const [inviteLoading, setInviteLoading] = useState(false);
-  const [inviteMsg, setInviteMsg] = useState('');
-  const [inviteLink, setInviteLink] = useState<orgsApi.InviteLinkInfo | null>(null);
-  const [linkBusy, setLinkBusy] = useState(false);
-  const [linkCopied, setLinkCopied] = useState(false);
-  const [pendingCount, setPendingCount] = useState(0);
+  const currentOrg = useOrganizationStore((state) => state.currentOrg);
+  const organizations = useOrganizationStore((state) => state.organizations);
+  const rawMembers = useOrganizationStore((state) => state.members);
+  const setMembers = useOrganizationStore((state) => state.setMembers);
+  const setCurrentOrg = useOrganizationStore((state) => state.setCurrentOrg);
+  const setOrganizations = useOrganizationStore((state) => state.setOrganizations);
+  const removeMemberFromStore = useOrganizationStore((state) => state.removeMember);
+  const updateMemberRole = useOrganizationStore((state) => state.updateMemberRole);
 
-  const myMembership = currentUser
-    ? members.find((m) => m.userId === currentUser.id)
-    : undefined;
-  const canManageInvites = !!myMembership && ['OWNER', 'ADMIN'].includes(myMembership.role);
+  const members = Array.isArray(rawMembers) ? rawMembers : [];
+  const [loading, setLoading] = useState(true);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<'admin' | 'member'>('member');
+  const [inviting, setInviting] = useState(false);
+  const [busyUserId, setBusyUserId] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!currentOrg) return;
-    orgsApi.getMembers(currentOrg.id).then((res) => {
-      const list = (res as any).data || (res as any).members || [];
-      setMembers(list as Member[]);
-    });
-    orgsApi.getInviteLink(currentOrg.id).then(setInviteLink).catch(() => setInviteLink(null));
+    if (!currentOrg) {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
     orgsApi
-      .listJoinRequests(currentOrg.id)
-      .then((reqs) => setPendingCount(reqs.length))
-      .catch(() => setPendingCount(0));
-  }, [currentOrg]);
+      .getMembers(currentOrg.id)
+      .then((response) => setMembers(normalizeMembersResponse(response)))
+      .catch(() => {
+        setMembers([]);
+        setError('Не удалось загрузить список участников.');
+      })
+      .finally(() => setLoading(false));
+  }, [currentOrg, setMembers]);
 
-  const filtered = members.filter((m) => {
-    if (!m.user) return false;
-    const name = `${m.user.firstName} ${m.user.lastName} ${m.user.email}`.toLowerCase();
-    return name.includes(search.toLowerCase());
-  });
+  const stats = useMemo(() => {
+    const admins = members.filter((member) => member.role === 'admin' || member.role === 'owner').length;
+    return {
+      admins,
+      regular: Math.max(0, members.length - admins),
+    };
+  }, [members]);
 
-  const handleRoleChange = async (memberId: string, userId: string, role: string) => {
+  const syncMemberCount = (delta: number) => {
     if (!currentOrg) return;
-    try {
-      await orgsApi.changeRole(currentOrg.id, userId, role);
-      setMembers((prev) => prev.map((m) => (m.id === memberId ? { ...m, role } : m)));
-    } catch {
-      // ignore
-    }
-  };
 
-  const handleCreateLink = async () => {
-    if (!currentOrg) return;
-    setLinkBusy(true);
-    try {
-      const info = await orgsApi.createInviteLink(currentOrg.id);
-      setInviteLink(info);
-    } finally {
-      setLinkBusy(false);
-    }
-  };
+    const nextOrganization = {
+      ...currentOrg,
+      memberCount: Math.max(0, currentOrg.memberCount + delta),
+    };
 
-  const handleRevokeLink = async () => {
-    if (!currentOrg) return;
-    setLinkBusy(true);
-    try {
-      await orgsApi.revokeInviteLink(currentOrg.id);
-      setInviteLink(null);
-    } finally {
-      setLinkBusy(false);
-    }
-  };
-
-  const handleRotateLink = async () => {
-    if (!currentOrg) return;
-    setLinkBusy(true);
-    try {
-      await orgsApi.revokeInviteLink(currentOrg.id);
-      const info = await orgsApi.createInviteLink(currentOrg.id);
-      setInviteLink(info);
-    } finally {
-      setLinkBusy(false);
-    }
-  };
-
-  const handleCopyLink = async () => {
-    if (!inviteLink) return;
-    try {
-      await navigator.clipboard.writeText(inviteLink.url);
-      setLinkCopied(true);
-      setTimeout(() => setLinkCopied(false), 1500);
-    } catch {
-      // ignore
-    }
+    setCurrentOrg(nextOrganization);
+    setOrganizations(organizations.map((item) => (item.id === currentOrg.id ? nextOrganization : item)));
   };
 
   const handleInvite = async () => {
     if (!currentOrg || !inviteEmail.trim()) return;
-    setInviteLoading(true);
-    setInviteMsg('');
+
+    setInviting(true);
+    setMessage(null);
+    setError(null);
+
     try {
-      await orgsApi.inviteMember(currentOrg.id, { email: inviteEmail, role: inviteRole as any });
-      setInviteMsg('Invitation sent!');
+      await orgsApi.inviteMember(currentOrg.id, {
+        email: inviteEmail.trim(),
+        role: inviteRole,
+      });
       setInviteEmail('');
-    } catch (err: any) {
-      setInviteMsg(err.response?.data?.error?.message || 'Failed to send invitation');
+      setInviteRole('member');
+      setMessage('Приглашение отправлено. Новый участник появится в списке после принятия.');
+    } catch {
+      setError('Не удалось отправить приглашение.');
     } finally {
-      setInviteLoading(false);
+      setInviting(false);
+    }
+  };
+
+  const handleRoleChange = async (userId: string, role: 'admin' | 'member') => {
+    if (!currentOrg) return;
+
+    setBusyUserId(userId);
+    setMessage(null);
+    setError(null);
+
+    try {
+      await orgsApi.changeRole(currentOrg.id, userId, role);
+      updateMemberRole(userId, role);
+      setMessage('Роль участника обновлена.');
+    } catch {
+      setError('Не удалось изменить роль.');
+    } finally {
+      setBusyUserId(null);
+    }
+  };
+
+  const handleRemove = async (userId: string) => {
+    if (!currentOrg || !window.confirm('Удалить участника из организации?')) return;
+
+    setBusyUserId(userId);
+    setMessage(null);
+    setError(null);
+
+    try {
+      await orgsApi.removeMember(currentOrg.id, userId);
+      removeMemberFromStore(userId);
+      syncMemberCount(-1);
+      setMessage('Участник удалён из пространства.');
+    } catch {
+      setError('Не удалось удалить участника.');
+    } finally {
+      setBusyUserId(null);
     }
   };
 
   if (!currentOrg) {
-    return <div style={{ padding: 24, color: 'var(--color-text-secondary)' }}>Select an organization first</div>;
+    return (
+      <div className="page-shell">
+        <div className="page-shell__inner">
+          <section className="lux-panel" style={{ minHeight: 340 }}>
+            <EmptyState
+              title="Нет активной организации"
+              description="Сначала выберите рабочее пространство, чтобы управлять участниками."
+            />
+          </section>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div style={styles.container}>
-      <div style={styles.header}>
-        <h1 style={styles.title}>Участники ({members.length})</h1>
-        <div style={{ display: 'flex', gap: 8 }}>
-          {canManageInvites && (
-            <Link to="/organization/requests" style={styles.requestsLink}>
-              Заявки{pendingCount > 0 ? ` (${pendingCount})` : ''}
-            </Link>
-          )}
-          <button style={styles.inviteBtn} onClick={() => setShowInvite(true)}>
-            Пригласить
-          </button>
-        </div>
-      </div>
-
-      {canManageInvites && (
-        <div style={styles.linkBlock}>
-          <div style={styles.linkLabel}>Ссылка-приглашение</div>
-          {inviteLink ? (
-            <div style={styles.linkRow}>
-              <input style={styles.linkInput} value={inviteLink.url} readOnly />
-              <button style={styles.linkBtn} onClick={handleCopyLink} disabled={linkBusy}>
-                {linkCopied ? 'Скопировано!' : 'Копировать'}
-              </button>
-              <button style={styles.linkBtn} onClick={handleRotateLink} disabled={linkBusy}>
-                Перевыпустить
-              </button>
-              <button style={{ ...styles.linkBtn, ...styles.linkBtnDanger }} onClick={handleRevokeLink} disabled={linkBusy}>
-                Отозвать
-              </button>
+    <div className="page-shell">
+      <div className="page-shell__inner">
+        <section className="lux-panel page-hero">
+          <div className="page-hero__copy">
+            <div className="page-hero__kicker">Участники</div>
+            <h1 className="page-hero__title">Команда {currentOrg.name}</h1>
+            <p className="page-hero__description">
+              Управляйте доступом, ролями и составом пространства из одной спокойной панели.
+            </p>
+            <div className="page-hero__meta">
+              <span className="lux-pill">{members.length} в списке</span>
+              <span className="lux-pill">{currentOrg.memberCount} всего</span>
+              <span className="lux-pill">{stats.admins} администраторов</span>
             </div>
-          ) : (
-            <div style={styles.linkRow}>
-              <span style={styles.linkHint}>Ссылка не создана. Поделитесь ей, чтобы коллеги могли вступить без подтверждения.</span>
-              <button style={styles.inviteBtn} onClick={handleCreateLink} disabled={linkBusy}>
-                Создать ссылку
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      <input style={styles.search} placeholder="Поиск участников..." value={search} onChange={(e) => setSearch(e.target.value)} />
-
-      <div style={styles.table}>
-        <div style={{ ...styles.tableRow, ...styles.tableHeader }}>
-          <span style={styles.colName}>Member</span>
-          <span style={styles.colRole}>Role</span>
-          <span style={styles.colDate}>Joined</span>
-          <span style={styles.colActions}>Actions</span>
-        </div>
-        {filtered.length === 0 && (
-          <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-tertiary)' }}>
-            {search ? 'No members found' : 'No members yet'}
           </div>
-        )}
-        {filtered.map((m) => (
-          <div key={m.id} style={styles.tableRow}>
-            <div style={{ ...styles.colName, display: 'flex', alignItems: 'center', gap: 12 }}>
-              <Avatar name={`${m.user.firstName} ${m.user.lastName}`} src={m.user.avatarUrl} size="sm" />
-              <div>
-                <div style={styles.memberName}>{m.user.firstName} {m.user.lastName}</div>
-                <div style={styles.memberEmail}>{m.user.email}</div>
+        </section>
+
+        <div className="page-grid page-grid--two">
+          <section className="lux-panel stat-card">
+            <div className="auth-shell__form-copy" style={{ marginBottom: 20 }}>
+              <div className="auth-shell__form-title">Приглашение</div>
+              <div className="auth-shell__form-subtitle">Добавьте нового участника в пространство</div>
+            </div>
+
+            <div className="inline-form">
+              <div className="field-group">
+                <label className="field-group__label" htmlFor="invite-email">
+                  Email
+                </label>
+                <input
+                  id="invite-email"
+                  className="lux-input"
+                  type="email"
+                  value={inviteEmail}
+                  onChange={(event) => setInviteEmail(event.target.value)}
+                  placeholder="teammate@company.com"
+                />
+              </div>
+
+              <div className="field-group">
+                <label className="field-group__label" htmlFor="invite-role">
+                  Роль
+                </label>
+                <select
+                  id="invite-role"
+                  className="lux-select"
+                  value={inviteRole}
+                  onChange={(event) => setInviteRole(event.target.value as 'admin' | 'member')}
+                >
+                  <option value="member">Участник</option>
+                  <option value="admin">Администратор</option>
+                </select>
+              </div>
+
+              {message && <div className="lux-alert lux-alert--success">{message}</div>}
+              {error && <div className="lux-alert">{error}</div>}
+
+              <div className="form-actions">
+                <button className="lux-button" type="button" onClick={handleInvite} disabled={inviting || !inviteEmail.trim()}>
+                  {inviting ? 'Отправляем...' : 'Пригласить'}
+                </button>
               </div>
             </div>
-            <div style={styles.colRole}>
-              <select
-                style={styles.roleSelect}
-                value={m.role}
-                onChange={(e) => handleRoleChange(m.id, m.userId, e.target.value)}
-              >
-                {ROLES.map((r) => (
-                  <option key={r} value={r}>{r}</option>
-                ))}
-              </select>
-            </div>
-            <div style={styles.colDate}>{new Date(m.joinedAt).toLocaleDateString()}</div>
-            <div style={styles.colActions}>
-              <button style={styles.removeBtn} onClick={async () => {
-                if (!currentOrg) return;
-                await orgsApi.removeMember(currentOrg.id, m.userId);
-                setMembers((prev) => prev.filter((x) => x.id !== m.id));
-              }}>Remove</button>
-            </div>
-          </div>
-        ))}
-      </div>
+          </section>
 
-      {showInvite && (
-        <Modal open={true} title="Invite Member" onClose={() => { setShowInvite(false); setInviteMsg(''); }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <label style={{ fontSize: 14, fontWeight: 500 }}>Email</label>
-            <input
-              style={styles.search}
-              placeholder="user@company.com"
-              value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
-              autoFocus
-            />
-            <label style={{ fontSize: 14, fontWeight: 500 }}>Role</label>
-            <select style={styles.roleSelect} value={inviteRole} onChange={(e) => setInviteRole(e.target.value)}>
-              {ROLES.filter((r) => r !== 'OWNER').map((r) => (
-                <option key={r} value={r}>{r}</option>
-              ))}
-            </select>
-            {inviteMsg && (
-              <div style={{ padding: '8px 12px', borderRadius: 6, background: inviteMsg.includes('sent') ? '#D1FAE5' : '#FEE2E2', color: inviteMsg.includes('sent') ? '#065F46' : '#DC2626', fontSize: 13 }}>
-                {inviteMsg}
+          <section className="lux-panel stat-card">
+            <div className="auth-shell__form-copy" style={{ marginBottom: 20 }}>
+              <div className="auth-shell__form-title">Состав команды</div>
+              <div className="auth-shell__form-subtitle">
+                {stats.regular} участников и {stats.admins} с расширенными правами
+              </div>
+            </div>
+
+            {loading ? (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}>
+                <LoadingSpinner />
+              </div>
+            ) : members.length === 0 ? (
+              <EmptyState
+                title="Пока никого нет"
+                description="Пригласите первого участника, чтобы открыть совместную работу."
+              />
+            ) : (
+              <div className="collection-list">
+                {members.map((member) => {
+                  const name = `${member.firstName} ${member.lastName}`.trim() || member.email;
+
+                  return (
+                    <article key={member.userId} className="list-card" style={{ alignItems: 'flex-start' }}>
+                      <Avatar name={name} src={member.avatar} size="md" />
+                      <div className="list-card__body">
+                        <div className="list-card__title">{name}</div>
+                        <div className="list-card__subtitle" style={{ marginTop: 6 }}>
+                          {member.email}
+                        </div>
+                        <div className="list-card__meta">
+                          <span>Роль: {roleLabel(member.role)}</span>
+                          <span>{member.department ? `Отдел: ${member.department}` : 'Без отдела'}</span>
+                          <span>С нами с {new Date(member.joinedAt).toLocaleDateString('ru-RU')}</span>
+                        </div>
+                      </div>
+
+                      <div className="list-card__actions" style={{ alignItems: 'stretch', flexDirection: 'column' }}>
+                        {member.role === 'owner' ? (
+                          <span className="lux-pill">Владелец</span>
+                        ) : (
+                          <>
+                            <select
+                              className="lux-select"
+                              value={member.role}
+                              onChange={(event) => handleRoleChange(member.userId, event.target.value as 'admin' | 'member')}
+                              disabled={busyUserId === member.userId}
+                            >
+                              <option value="member">Участник</option>
+                              <option value="admin">Администратор</option>
+                            </select>
+                            <button
+                              className="lux-button-danger"
+                              type="button"
+                              onClick={() => handleRemove(member.userId)}
+                              disabled={busyUserId === member.userId}
+                            >
+                              Удалить
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </article>
+                  );
+                })}
               </div>
             )}
-            <button style={styles.inviteBtn} onClick={handleInvite} disabled={inviteLoading || !inviteEmail.trim()}>
-              {inviteLoading ? 'Sending...' : 'Send Invitation'}
-            </button>
-          </div>
-        </Modal>
-      )}
+          </section>
+        </div>
+      </div>
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  container: { padding: 'clamp(12px, 4vw, 24px)', maxWidth: 900, margin: '0 auto' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  title: { fontSize: 24, fontWeight: 700, margin: 0 },
-  inviteBtn: { padding: '10px 20px', borderRadius: 'var(--radius-md)', border: 'none', background: 'var(--color-primary)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' },
-  search: { width: '100%', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)', fontSize: 14, marginBottom: 16, boxSizing: 'border-box' as const },
-  table: { border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' },
-  tableRow: { display: 'grid', gridTemplateColumns: '1fr 140px 120px 100px', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid var(--color-border)' },
-  tableHeader: { background: 'var(--color-bg-tertiary)', fontWeight: 600, fontSize: 13, color: 'var(--color-text-secondary)' },
-  colName: { minWidth: 0 },
-  colRole: {},
-  colDate: { fontSize: 13, color: 'var(--color-text-secondary)' },
-  colActions: {},
-  memberName: { fontWeight: 500, fontSize: 14 },
-  memberEmail: { fontSize: 12, color: 'var(--color-text-secondary)' },
-  roleSelect: { padding: '4px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)', fontSize: 13, width: '100%' },
-  removeBtn: { padding: '4px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid #EF4444', background: 'transparent', color: '#EF4444', fontSize: 12, cursor: 'pointer' },
-  requestsLink: { display: 'inline-flex', alignItems: 'center', padding: '10px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text)', fontSize: 14, fontWeight: 500, textDecoration: 'none' },
-  linkBlock: { background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: '12px 16px', marginBottom: 16 },
-  linkLabel: { fontSize: 13, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 8 },
-  linkRow: { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
-  linkInput: { flex: '1 1 240px', minWidth: 200, padding: '8px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)', fontSize: 13, background: 'var(--color-surface)', color: 'var(--color-text)' },
-  linkBtn: { padding: '8px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text)', fontSize: 13, cursor: 'pointer' },
-  linkBtnDanger: { color: '#DC2626', borderColor: '#FCA5A5' },
-  linkHint: { flex: 1, fontSize: 13, color: 'var(--color-text-secondary)' },
-};

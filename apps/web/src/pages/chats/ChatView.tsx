@@ -1,7 +1,8 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { ChatHeader } from '@/components/chat/ChatHeader';
-import { MessageList } from '@/components/chat/MessageList';
+import { ChatInsightsPanel } from '@/components/chat/ChatInsightsPanel';
 import { MessageInput } from '@/components/chat/MessageInput';
+import { MessageList } from '@/components/chat/MessageList';
 import { TypingIndicator } from '@/components/chat/TypingIndicator';
 import { useMessages } from '@/hooks/useMessages';
 import { useTypingIndicator } from '@/hooks/useTypingIndicator';
@@ -9,6 +10,7 @@ import { useAttachmentStaging } from '@/hooks/useAttachmentStaging';
 import { useAuthStore } from '@/stores/auth.store';
 import { useChatStore } from '@/stores/chat.store';
 import { useOrganizationStore } from '@/stores/organization.store';
+import { useUIStore } from '@/stores/ui.store';
 import { stopTitleFlash } from '@/services/title-flash.service';
 
 interface ChatViewProps {
@@ -18,15 +20,17 @@ interface ChatViewProps {
 export function ChatView({ chatId }: ChatViewProps) {
   const { messages, hasMore, sendMessage, loadMore } = useMessages(chatId);
   const { typingUsers, startTyping } = useTypingIndicator(chatId);
-  const user = useAuthStore((s) => s.user);
-  const chat = useChatStore((s) => s.chats.find((c) => c.id === chatId));
-  const currentOrg = useOrganizationStore((s) => s.currentOrg);
+  const user = useAuthStore((state) => state.user);
+  const chat = useChatStore((state) => state.chats.find((item) => item.id === chatId));
+  const currentOrg = useOrganizationStore((state) => state.currentOrg);
   const staging = useAttachmentStaging(currentOrg?.id);
+  const rightPanelOpen = useUIStore((state) => state.rightPanelOpen);
 
-  // Stop title flash whenever user opens any chat
   useEffect(() => {
     stopTitleFlash();
   }, [chatId]);
+
+  if (!chat) return null;
 
   const handleSend = (content: string) => {
     const fileIds = staging.getReadyFileIds();
@@ -34,31 +38,35 @@ export function ChatView({ chatId }: ChatViewProps) {
     staging.reset();
   };
 
-  const typingNames = typingUsers.map((t) => t.userName);
+  const typingNames = typingUsers.map((entry) => entry.userName);
 
   return (
-    <div style={styles.container}>
-      <ChatHeader chatId={chatId} />
-      <div style={styles.messages}>
-        <MessageList messages={messages} hasMore={hasMore} onLoadMore={loadMore} currentUserId={user?.id || ''} isGroupChat={chat?.type !== 'PERSONAL'} />
-      </div>
-      <div style={styles.footer}>
-        <TypingIndicator typingUsers={typingNames} />
-        <MessageInput
-          onSend={handleSend}
-          onTyping={startTyping}
-          onAttach={staging.add}
-          stagedFiles={staging.staged}
-          onRemoveStaged={staging.remove}
-          disableSend={staging.isUploading}
-        />
-      </div>
-    </div>
+    <>
+      <section className="lux-panel chat-stage">
+        <ChatHeader chatId={chatId} />
+        <div className="chat-stage__body">
+          <MessageList
+            messages={messages}
+            hasMore={hasMore}
+            onLoadMore={loadMore}
+            currentUserId={user?.id || ''}
+            isGroupChat={chat.type !== 'PERSONAL'}
+          />
+        </div>
+        <div className="chat-stage__composer">
+          <TypingIndicator typingUsers={typingNames} />
+          <MessageInput
+            onSend={handleSend}
+            onTyping={startTyping}
+            onAttach={staging.add}
+            stagedFiles={staging.staged}
+            onRemoveStaged={staging.remove}
+            disableSend={staging.isUploading}
+          />
+        </div>
+      </section>
+
+      {rightPanelOpen && <ChatInsightsPanel chat={chat} messageCount={messages.length} />}
+    </>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  container: { display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 },
-  messages: { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' },
-  footer: { borderTop: '1px solid var(--color-border)', flexShrink: 0 },
-};

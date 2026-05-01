@@ -1,36 +1,41 @@
 import React, { memo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { useTheme } from '../theme';
 
 interface BadgeProps {
   count: number;
   maxCount?: number;
+  variant?: 'error' | 'success' | 'warning' | 'info' | 'primary';
 }
 
-export const Badge = memo(function Badge({ count, maxCount = 99 }: BadgeProps) {
+export const Badge = memo(function Badge({ count, maxCount = 99, variant = 'error' }: BadgeProps) {
+  const theme = useTheme();
   if (count <= 0) return null;
 
   const label = count > maxCount ? `${maxCount}+` : String(count);
+  const palette: Record<NonNullable<BadgeProps['variant']>, string> = {
+    error: theme.colors.error,
+    success: theme.colors.success,
+    warning: theme.colors.warning,
+    info: theme.colors.info,
+    primary: theme.colors.primary,
+  };
 
   return (
-    <View style={styles.badge}>
-      <Text style={styles.text}>{label}</Text>
+    <View style={[styles.badge, { backgroundColor: palette[variant] }]}>
+      <Text style={[styles.text, { color: theme.colors.onPrimary }]}>{label}</Text>
     </View>
   );
 });
 
 const styles = StyleSheet.create({
   badge: {
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#EF4444',
+    minWidth: 22,
+    height: 22,
+    borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 6,
+    paddingHorizontal: 7,
   },
-  text: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '700',
-  },
+  text: { fontSize: 11, fontWeight: '700' },
 });

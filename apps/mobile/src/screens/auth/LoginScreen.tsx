@@ -1,23 +1,17 @@
 import React, { useState, useCallback } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  Pressable,
-  StyleSheet,
-  SafeAreaView,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
-  Alert,
-} from 'react-native';
+import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useAuth } from '../../hooks/useAuth';
+import { AuthLayout } from '../../components/auth/AuthLayout';
+import { FormField } from '../../components/auth/FormField';
+import { PrimaryButton } from '../../components/auth/PrimaryButton';
+import { useTheme } from '../../theme';
 import type { AuthStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 
 export function LoginScreen({ navigation }: Props) {
+  const theme = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [twoFactorCode, setTwoFactorCode] = useState('');
@@ -26,12 +20,12 @@ export function LoginScreen({ navigation }: Props) {
 
   const handleLogin = useCallback(async () => {
     if (!email.trim() || !password.trim()) {
-      Alert.alert('Validation Error', 'Please enter email and password');
+      Alert.alert('Заполните форму', 'Введите email и пароль');
       return;
     }
 
     if (requiresTwoFactor && twoFactorCode.trim().length !== 6) {
-      Alert.alert('Validation Error', 'Please enter the 6-digit verification code');
+      Alert.alert('Двухфакторная защита', 'Введите 6-значный код из приложения');
       return;
     }
 
@@ -43,183 +37,68 @@ export function LoginScreen({ navigation }: Props) {
       );
       if (result.requiresTwoFactor) {
         setRequiresTwoFactor(true);
-        Alert.alert('Two-Factor Authentication', 'Enter the 6-digit code from your authenticator app');
+        Alert.alert('Двухфакторная защита', 'Введите 6-значный код из приложения');
       }
     } catch (err: any) {
-      Alert.alert('Login Failed', err.message);
+      Alert.alert('Не удалось войти', err.message);
     }
   }, [email, password, login, requiresTwoFactor, twoFactorCode]);
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <View style={styles.header}>
-          <View style={styles.logoContainer}>
-            <Text style={styles.logoText}>CM</Text>
-          </View>
-          <Text style={styles.title}>CorpMessenger</Text>
-          <Text style={styles.subtitle}>Sign in to your account</Text>
+    <AuthLayout
+      kicker="Безопасный вход"
+      title="Войти в StaffHub"
+      description="Авторизуйтесь и вернитесь в своё рабочее пространство."
+      footer={
+        <View style={styles.footerRow}>
+          <Pressable onPress={() => navigation.navigate('ForgotPassword')}>
+            <Text style={[styles.link, { color: theme.colors.primary }]}>Забыли пароль?</Text>
+          </Pressable>
+          <Pressable onPress={() => navigation.navigate('Register')}>
+            <Text style={[styles.link, { color: theme.colors.primary }]}>Создать аккаунт</Text>
+          </Pressable>
         </View>
-
-        <View style={styles.form}>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              style={styles.input}
-              value={email}
-              onChangeText={setEmail}
-              placeholder="you@company.com"
-              placeholderTextColor="#9CA3AF"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              editable={!isLoading}
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={styles.input}
-              value={password}
-              onChangeText={setPassword}
-              placeholder="Enter your password"
-              placeholderTextColor="#9CA3AF"
-              secureTextEntry
-              editable={!isLoading}
-            />
-          </View>
-
-          {requiresTwoFactor ? (
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>2FA Code</Text>
-              <TextInput
-                style={styles.input}
-                value={twoFactorCode}
-                onChangeText={setTwoFactorCode}
-                placeholder="123456"
-                placeholderTextColor="#9CA3AF"
-                keyboardType="number-pad"
-                autoCapitalize="none"
-                autoCorrect={false}
-                maxLength={6}
-                editable={!isLoading}
-              />
-            </View>
-          ) : null}
-
-          <Pressable
-            style={[styles.button, isLoading && styles.buttonDisabled]}
-            onPress={handleLogin}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-                <Text style={styles.buttonText}>{requiresTwoFactor ? 'Verify Code' : 'Sign In'}</Text>
-              )}
-            </Pressable>
-
-          <View style={styles.links}>
-            <Pressable onPress={() => navigation.navigate('ForgotPassword')}>
-              <Text style={styles.link}>Forgot password?</Text>
-            </Pressable>
-            <Pressable onPress={() => navigation.navigate('Register')}>
-              <Text style={styles.link}>Create an account</Text>
-            </Pressable>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      }
+    >
+      <FormField
+        label="Email"
+        value={email}
+        onChangeText={setEmail}
+        placeholder="you@company.com"
+        keyboardType="email-address"
+        autoCapitalize="none"
+        autoCorrect={false}
+        editable={!isLoading}
+      />
+      <FormField
+        label="Пароль"
+        value={password}
+        onChangeText={setPassword}
+        placeholder="Введите пароль"
+        secureTextEntry
+        editable={!isLoading}
+      />
+      {requiresTwoFactor && (
+        <FormField
+          label="2FA-код"
+          value={twoFactorCode}
+          onChangeText={setTwoFactorCode}
+          placeholder="123456"
+          keyboardType="number-pad"
+          maxLength={6}
+          editable={!isLoading}
+        />
+      )}
+      <PrimaryButton
+        label={isLoading ? 'Проверяем доступ…' : requiresTwoFactor ? 'Подтвердить' : 'Войти'}
+        onPress={handleLogin}
+        loading={isLoading}
+      />
+    </AuthLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 40,
-  },
-  logoContainer: {
-    width: 72,
-    height: 72,
-    borderRadius: 16,
-    backgroundColor: '#4F46E5',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  logoText: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  subtitle: {
-    fontSize: 15,
-    color: '#6B7280',
-    marginTop: 4,
-  },
-  form: {
-    gap: 16,
-  },
-  inputGroup: {
-    gap: 6,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
-  },
-  input: {
-    height: 48,
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    fontSize: 15,
-    color: '#111827',
-    backgroundColor: '#FFFFFF',
-  },
-  button: {
-    height: 48,
-    borderRadius: 10,
-    backgroundColor: '#4F46E5',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 8,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  links: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 8,
-  },
-  link: {
-    fontSize: 14,
-    color: '#4F46E5',
-    fontWeight: '500',
-  },
+  footerRow: { flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 },
+  link: { fontSize: 14, fontWeight: '600' },
 });

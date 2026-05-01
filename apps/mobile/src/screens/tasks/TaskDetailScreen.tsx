@@ -5,7 +5,6 @@ import {
   TextInput,
   ScrollView,
   Pressable,
-  FlatList,
   StyleSheet,
   ActivityIndicator,
   Alert,
@@ -13,9 +12,18 @@ import {
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Avatar } from '../../components/Avatar';
 import { apiClient } from '../../api/client';
+import { useTheme } from '../../theme';
 import type { TaskStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<TaskStackParamList, 'TaskDetail'>;
+
+interface Comment {
+  id: string;
+  content: string;
+  authorName: string;
+  authorAvatarUrl?: string;
+  createdAt: string;
+}
 
 interface TaskDetail {
   id: string;
@@ -28,36 +36,40 @@ interface TaskDetail {
   comments: Comment[];
 }
 
-interface Comment {
-  id: string;
-  content: string;
-  authorName: string;
-  authorAvatarUrl?: string;
-  createdAt: string;
-}
+const STATUSES: { id: TaskDetail['status']; label: string }[] = [
+  { id: 'todo', label: 'К работе' },
+  { id: 'in_progress', label: 'В работе' },
+  { id: 'review', label: 'На ревью' },
+  { id: 'done', label: 'Готово' },
+];
 
-const STATUSES = ['todo', 'in_progress', 'review', 'done'] as const;
-
-const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  todo: { bg: '#F3F4F6', text: '#374151' },
-  in_progress: { bg: '#DBEAFE', text: '#1D4ED8' },
-  review: { bg: '#FEF3C7', text: '#B45309' },
-  done: { bg: '#D1FAE5', text: '#047857' },
-};
-
-const PRIORITY_COLORS: Record<string, string> = {
-  low: '#6B7280',
-  medium: '#3B82F6',
-  high: '#F59E0B',
-  urgent: '#EF4444',
+const PRIORITY_LABELS: Record<string, string> = {
+  low: 'низкий',
+  medium: 'средний',
+  high: 'высокий',
+  urgent: 'срочный',
 };
 
 export function TaskDetailScreen({ route }: Props) {
+  const theme = useTheme();
   const { taskId } = route.params;
   const [task, setTask] = useState<TaskDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [commentText, setCommentText] = useState('');
   const [isSending, setIsSending] = useState(false);
+
+  const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
+    todo: { bg: theme.colors.surfaceSoft, text: theme.colors.textSecondary },
+    in_progress: { bg: 'rgba(58,109,194,0.18)', text: theme.colors.info },
+    review: { bg: 'rgba(213,139,34,0.18)', text: theme.colors.warning },
+    done: { bg: 'rgba(30,157,104,0.18)', text: theme.colors.success },
+  };
+  const PRIORITY_COLORS: Record<string, string> = {
+    low: theme.colors.textTertiary,
+    medium: theme.colors.info,
+    high: theme.colors.warning,
+    urgent: theme.colors.error,
+  };
 
   const fetchTask = useCallback(async () => {
     try {
@@ -76,13 +88,13 @@ export function TaskDetailScreen({ route }: Props) {
   }, [fetchTask]);
 
   const handleStatusChange = useCallback(
-    async (newStatus: string) => {
+    async (newStatus: TaskDetail['status']) => {
       if (!task) return;
       try {
         await apiClient.patch(`/tasks/${taskId}`, { status: newStatus });
-        setTask((prev) => (prev ? { ...prev, status: newStatus as TaskDetail['status'] } : null));
-      } catch (err) {
-        Alert.alert('Error', 'Failed to update status');
+        setTask((prev) => (prev ? { ...prev, status: newStatus } : null));
+      } catch {
+        Alert.alert('Ошибка', 'Не удалось обновить статус.');
       }
     },
     [task, taskId],
@@ -90,18 +102,15 @@ export function TaskDetailScreen({ route }: Props) {
 
   const handleAddComment = useCallback(async () => {
     if (!commentText.trim()) return;
-
     try {
       setIsSending(true);
       const { data } = await apiClient.post<Comment>(`/tasks/${taskId}/comments`, {
         content: commentText.trim(),
       });
-      setTask((prev) =>
-        prev ? { ...prev, comments: [...prev.comments, data] } : null,
-      );
+      setTask((prev) => (prev ? { ...prev, comments: [...prev.comments, data] } : null));
       setCommentText('');
-    } catch (err) {
-      Alert.alert('Error', 'Failed to add comment');
+    } catch {
+      Alert.alert('Ошибка', 'Не удалось отправить комментарий.');
     } finally {
       setIsSending(false);
     }
@@ -109,16 +118,16 @@ export function TaskDetailScreen({ route }: Props) {
 
   if (isLoading) {
     return (
-      <View style={styles.loader}>
-        <ActivityIndicator size="large" color="#4F46E5" />
+      <View style={[styles.loader, { backgroundColor: theme.colors.bg }]}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
       </View>
     );
   }
 
   if (!task) {
     return (
-      <View style={styles.loader}>
-        <Text style={styles.errorText}>Task not found</Text>
+      <View style={[styles.loader, { backgroundColor: theme.colors.bg }]}>
+        <Text style={{ color: theme.colors.textSecondary }}>Задача не найдена</Text>
       </View>
     );
   }
@@ -127,38 +136,42 @@ export function TaskDetailScreen({ route }: Props) {
   const priorityColor = PRIORITY_COLORS[task.priority] || PRIORITY_COLORS.low;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>{task.title}</Text>
+    <ScrollView style={[styles.container, { backgroundColor: theme.colors.bg }]} contentContainerStyle={styles.content}>
+      <Text style={[styles.title, { color: theme.colors.textPrimary, fontFamily: theme.typography.displayFamily }]}>
+        {task.title}
+      </Text>
 
       <View style={styles.metaRow}>
         <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
           <Text style={[styles.statusText, { color: statusStyle.text }]}>
-            {task.status.replace('_', ' ')}
+            {STATUSES.find((s) => s.id === task.status)?.label ?? task.status}
           </Text>
         </View>
         <View style={styles.priorityContainer}>
           <View style={[styles.priorityDot, { backgroundColor: priorityColor }]} />
-          <Text style={styles.priorityLabel}>{task.priority}</Text>
+          <Text style={[styles.priorityLabel, { color: theme.colors.textSecondary }]}>
+            {PRIORITY_LABELS[task.priority] ?? task.priority}
+          </Text>
         </View>
       </View>
 
       {task.description && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Description</Text>
-          <Text style={styles.description}>{task.description}</Text>
+          <Text style={[styles.sectionTitle, { color: theme.colors.textTertiary }]}>Описание</Text>
+          <Text style={[styles.description, { color: theme.colors.textPrimary }]}>{task.description}</Text>
         </View>
       )}
 
       {task.assignee && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Assignee</Text>
+          <Text style={[styles.sectionTitle, { color: theme.colors.textTertiary }]}>Исполнитель</Text>
           <View style={styles.assigneeRow}>
             <Avatar
               name={`${task.assignee.firstName} ${task.assignee.lastName}`}
               uri={task.assignee.avatarUrl}
               size={32}
             />
-            <Text style={styles.assigneeName}>
+            <Text style={[styles.assigneeName, { color: theme.colors.textPrimary }]}>
               {task.assignee.firstName} {task.assignee.lastName}
             </Text>
           </View>
@@ -167,32 +180,33 @@ export function TaskDetailScreen({ route }: Props) {
 
       {task.dueDate && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Due Date</Text>
-          <Text style={styles.dueDate}>
-            {new Date(task.dueDate).toLocaleDateString()}
+          <Text style={[styles.sectionTitle, { color: theme.colors.textTertiary }]}>Срок</Text>
+          <Text style={[styles.dueDate, { color: theme.colors.textPrimary }]}>
+            {new Date(task.dueDate).toLocaleDateString('ru-RU')}
           </Text>
         </View>
       )}
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Status</Text>
+        <Text style={[styles.sectionTitle, { color: theme.colors.textTertiary }]}>Статус</Text>
         <View style={styles.statusRow}>
           {STATUSES.map((s) => {
-            const sc = STATUS_COLORS[s];
-            const isActive = s === task.status;
+            const sc = STATUS_COLORS[s.id];
+            const isActive = s.id === task.status;
             return (
               <Pressable
-                key={s}
+                key={s.id}
                 style={[
                   styles.statusOption,
-                  { backgroundColor: isActive ? sc.bg : '#F9FAFB', borderColor: isActive ? sc.text : '#E5E7EB' },
+                  {
+                    backgroundColor: isActive ? sc.bg : theme.colors.surface,
+                    borderColor: isActive ? sc.text : theme.colors.border,
+                  },
                 ]}
-                onPress={() => handleStatusChange(s)}
+                onPress={() => handleStatusChange(s.id)}
               >
-                <Text
-                  style={[styles.statusOptionText, { color: isActive ? sc.text : '#9CA3AF' }]}
-                >
-                  {s.replace('_', ' ')}
+                <Text style={[styles.statusOptionText, { color: isActive ? sc.text : theme.colors.textSecondary }]}>
+                  {s.label}
                 </Text>
               </Pressable>
             );
@@ -201,37 +215,43 @@ export function TaskDetailScreen({ route }: Props) {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          Comments ({task.comments.length})
+        <Text style={[styles.sectionTitle, { color: theme.colors.textTertiary }]}>
+          Комментарии ({task.comments.length})
         </Text>
         {task.comments.map((comment) => (
-          <View key={comment.id} style={styles.comment}>
+          <View key={comment.id} style={[styles.comment, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
             <View style={styles.commentHeader}>
               <Avatar name={comment.authorName} uri={comment.authorAvatarUrl} size={28} />
-              <Text style={styles.commentAuthor}>{comment.authorName}</Text>
-              <Text style={styles.commentTime}>
-                {new Date(comment.createdAt).toLocaleDateString()}
+              <Text style={[styles.commentAuthor, { color: theme.colors.textPrimary }]}>{comment.authorName}</Text>
+              <Text style={[styles.commentTime, { color: theme.colors.textTertiary }]}>
+                {new Date(comment.createdAt).toLocaleDateString('ru-RU')}
               </Text>
             </View>
-            <Text style={styles.commentContent}>{comment.content}</Text>
+            <Text style={[styles.commentContent, { color: theme.colors.textPrimary }]}>{comment.content}</Text>
           </View>
         ))}
 
         <View style={styles.commentInputRow}>
           <TextInput
-            style={styles.commentInput}
+            style={[styles.commentInput, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, color: theme.colors.textPrimary }]}
             value={commentText}
             onChangeText={setCommentText}
-            placeholder="Add a comment..."
-            placeholderTextColor="#9CA3AF"
+            placeholder="Добавить комментарий…"
+            placeholderTextColor={theme.colors.textTertiary}
             multiline
           />
           <Pressable
-            style={[styles.commentSend, isSending && styles.commentSendDisabled]}
+            style={({ pressed }) => [
+              styles.commentSend,
+              {
+                backgroundColor: theme.colors.primary,
+                opacity: isSending || !commentText.trim() ? 0.5 : pressed ? 0.85 : 1,
+              },
+            ]}
             onPress={handleAddComment}
             disabled={isSending || !commentText.trim()}
           >
-            <Text style={styles.commentSendText}>Post</Text>
+            <Text style={[styles.commentSendText, { color: theme.colors.onPrimary }]}>Отправить</Text>
           </Pressable>
         </View>
       </View>
@@ -240,162 +260,41 @@ export function TaskDetailScreen({ route }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  content: {
-    padding: 16,
-    paddingBottom: 40,
-  },
-  loader: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  errorText: {
-    fontSize: 16,
-    color: '#6B7280',
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginTop: 12,
-  },
-  statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 10,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-    textTransform: 'capitalize',
-  },
-  priorityContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  priorityDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  priorityLabel: {
-    fontSize: 13,
-    color: '#6B7280',
-    textTransform: 'capitalize',
-  },
-  section: {
-    marginTop: 24,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6B7280',
-    marginBottom: 8,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  description: {
-    fontSize: 15,
-    color: '#374151',
-    lineHeight: 22,
-  },
-  assigneeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  assigneeName: {
-    fontSize: 15,
-    color: '#111827',
-    fontWeight: '500',
-  },
-  dueDate: {
-    fontSize: 15,
-    color: '#374151',
-  },
-  statusRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  statusOption: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  statusOptionText: {
-    fontSize: 12,
-    fontWeight: '600',
-    textTransform: 'capitalize',
-  },
-  comment: {
-    backgroundColor: '#F9FAFB',
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 8,
-  },
-  commentHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 6,
-  },
-  commentAuthor: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#111827',
-    flex: 1,
-  },
-  commentTime: {
-    fontSize: 11,
-    color: '#9CA3AF',
-  },
-  commentContent: {
-    fontSize: 14,
-    color: '#374151',
-    lineHeight: 20,
-  },
-  commentInputRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 8,
-    marginTop: 8,
-  },
+  container: { flex: 1 },
+  content: { padding: 16, paddingBottom: 40 },
+  loader: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  title: { fontSize: 26, fontWeight: '700' },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 12 },
+  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
+  statusText: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
+  priorityContainer: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  priorityDot: { width: 8, height: 8, borderRadius: 4 },
+  priorityLabel: { fontSize: 13 },
+  section: { marginTop: 24 },
+  sectionTitle: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1.4, marginBottom: 10 },
+  description: { fontSize: 15, lineHeight: 22 },
+  assigneeRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  assigneeName: { fontSize: 15, fontWeight: '500' },
+  dueDate: { fontSize: 15 },
+  statusRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  statusOption: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1 },
+  statusOptionText: { fontSize: 12, fontWeight: '600' },
+  comment: { borderRadius: 16, padding: 14, marginBottom: 10, borderWidth: 1 },
+  commentHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+  commentAuthor: { fontSize: 13, fontWeight: '600', flex: 1 },
+  commentTime: { fontSize: 11 },
+  commentContent: { fontSize: 14, lineHeight: 20 },
+  commentInputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginTop: 12 },
   commentInput: {
     flex: 1,
-    minHeight: 40,
-    maxHeight: 100,
+    minHeight: 44,
+    maxHeight: 110,
     borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    fontSize: 14,
-    color: '#111827',
-  },
-  commentSend: {
-    paddingHorizontal: 16,
+    borderRadius: 18,
+    paddingHorizontal: 14,
     paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: '#4F46E5',
-  },
-  commentSendDisabled: {
-    opacity: 0.5,
-  },
-  commentSendText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
   },
+  commentSend: { paddingHorizontal: 18, paddingVertical: 12, borderRadius: 999 },
+  commentSendText: { fontSize: 13, fontWeight: '700' },
 });

@@ -1,9 +1,9 @@
-import { CSSProperties, useRef, useEffect, useCallback, useState } from 'react';
+import { CSSProperties, useCallback, useEffect, useRef, useState } from 'react';
+import { format, isSameDay } from 'date-fns';
+import { ru } from 'date-fns/locale';
 import { MessageBubble } from './MessageBubble';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
-import { format, isSameDay } from 'date-fns';
 import type { Message } from '@/stores/message.store';
-import { useBreakpoint } from '@/hooks/useBreakpoint';
 
 interface MessageListProps {
   messages: Message[];
@@ -13,40 +13,6 @@ interface MessageListProps {
   isGroupChat: boolean;
 }
 
-const wrapperStyle: CSSProperties = {
-  position: 'relative',
-  flex: 1,
-  display: 'flex',
-  flexDirection: 'column',
-  minHeight: 0,
-  height: '100%',
-};
-
-const containerStyle: CSSProperties = {
-  flex: 1,
-  overflowY: 'auto',
-  padding: '16px 24px',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 4,
-};
-
-const dateSepStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: '8px 0',
-};
-
-const dateLabelStyle: CSSProperties = {
-  fontSize: 11,
-  fontWeight: 600,
-  color: 'var(--color-text-tertiary)',
-  backgroundColor: 'var(--color-bg-tertiary)',
-  padding: '4px 12px',
-  borderRadius: 'var(--radius-full)',
-};
-
 const jumpBtnStyle: CSSProperties = {
   position: 'absolute',
   right: 20,
@@ -55,9 +21,9 @@ const jumpBtnStyle: CSSProperties = {
   height: 44,
   borderRadius: '50%',
   border: 'none',
-  background: 'var(--color-surface)',
-  color: 'var(--color-text)',
-  boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
+  background: 'var(--color-surface-strong)',
+  color: 'var(--color-text-primary)',
+  boxShadow: 'var(--shadow-md)',
   cursor: 'pointer',
   display: 'flex',
   alignItems: 'center',
@@ -71,10 +37,6 @@ export function MessageList({ messages, hasMore, onLoadMore, currentUserId, isGr
   const isAtBottomRef = useRef(true);
   const lastOwnIdRef = useRef<string | null>(null);
   const [showJumpBtn, setShowJumpBtn] = useState(false);
-  const { isMobile } = useBreakpoint();
-  const responsiveContainerStyle: CSSProperties = isMobile
-    ? { ...containerStyle, padding: '12px 12px' }
-    : containerStyle;
 
   const scrollToBottom = useCallback(() => {
     if (containerRef.current) {
@@ -86,7 +48,6 @@ export function MessageList({ messages, hasMore, onLoadMore, currentUserId, isGr
     if (messages.length === 0) return;
     const last = messages[messages.length - 1];
 
-    // Always jump down for the user's own messages, even if scrolled up.
     if (last.senderId === currentUserId && last.id !== lastOwnIdRef.current) {
       lastOwnIdRef.current = last.id;
       scrollToBottom();
@@ -122,12 +83,6 @@ export function MessageList({ messages, hasMore, onLoadMore, currentUserId, isGr
     }
   };
 
-  const renderDateSeparator = (dateStr: string) => (
-    <div style={dateSepStyle}>
-      <span style={dateLabelStyle}>{dateStr}</span>
-    </div>
-  );
-
   const handleJumpClick = () => {
     scrollToBottom();
     setShowJumpBtn(false);
@@ -135,17 +90,22 @@ export function MessageList({ messages, hasMore, onLoadMore, currentUserId, isGr
   };
 
   return (
-    <div style={wrapperStyle}>
-      <div ref={containerRef} style={responsiveContainerStyle} onScroll={handleScroll}>
+    <>
+      <div ref={containerRef} className="message-list" onScroll={handleScroll}>
         {hasMore && <LoadingSpinner size={24} />}
         {messages.map((msg, i) => {
           const showDate =
-            i === 0 ||
-            !isSameDay(new Date(messages[i - 1].createdAt), new Date(msg.createdAt));
+            i === 0 || !isSameDay(new Date(messages[i - 1].createdAt), new Date(msg.createdAt));
 
           return (
             <div key={msg.id}>
-              {showDate && renderDateSeparator(format(new Date(msg.createdAt), 'EEEE, MMMM d, yyyy'))}
+              {showDate && (
+                <div className="message-date-separator">
+                  <span className="message-date-separator__label">
+                    {format(new Date(msg.createdAt), 'd MMMM, EEEE', { locale: ru })}
+                  </span>
+                </div>
+              )}
               <MessageBubble
                 message={msg}
                 isOwn={msg.senderId === currentUserId}
@@ -156,12 +116,12 @@ export function MessageList({ messages, hasMore, onLoadMore, currentUserId, isGr
         })}
       </div>
       {showJumpBtn && (
-        <button style={jumpBtnStyle} onClick={handleJumpClick} title="Scroll to latest">
+        <button style={jumpBtnStyle} onClick={handleJumpClick} title="К новым сообщениям">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="6 9 12 15 18 9" />
           </svg>
         </button>
       )}
-    </div>
+    </>
   );
 }

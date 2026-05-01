@@ -7,80 +7,65 @@ interface AvatarProps {
   online?: boolean;
 }
 
-const sizeMap = { sm: 32, md: 40, lg: 56 };
-const fontSizeMap = { sm: 12, md: 14, lg: 20 };
+const sizeMap = { sm: 36, md: 44, lg: 60 };
+const fontSizeMap = { sm: 13, md: 14, lg: 20 };
 
 function getInitials(name: string): string {
   return name
     .split(' ')
-    .map((n) => n[0])
+    .map((part) => part[0])
     .slice(0, 2)
     .join('')
     .toUpperCase();
 }
 
-function getColorFromName(name: string): string {
-  const colors = ['#4F46E5', '#059669', '#D97706', '#DC2626', '#7C3AED', '#2563EB', '#DB2777'];
+function getGradientFromName(name: string): string {
+  const gradients = [
+    'linear-gradient(135deg, #f4dda5, #9f7a3d)',
+    'linear-gradient(135deg, #7ad9c5, #1b8d7b)',
+    'linear-gradient(135deg, #9fb4ff, #4568d1)',
+    'linear-gradient(135deg, #f5b8a2, #b85d3c)',
+    'linear-gradient(135deg, #e8c7f8, #8c5db2)',
+  ];
+
   let hash = 0;
-  for (let i = 0; i < name.length; i++) {
+  for (let i = 0; i < name.length; i += 1) {
     hash = name.charCodeAt(i) + ((hash << 5) - hash);
   }
-  return colors[Math.abs(hash) % colors.length];
+
+  return gradients[Math.abs(hash) % gradients.length];
 }
 
-export function Avatar({ src, name: rawName, size = 'md', online }: AvatarProps) {
+export function Avatar({ src, name: rawName, size = 'md', online = false }: AvatarProps) {
   const name = rawName || '?';
   const px = sizeMap[size];
-  const fontSize = fontSizeMap[size];
+  const dotSize = size === 'sm' ? 10 : size === 'md' ? 11 : 14;
 
-  const containerStyle: CSSProperties = {
-    position: 'relative',
+  const shellStyle = {
     width: px,
     height: px,
-    flexShrink: 0,
-  };
+  } as CSSProperties;
 
-  const imgStyle: CSSProperties = {
-    width: px,
-    height: px,
-    borderRadius: '50%',
-    objectFit: 'cover',
-  };
+  const fallbackStyle = {
+    background: getGradientFromName(name),
+    fontSize: fontSizeMap[size],
+  } as CSSProperties;
 
-  const fallbackStyle: CSSProperties = {
-    width: px,
-    height: px,
-    borderRadius: '50%',
-    backgroundColor: getColorFromName(name),
-    color: '#fff',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize,
-    fontWeight: 600,
-    userSelect: 'none',
-  };
-
-  const dotSize = size === 'sm' ? 8 : size === 'md' ? 10 : 14;
-  const dotStyle: CSSProperties = {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
+  const dotStyle = {
     width: dotSize,
     height: dotSize,
-    borderRadius: '50%',
-    backgroundColor: 'var(--color-success)',
-    border: '2px solid var(--color-bg)',
-  };
+  } as CSSProperties;
 
   return (
-    <div style={containerStyle}>
+    <div className="avatar-shell" style={shellStyle}>
       {src ? (
-        <img src={src} alt={name} style={imgStyle} />
+        <img src={src} alt={name} className="avatar-shell__image" />
       ) : (
-        <div style={fallbackStyle}>{getInitials(name)}</div>
+        <div className="avatar-shell__fallback" style={fallbackStyle}>
+          {getInitials(name)}
+        </div>
       )}
-      {online && <div style={dotStyle} />}
+      {online && <span className="avatar-shell__dot" style={dotStyle} />}
     </div>
   );
 }
