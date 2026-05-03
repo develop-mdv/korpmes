@@ -15,6 +15,35 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { MembersService } from './members.service';
 import { InviteMemberDto } from './dto/invite-member.dto';
+import { OrganizationMember } from './entities/organization-member.entity';
+
+function mapRoleToPublic(role: string): 'owner' | 'admin' | 'member' {
+  const upper = (role ?? '').toUpperCase();
+  if (upper === 'OWNER') return 'owner';
+  if (upper === 'ADMIN') return 'admin';
+  return 'member';
+}
+
+function normalizeRoleInput(role: string): string {
+  const upper = (role ?? '').toUpperCase();
+  if (upper === 'MEMBER') return 'EMPLOYEE';
+  return upper;
+}
+
+function mapMemberToDto(member: OrganizationMember) {
+  const user = member.user;
+  return {
+    id: member.id,
+    userId: member.userId,
+    firstName: user?.firstName ?? '',
+    lastName: user?.lastName ?? '',
+    email: user?.email ?? '',
+    avatar: user?.avatarUrl ?? undefined,
+    role: mapRoleToPublic(member.role),
+    department: undefined as string | undefined,
+    joinedAt: (member.joinedAt ?? member.createdAt).toISOString(),
+  };
+}
 
 @ApiTags('Organization Members')
 @Controller('organizations')
@@ -27,12 +56,19 @@ export class MembersController {
   @ApiOperation({ summary: 'List organization members' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
-  getMembers(
+  async getMembers(
     @Param('orgId', ParseUUIDPipe) orgId: string,
     @Query('page') page = 1,
     @Query('limit') limit = 20,
   ) {
-    return this.membersService.getMembers(orgId, { page, limit });
+    const { data, total } = await this.membersService.getMembers(orgId, {
+      page: Number(page),
+      limit: Number(limit),
+    });
+    return {
+      members: data.map((member) => mapMemberToDto(member)),
+      total,
+    };
   }
 
   @Post(':orgId/members/invite')
@@ -104,7 +140,7 @@ export class MembersController {
     @Body('role') role: string,
     @CurrentUser() user: any,
   ) {
-    return this.membersService.changeRole(orgId, userId, role, user.id);
+    return this.membersService.changeRole(orgId, userId, normalizeRoleInput(role), user.id);
   }
 
   @Delete(':orgId/members/:userId')

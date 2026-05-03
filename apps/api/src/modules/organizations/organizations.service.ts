@@ -38,14 +38,15 @@ export class OrganizationsService {
 
     await this.ensureDefaultChat(savedOrg.id, userId);
 
-    return savedOrg;
+    return this.findById(savedOrg.id);
   }
 
   async findById(id: string): Promise<Organization> {
-    const org = await this.organizationRepo.findOne({
-      where: { id },
-      relations: ['members', 'departments'],
-    });
+    const org = await this.organizationRepo
+      .createQueryBuilder('org')
+      .loadRelationCountAndMap('org.memberCount', 'org.members')
+      .where('org.id = :id', { id })
+      .getOne();
     if (!org) {
       throw new NotFoundException(`Organization with ID "${id}" not found`);
     }
@@ -57,11 +58,20 @@ export class OrganizationsService {
   }
 
   async findUserOrganizations(userId: string): Promise<Organization[]> {
-    const memberships = await this.memberRepo.find({
-      where: { userId },
-      relations: ['organization'],
-    });
-    return memberships.map((m) => m.organization);
+    const orgIds = await this.memberRepo
+      .createQueryBuilder('m')
+      .select('m.organization_id', 'organizationId')
+      .where('m.user_id = :userId', { userId })
+      .getRawMany<{ organizationId: string }>();
+
+    if (orgIds.length === 0) return [];
+
+    return this.organizationRepo
+      .createQueryBuilder('org')
+      .loadRelationCountAndMap('org.memberCount', 'org.members')
+      .where('org.id IN (:...ids)', { ids: orgIds.map((row) => row.organizationId) })
+      .andWhere('org.deletedAt IS NULL')
+      .getMany();
   }
 
   async update(id: string, dto: UpdateOrganizationDto): Promise<Organization> {
