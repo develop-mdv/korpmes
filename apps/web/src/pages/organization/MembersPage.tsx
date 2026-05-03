@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Avatar } from '@/components/common/Avatar';
 import { EmptyState } from '@/components/common/EmptyState';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+import { LuxSelect } from '@/components/common/LuxSelect';
 import * as orgsApi from '@/api/organizations.api';
 import { useOrganizationStore } from '@/stores/organization.store';
 import type { OrganizationMember } from '@/stores/organization.store';
@@ -198,15 +199,15 @@ export function MembersPage() {
                 <label className="field-group__label" htmlFor="invite-role">
                   Роль
                 </label>
-                <select
+                <LuxSelect<'admin' | 'member'>
                   id="invite-role"
-                  className="lux-select"
                   value={inviteRole}
-                  onChange={(event) => setInviteRole(event.target.value as 'admin' | 'member')}
-                >
-                  <option value="member">Участник</option>
-                  <option value="admin">Администратор</option>
-                </select>
+                  onChange={setInviteRole}
+                  options={[
+                    { value: 'member', label: 'Участник' },
+                    { value: 'admin', label: 'Администратор' },
+                  ]}
+                />
               </div>
 
               {message && <div className="lux-alert lux-alert--success">{message}</div>}
@@ -262,15 +263,15 @@ export function MembersPage() {
                           <span className="lux-pill">Владелец</span>
                         ) : (
                           <>
-                            <select
-                              className="lux-select"
-                              value={member.role}
-                              onChange={(event) => handleRoleChange(member.userId, event.target.value as 'admin' | 'member')}
+                            <LuxSelect<'admin' | 'member'>
+                              value={member.role === 'admin' ? 'admin' : 'member'}
+                              onChange={(role) => handleRoleChange(member.userId, role)}
                               disabled={busyUserId === member.userId}
-                            >
-                              <option value="member">Участник</option>
-                              <option value="admin">Администратор</option>
-                            </select>
+                              options={[
+                                { value: 'member', label: 'Участник' },
+                                { value: 'admin', label: 'Администратор' },
+                              ]}
+                            />
                             <button
                               className="lux-button-danger"
                               type="button"

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import * as departmentsApi from '@/api/departments.api';
 import { EmptyState } from '@/components/common/EmptyState';
+import { LuxSelect } from '@/components/common/LuxSelect';
 import { useOrganizationStore } from '@/stores/organization.store';
 
 type DepartmentWithDepth = departmentsApi.Department & {
@@ -187,22 +188,20 @@ export function DepartmentsPage() {
                 <label className="field-group__label" htmlFor="department-parent">
                   Родительский отдел
                 </label>
-                <select
+                <LuxSelect
                   id="department-parent"
-                  className="lux-select"
                   value={parentDepartmentId}
-                  onChange={(event) => setParentDepartmentId(event.target.value)}
-                >
-                  <option value="">Без родителя</option>
-                  {flatDepartments
-                    .filter((department) => department.id !== editingId)
-                    .map((department) => (
-                      <option key={department.id} value={department.id}>
-                        {'· '.repeat(department.depth)}
-                        {department.name}
-                      </option>
-                    ))}
-                </select>
+                  onChange={setParentDepartmentId}
+                  options={[
+                    { value: '', label: 'Без родителя' },
+                    ...flatDepartments
+                      .filter((department) => department.id !== editingId)
+                      .map((department) => ({
+                        value: department.id,
+                        label: `${'· '.repeat(department.depth)}${department.name}`,
+                      })),
+                  ]}
+                />
               </div>
 
               <div className="field-group">

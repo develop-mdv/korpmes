@@ -4,6 +4,7 @@ import { format, formatDistanceToNow } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { EmptyState } from '@/components/common/EmptyState';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+import { LuxSelect } from '@/components/common/LuxSelect';
 import { useOrganizationStore } from '@/stores/organization.store';
 import * as auditApi from '@/api/audit.api';
 
@@ -148,18 +149,12 @@ export function AuditPage() {
         </section>
 
         <section className="lux-panel" style={styles.toolbar}>
-          <select
-            className="lux-select"
-            style={styles.select}
+          <LuxSelect
             value={actionFilter}
-            onChange={(event) => handleFilterChange(event.target.value)}
-          >
-            {ACTION_GROUPS.map((group) => (
-              <option key={group.value || 'all'} value={group.value}>
-                {group.label}
-              </option>
-            ))}
-          </select>
+            onChange={handleFilterChange}
+            style={styles.select}
+            options={ACTION_GROUPS.map((group) => ({ value: group.value, label: group.label }))}
+          />
         </section>
 
         {error && <div className="lux-alert">{error}</div>}
