@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ChatStack } from './ChatStack';
 import { TasksScreen } from '../screens/tasks/TasksScreen';
 import { TaskDetailScreen } from '../screens/tasks/TaskDetailScreen';
+import { CreateTaskScreen } from '../screens/tasks/CreateTaskScreen';
 import { CallsScreen } from '../screens/calls/CallsScreen';
 import { FilesScreen } from '../screens/files/FilesScreen';
 import { SettingsScreen } from '../screens/settings/SettingsScreen';
@@ -14,10 +15,6 @@ import type { AppTabParamList, TaskStackParamList } from './types';
 
 const Tab = createBottomTabNavigator<AppTabParamList>();
 const TaskStack = createNativeStackNavigator<TaskStackParamList>();
-
-function CreateTaskPlaceholder() {
-  return null;
-}
 
 function TaskStackNavigator() {
   const theme = useTheme();
@@ -32,7 +29,7 @@ function TaskStackNavigator() {
     >
       <TaskStack.Screen name="TasksList" component={TasksScreen} options={{ title: 'Задачи' }} />
       <TaskStack.Screen name="TaskDetail" component={TaskDetailScreen} options={{ title: 'Карточка' }} />
-      <TaskStack.Screen name="CreateTask" component={CreateTaskPlaceholder} options={{ title: 'Новая задача' }} />
+      <TaskStack.Screen name="CreateTask" component={CreateTaskScreen} options={{ title: 'Новая задача' }} />
     </TaskStack.Navigator>
   );
 }

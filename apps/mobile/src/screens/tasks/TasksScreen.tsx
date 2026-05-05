@@ -4,78 +4,97 @@ import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { EmptyState } from '../../components/EmptyState';
 import { Avatar } from '../../components/Avatar';
-import { apiClient } from '../../api/client';
 import { useTheme } from '../../theme';
+import { useOrganizationStore } from '../../stores/organization.store';
+import { getExistingSocket } from '../../socket/socket';
+import { getTasks, TaskStatus, type Task } from '../../api/tasks.api';
 import type { TaskStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<TaskStackParamList, 'TasksList'>;
 
-interface Task {
-  id: string;
-  title: string;
-  status: 'todo' | 'in_progress' | 'review' | 'done';
-  priority: 'low' | 'medium' | 'high' | 'urgent';
-  assignee?: { id: string; firstName: string; lastName: string; avatarUrl?: string };
-  dueDate?: string;
-}
-
-const FILTERS: { id: string; label: string }[] = [
-  { id: 'All', label: 'Все' },
-  { id: 'My', label: 'Мои' },
-  { id: 'In Progress', label: 'В работе' },
-  { id: 'Review', label: 'На ревью' },
-  { id: 'Done', label: 'Готово' },
+const FILTERS: { id: TaskStatus | 'ALL' | 'MY'; label: string }[] = [
+  { id: 'ALL', label: 'Все' },
+  { id: 'MY', label: 'Мои' },
+  { id: TaskStatus.NEW, label: 'Новые' },
+  { id: TaskStatus.IN_PROGRESS, label: 'В работе' },
+  { id: TaskStatus.IN_REVIEW, label: 'На проверке' },
+  { id: TaskStatus.DONE, label: 'Готово' },
+  { id: TaskStatus.CANCELLED, label: 'Отменены' },
 ];
 
 const STATUS_LABELS: Record<string, string> = {
-  todo: 'к работе',
-  in_progress: 'в работе',
-  review: 'на ревью',
-  done: 'готово',
+  NEW: 'к работе',
+  IN_PROGRESS: 'в работе',
+  IN_REVIEW: 'на проверке',
+  DONE: 'готово',
+  CANCELLED: 'отменена',
 };
 
 const PRIORITY_LABELS: Record<string, string> = {
-  low: 'низкий',
-  medium: 'средний',
-  high: 'высокий',
-  urgent: 'срочный',
+  LOW: 'низкий',
+  MEDIUM: 'средний',
+  HIGH: 'высокий',
+  URGENT: 'срочный',
 };
 
 export function TasksScreen({ navigation }: Props) {
   const theme = useTheme();
+  const currentOrg = useOrganizationStore((s) => s.currentOrg);
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [filter, setFilter] = useState<string>('All');
+  const [filter, setFilter] = useState<(typeof FILTERS)[number]['id']>('ALL');
   const [isLoading, setIsLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-    todo: { bg: theme.colors.surfaceSoft, text: theme.colors.textSecondary },
-    in_progress: { bg: 'rgba(58,109,194,0.18)', text: theme.colors.info },
-    review: { bg: 'rgba(213,139,34,0.18)', text: theme.colors.warning },
-    done: { bg: 'rgba(30,157,104,0.18)', text: theme.colors.success },
+    NEW: { bg: theme.colors.surfaceSoft, text: theme.colors.textSecondary },
+    IN_PROGRESS: { bg: 'rgba(58,109,194,0.18)', text: theme.colors.info },
+    IN_REVIEW: { bg: 'rgba(213,139,34,0.18)', text: theme.colors.warning },
+    DONE: { bg: 'rgba(30,157,104,0.18)', text: theme.colors.success },
+    CANCELLED: { bg: 'rgba(201,78,78,0.18)', text: theme.colors.error },
   };
   const PRIORITY_COLORS: Record<string, string> = {
-    low: theme.colors.textTertiary,
-    medium: theme.colors.info,
-    high: theme.colors.warning,
-    urgent: theme.colors.error,
+    LOW: theme.colors.textTertiary,
+    MEDIUM: theme.colors.info,
+    HIGH: theme.colors.warning,
+    URGENT: theme.colors.error,
   };
 
   const fetchTasks = useCallback(async () => {
+    if (!currentOrg) return;
     try {
       setIsLoading(true);
-      const { data } = await apiClient.get<Task[]>('/tasks');
+      const data = await getTasks(currentOrg.id);
       setTasks(data);
     } catch (err) {
       console.error('Failed to fetch tasks:', err);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [currentOrg]);
 
   useEffect(() => {
     fetchTasks();
   }, [fetchTasks]);
+
+  useEffect(() => {
+    if (!currentOrg) return;
+    const socket = getExistingSocket();
+    if (!socket) return;
+    socket.emit('org:join', { orgId: currentOrg.id });
+
+    const refetch = () => {
+      fetchTasks();
+    };
+    socket.on('task:created', refetch);
+    socket.on('task:updated', refetch);
+    socket.on('task:deleted', refetch);
+
+    return () => {
+      socket.off('task:created', refetch);
+      socket.off('task:updated', refetch);
+      socket.off('task:deleted', refetch);
+    };
+  }, [currentOrg, fetchTasks]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -84,24 +103,16 @@ export function TasksScreen({ navigation }: Props) {
   }, [fetchTasks]);
 
   const filteredTasks = tasks.filter((task) => {
-    switch (filter) {
-      case 'In Progress':
-        return task.status === 'in_progress';
-      case 'Review':
-        return task.status === 'review';
-      case 'Done':
-        return task.status === 'done';
-      case 'My':
-        return !!task.assignee;
-      default:
-        return true;
-    }
+    if (filter === 'ALL') return true;
+    if (filter === 'MY') return !!task.assignedToUser;
+    return task.status === filter;
   });
 
   const renderTask = useCallback(
     ({ item }: { item: Task }) => {
-      const statusStyle = STATUS_COLORS[item.status] || STATUS_COLORS.todo;
-      const priorityColor = PRIORITY_COLORS[item.priority] || PRIORITY_COLORS.low;
+      const statusStyle = STATUS_COLORS[item.status] || STATUS_COLORS.NEW;
+      const priorityColor = PRIORITY_COLORS[item.priority] || PRIORITY_COLORS.LOW;
+      const assignee = item.assignedToUser;
 
       return (
         <Pressable
@@ -132,10 +143,10 @@ export function TasksScreen({ navigation }: Props) {
                 {PRIORITY_LABELS[item.priority] ?? item.priority}
               </Text>
             </View>
-            {item.assignee && (
+            {assignee && (
               <Avatar
-                name={`${item.assignee.firstName} ${item.assignee.lastName}`}
-                uri={item.assignee.avatarUrl}
+                name={`${assignee.firstName} ${assignee.lastName}`}
+                uri={assignee.avatarUrl}
                 size={26}
               />
             )}
@@ -148,37 +159,53 @@ export function TasksScreen({ navigation }: Props) {
         </Pressable>
       );
     },
-    [navigation, theme],
+    [navigation, theme, STATUS_COLORS, PRIORITY_COLORS],
   );
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filtersContainer}
-      >
-        {FILTERS.map((f) => {
-          const active = filter === f.id;
-          return (
-            <Pressable
-              key={f.id}
-              style={[
-                styles.filterChip,
-                {
-                  backgroundColor: active ? theme.colors.primary : theme.colors.surface,
-                  borderColor: active ? theme.colors.primary : theme.colors.border,
-                },
-              ]}
-              onPress={() => setFilter(f.id)}
-            >
-              <Text style={[styles.filterChipText, { color: active ? theme.colors.onPrimary : theme.colors.textSecondary }]}>
-                {f.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+      <View style={styles.headerRow}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filtersContainer}
+          style={{ flex: 1 }}
+        >
+          {FILTERS.map((f) => {
+            const active = filter === f.id;
+            return (
+              <Pressable
+                key={f.id}
+                style={[
+                  styles.filterChip,
+                  {
+                    backgroundColor: active ? theme.colors.primary : theme.colors.surface,
+                    borderColor: active ? theme.colors.primary : theme.colors.border,
+                  },
+                ]}
+                onPress={() => setFilter(f.id)}
+              >
+                <Text style={[styles.filterChipText, { color: active ? theme.colors.onPrimary : theme.colors.textSecondary }]}>
+                  {f.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+        <Pressable
+          accessibilityLabel="Создать задачу"
+          onPress={() => navigation.navigate('CreateTask')}
+          style={({ pressed }) => [
+            styles.createButton,
+            {
+              backgroundColor: theme.colors.primary,
+              opacity: pressed ? 0.85 : 1,
+            },
+          ]}
+        >
+          <Ionicons name="add" size={22} color={theme.colors.onPrimary} />
+        </Pressable>
+      </View>
 
       <FlatList
         data={filteredTasks}
@@ -204,9 +231,17 @@ export function TasksScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  filtersContainer: { paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
+  filtersContainer: { gap: 8 },
   filterChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 999, borderWidth: 1 },
   filterChipText: { fontSize: 13, fontWeight: '600' },
+  createButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   listContent: { paddingHorizontal: 16, paddingBottom: 16 },
   card: { borderRadius: 20, padding: 18, marginBottom: 10, borderWidth: 1 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 },

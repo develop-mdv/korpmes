@@ -36,6 +36,14 @@ export class WebSocketService {
     this.server.to(`user:${userId}`).emit(event, data);
   }
 
+  emitToOrg(organizationId: string, event: string, data: any): void {
+    if (!this.server) {
+      this.logger.warn('WebSocket server not initialized');
+      return;
+    }
+    this.server.to(`org:${organizationId}`).emit(event, data);
+  }
+
   emitToAll(event: string, data: any): void {
     if (!this.server) {
       this.logger.warn('WebSocket server not initialized');

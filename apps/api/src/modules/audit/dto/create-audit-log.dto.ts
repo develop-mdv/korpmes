@@ -1,7 +1,7 @@
 export class CreateAuditLogDto {
   userId: string;
   userEmail?: string;
-  organizationId: string;
+  organizationId?: string | null;
   action: string;
   entityType?: string;
   entityId?: string;

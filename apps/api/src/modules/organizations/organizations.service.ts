@@ -74,6 +74,15 @@ export class OrganizationsService {
       .getMany();
   }
 
+  async getUserOrgIds(userId: string): Promise<string[]> {
+    const rows = await this.memberRepo
+      .createQueryBuilder('m')
+      .select('m.organization_id', 'organizationId')
+      .where('m.user_id = :userId', { userId })
+      .getRawMany<{ organizationId: string }>();
+    return rows.map((row) => row.organizationId);
+  }
+
   async update(id: string, dto: UpdateOrganizationDto): Promise<Organization> {
     await this.findById(id);
     await this.organizationRepo.update(id, dto);

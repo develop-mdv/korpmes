@@ -16,6 +16,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { ALL_ALLOWED_TYPES, MAX_FILE_SIZE_BYTES } from '@corp/shared-constants';
 import { File } from './entities/file.entity';
 import { StorageService, type StorageObject } from './storage/storage.service';
+import { AuditService } from '../audit/audit.service';
 
 export type DownloadKind = 'file' | 'thumbnail';
 
@@ -34,6 +35,7 @@ export class FilesService {
     private readonly storageService: StorageService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly auditService: AuditService,
   ) {}
 
   private buildPublicUrl(path: string): string {
@@ -158,7 +160,18 @@ export class FilesService {
       checksum,
     });
 
-    return this.fileRepository.save(entity);
+    const saved = await this.fileRepository.save(entity);
+
+    this.auditService.log({
+      userId,
+      organizationId: orgId,
+      action: 'file.upload',
+      entityType: 'file',
+      entityId: saved.id,
+      metadata: { name: originalName, size: file.size, mimeType: file.mimetype },
+    });
+
+    return saved;
   }
 
   async findById(id: string): Promise<File> {
@@ -172,8 +185,17 @@ export class FilesService {
 
   async getDownloadUrl(id: string, userId: string): Promise<string> {
     const file = await this.findById(id);
-    // TODO: verify user is a member of the organization
     const token = this.signDownloadToken({ fileId: file.id, kind: 'file' });
+
+    this.auditService.log({
+      userId,
+      organizationId: file.organizationId,
+      action: 'file.download',
+      entityType: 'file',
+      entityId: file.id,
+      metadata: { name: file.originalName },
+    });
+
     return this.buildPublicUrl(`/files/${file.id}/raw?token=${token}`);
   }
 
@@ -198,6 +220,15 @@ export class FilesService {
     }
 
     await this.fileRepository.remove(file);
+
+    this.auditService.log({
+      userId,
+      organizationId: file.organizationId,
+      action: 'file.delete',
+      entityType: 'file',
+      entityId: file.id,
+      metadata: { name: file.originalName },
+    });
   }
 
   async findByChat(chatId: string): Promise<File[]> {

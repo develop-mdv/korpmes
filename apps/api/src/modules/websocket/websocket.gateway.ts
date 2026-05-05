@@ -120,6 +120,26 @@ export class WebSocketGatewayHandler
     }
   }
 
+  @SubscribeMessage('org:join')
+  handleOrgJoin(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: { orgId: string },
+  ): void {
+    if (payload?.orgId) {
+      client.join(`org:${payload.orgId}`);
+    }
+  }
+
+  @SubscribeMessage('org:leave')
+  handleOrgLeave(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: { orgId: string },
+  ): void {
+    if (payload?.orgId) {
+      client.leave(`org:${payload.orgId}`);
+    }
+  }
+
   @SubscribeMessage('chat:catchup')
   async handleChatCatchup(
     @ConnectedSocket() client: Socket,

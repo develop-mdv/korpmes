@@ -21,17 +21,23 @@ export async function uploadFile(params: {
   name: string;
   mimeType: string;
   orgId: string;
+  taskId?: string;
+  messageId?: string;
   onProgress?: (progress: number) => void;
 }): Promise<FileInfo> {
-  const { uri, name, mimeType, orgId } = params;
+  const { uri, name, mimeType, orgId, taskId, messageId } = params;
   const token = await AsyncStorage.getItem(AUTH_TOKEN_KEY);
   const formData = new FormData();
   // React Native FormData accepts `{uri, name, type}` shape that differs from
   // the web DOM FormData typings — cast via `any` to bypass that mismatch.
   (formData as any).append('file', { uri, name, type: mimeType });
 
+  const queryParams = new URLSearchParams({ orgId });
+  if (taskId) queryParams.set('taskId', taskId);
+  if (messageId) queryParams.set('messageId', messageId);
+
   const response = await fetch(
-    `${API_BASE_URL}/files/upload?orgId=${encodeURIComponent(orgId)}`,
+    `${API_BASE_URL}/files/upload?${queryParams.toString()}`,
     {
       method: 'POST',
       headers: {

@@ -13,32 +13,32 @@ export class AuditLog {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
+  @Column({ name: 'user_id', type: 'uuid' })
   userId: string;
 
-  @Column({ nullable: true })
-  userEmail: string;
+  @Column({ name: 'user_email', type: 'varchar', length: 255, nullable: true })
+  userEmail: string | null;
 
-  @Column()
-  organizationId: string;
+  @Column({ name: 'organization_id', type: 'uuid', nullable: true })
+  organizationId: string | null;
 
   /** Dot-namespaced action, e.g. 'message.create', 'file.delete', 'auth.login' */
-  @Column()
+  @Column({ type: 'varchar', length: 100 })
   action: string;
 
-  @Column({ nullable: true })
-  entityType: string;
+  @Column({ name: 'entity_type', type: 'varchar', length: 50, nullable: true })
+  entityType: string | null;
 
-  @Column({ nullable: true })
-  entityId: string;
+  @Column({ name: 'entity_id', type: 'varchar', length: 100, nullable: true })
+  entityId: string | null;
 
   /** Arbitrary extra context (before/after values, params, etc.) */
   @Column({ type: 'jsonb', nullable: true })
   metadata: Record<string, unknown> | null;
 
-  @Column({ nullable: true })
-  ipAddress: string;
+  @Column({ name: 'ip_address', type: 'varchar', length: 64, nullable: true })
+  ipAddress: string | null;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 }

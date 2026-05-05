@@ -11,6 +11,7 @@ import { InvitePage } from '@/pages/invite/InvitePage';
 import { ChatsPage } from '@/pages/chats/ChatsPage';
 import { CallsPage } from '@/pages/calls/CallsPage';
 import { TasksPage } from '@/pages/tasks/TasksPage';
+import { TaskDetailPage } from '@/pages/tasks/TaskDetailPage';
 import { FilesPage } from '@/pages/files/FilesPage';
 import { NotificationsPage } from '@/pages/notifications/NotificationsPage';
 import { OrganizationPage } from '@/pages/organization/OrganizationPage';
@@ -63,6 +64,7 @@ export const router = createBrowserRouter([
               { path: '/chats/:chatId', element: <ChatsPage /> },
               { path: '/calls', element: <CallsPage /> },
               { path: '/tasks', element: <TasksPage /> },
+              { path: '/tasks/:id', element: <TaskDetailPage /> },
               { path: '/files', element: <FilesPage /> },
               { path: '/notifications', element: <NotificationsPage /> },
               { path: '/organization', element: <OrganizationPage /> },

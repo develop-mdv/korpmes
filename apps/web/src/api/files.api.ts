@@ -19,6 +19,7 @@ export function uploadFile(
   orgId: string,
   messageId?: string,
   onProgress?: (progress: number) => void,
+  taskId?: string,
 ): Promise<FileInfo> {
   return new Promise((resolve, reject) => {
     const formData = new FormData();
@@ -26,6 +27,7 @@ export function uploadFile(
 
     const params = new URLSearchParams({ orgId });
     if (messageId) params.set('messageId', messageId);
+    if (taskId) params.set('taskId', taskId);
 
     const xhr = new XMLHttpRequest();
     xhr.open('POST', `/api/files/upload?${params.toString()}`);
