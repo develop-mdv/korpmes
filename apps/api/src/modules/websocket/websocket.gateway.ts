@@ -12,10 +12,11 @@ import { Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { Server, Socket } from 'socket.io';
-import { WS_EVENTS } from '@corp/shared-constants';
+import { WS_EVENTS, DEFAULT_ROLE_PERMISSIONS } from '@corp/shared-constants';
 import { MessagesService } from '../messages/messages.service';
 import { WebSocketService } from './websocket.service';
 import { ChatsService } from '../chats/chats.service';
+import { MembersService } from '../organizations/members.service';
 
 @WsGateway({
   cors: {
@@ -38,6 +39,7 @@ export class WebSocketGatewayHandler
     private readonly messagesService: MessagesService,
     private readonly websocketService: WebSocketService,
     private readonly chatsService: ChatsService,
+    private readonly membersService: MembersService,
   ) {}
 
   afterInit(server: Server): void {
@@ -137,6 +139,36 @@ export class WebSocketGatewayHandler
   ): void {
     if (payload?.orgId) {
       client.leave(`org:${payload.orgId}`);
+    }
+  }
+
+  @SubscribeMessage('org:join:audit')
+  async handleOrgJoinAudit(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: { orgId: string },
+  ): Promise<void> {
+    if (!payload?.orgId) return;
+    const userId = client.data.userId;
+    if (!userId) return;
+    try {
+      const role = await this.membersService.getUserRole(payload.orgId, userId);
+      if (!role) return;
+      const granted =
+        DEFAULT_ROLE_PERMISSIONS[role as keyof typeof DEFAULT_ROLE_PERMISSIONS] || [];
+      if (!(granted as string[]).includes('ORG_VIEW_AUDIT')) return;
+      client.join(`org:${payload.orgId}:audit`);
+    } catch (err: any) {
+      this.logger.warn(`org:join:audit failed: ${err.message}`);
+    }
+  }
+
+  @SubscribeMessage('org:leave:audit')
+  handleOrgLeaveAudit(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: { orgId: string },
+  ): void {
+    if (payload?.orgId) {
+      client.leave(`org:${payload.orgId}:audit`);
     }
   }
 

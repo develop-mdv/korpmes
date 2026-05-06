@@ -7,12 +7,14 @@ import { useOrganizationStore } from '@/stores/organization.store';
 import { Avatar } from '@/components/common/Avatar';
 import { useAuth } from '@/hooks/useAuth';
 import { useBreakpoint } from '@/hooks/useBreakpoint';
+import { usePermissions } from '@/hooks/usePermissions';
 
 type NavItem = {
   path: string;
   label: string;
   caption: string;
   icon: ReactNode;
+  permission?: string;
 };
 
 function LineIcon({ children }: { children: ReactNode }) {
@@ -104,6 +106,7 @@ const navItems: NavItem[] = [
     path: '/audit',
     label: 'Аудит',
     caption: 'Журнал контроля',
+    permission: 'ORG_VIEW_AUDIT',
     icon: (
       <LineIcon>
         <path d="M9 12h6" />
@@ -135,7 +138,9 @@ export function Sidebar() {
   const setCurrentOrg = useOrganizationStore((s) => s.setCurrentOrg);
   const { logout } = useAuth();
   const { isMobile } = useBreakpoint();
+  const { has } = usePermissions();
   const [orgMenuOpen, setOrgMenuOpen] = useState(false);
+  const visibleNav = navItems.filter((item) => !item.permission || has(item.permission));
 
   const handleNavClick = () => {
     if (isMobile && sidebarOpen) {
@@ -203,7 +208,7 @@ export function Sidebar() {
       )}
 
       <nav className="sidebar-shell__nav">
-        {navItems.map((item) => (
+        {visibleNav.map((item) => (
           <NavLink
             key={item.path}
             to={item.path}

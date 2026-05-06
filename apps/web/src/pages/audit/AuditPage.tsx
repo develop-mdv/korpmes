@@ -1,103 +1,88 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
-import { format, formatDistanceToNow } from 'date-fns';
-import { ru } from 'date-fns/locale';
 import { EmptyState } from '@/components/common/EmptyState';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
-import { LuxSelect } from '@/components/common/LuxSelect';
 import { useOrganizationStore } from '@/stores/organization.store';
+import { useAuditLiveLog } from '@/hooks/useAuditLiveLog';
 import * as auditApi from '@/api/audit.api';
+import type { AuditLogItem } from '@/api/audit.api';
+import { AuditFilters, type AuditFiltersValue } from './components/AuditFilters';
+import { AuditTable } from './components/AuditTable';
 
-type AuditLog = auditApi.AuditLogItem;
+const EMPTY_FILTERS: AuditFiltersValue = {
+  action: '',
+  userId: '',
+  dateFrom: '',
+  dateTo: '',
+  q: '',
+};
 
-const ACTION_GROUPS = [
-  { value: '', label: 'Все действия' },
-  { value: 'auth', label: 'Авторизация' },
-  { value: 'message', label: 'Сообщения' },
-  { value: 'file', label: 'Файлы' },
-  { value: 'task', label: 'Задачи' },
-  { value: 'member', label: 'Участники' },
-  { value: 'org', label: 'Организация' },
-  { value: 'chat', label: 'Чаты' },
-];
+const LIMIT = 50;
+const SEARCH_DEBOUNCE_MS = 350;
 
-function actionTone(action: string) {
-  if (action.startsWith('auth')) return { color: '#5c6f96', bg: 'rgba(92, 111, 150, 0.12)' };
-  if (action.startsWith('message') || action.startsWith('chat')) return { color: '#315f50', bg: 'rgba(92, 135, 117, 0.14)' };
-  if (action.startsWith('file')) return { color: '#7a5a16', bg: 'rgba(212, 177, 106, 0.18)' };
-  if (action.startsWith('task')) return { color: '#6b5a8f', bg: 'rgba(132, 111, 170, 0.13)' };
-  if (action.startsWith('member') || action.startsWith('org')) return { color: '#9a3737', bg: 'rgba(201, 78, 78, 0.12)' };
-  return { color: '#5f6674', bg: 'rgba(124, 132, 147, 0.13)' };
+function matchesFilters(log: AuditLogItem, filters: AuditFiltersValue): boolean {
+  if (filters.action && !log.action.startsWith(filters.action)) return false;
+  if (filters.userId && log.userId !== filters.userId) return false;
+  if (filters.dateFrom) {
+    const d = new Date(log.createdAt);
+    if (d < new Date(filters.dateFrom)) return false;
+  }
+  if (filters.dateTo) {
+    const d = new Date(log.createdAt);
+    if (d > new Date(`${filters.dateTo}T23:59:59`)) return false;
+  }
+  if (filters.q) {
+    const q = filters.q.toLowerCase();
+    const blob = `${log.userEmail ?? ''} ${log.entityId ?? ''} ${log.action}`.toLowerCase();
+    if (!blob.includes(q)) return false;
+  }
+  return true;
 }
 
-function ActionBadge({ action }: { action: string }) {
-  const tone = actionTone(action);
-
-  return (
-    <span style={{ ...styles.badge, color: tone.color, background: tone.bg }}>
-      {action}
-    </span>
-  );
-}
-
-function LogRow({ log }: { log: AuditLog }) {
-  const [showMeta, setShowMeta] = useState(false);
-  const hasMeta = Boolean(log.metadata && Object.keys(log.metadata).length > 0);
-
-  return (
-    <>
-      <tr style={styles.tr}>
-        <td style={styles.td}>
-          <span title={format(new Date(log.createdAt), 'd MMM yyyy, HH:mm', { locale: ru })} style={styles.time}>
-            {formatDistanceToNow(new Date(log.createdAt), { addSuffix: true, locale: ru })}
-          </span>
-        </td>
-        <td style={styles.td}>
-          <span style={styles.email}>{log.userEmail || log.userId.slice(0, 8)}</span>
-        </td>
-        <td style={styles.td}>
-          <ActionBadge action={log.action} />
-        </td>
-        <td style={styles.td}>
-          {log.entityType ? (
-            <span style={styles.entity}>
-              {log.entityType}
-              {log.entityId && <span style={styles.entityId}> #{log.entityId.slice(0, 8)}</span>}
-            </span>
-          ) : (
-            <span style={styles.entity}>-</span>
-          )}
-        </td>
-        <td style={styles.td}>{log.ipAddress || '-'}</td>
-        <td style={styles.td}>
-          {hasMeta && (
-            <button style={styles.metaBtn} onClick={() => setShowMeta((value) => !value)} type="button">
-              {showMeta ? 'Скрыть детали' : 'Детали'}
-            </button>
-          )}
-        </td>
-      </tr>
-      {showMeta && hasMeta && (
-        <tr>
-          <td colSpan={6} style={styles.metaCell}>
-            <pre style={styles.metaPre}>{JSON.stringify(log.metadata, null, 2)}</pre>
-          </td>
-        </tr>
-      )}
-    </>
-  );
+function downloadBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 export function AuditPage() {
-  const { currentOrg } = useOrganizationStore();
-  const [logs, setLogs] = useState<AuditLog[]>([]);
+  const { currentOrg, members } = useOrganizationStore();
+  const [filters, setFilters] = useState<AuditFiltersValue>(EMPTY_FILTERS);
+  const [debouncedQ, setDebouncedQ] = useState('');
+  const [logs, setLogs] = useState<AuditLogItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [total, setTotal] = useState(0);
-  const [actionFilter, setActionFilter] = useState('');
   const [error, setError] = useState('');
-  const limit = 50;
+  const [exporting, setExporting] = useState(false);
+  const [pendingLive, setPendingLive] = useState<AuditLogItem[]>([]);
+
+  // Debounce free-text search separately to avoid hammering the API on each keystroke.
+  useEffect(() => {
+    const handle = window.setTimeout(() => setDebouncedQ(filters.q), SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(handle);
+  }, [filters.q]);
+
+  const effectiveFilters = useMemo(
+    () => ({ ...filters, q: debouncedQ }),
+    [filters.action, filters.userId, filters.dateFrom, filters.dateTo, debouncedQ],
+  );
+
+  // Reset to page 1 whenever a filter (other than page itself) changes.
+  const filtersKey = `${effectiveFilters.action}|${effectiveFilters.userId}|${effectiveFilters.dateFrom}|${effectiveFilters.dateTo}|${effectiveFilters.q}`;
+  const lastFiltersKey = useRef(filtersKey);
+  useEffect(() => {
+    if (lastFiltersKey.current !== filtersKey) {
+      lastFiltersKey.current = filtersKey;
+      setPage(1);
+    }
+  }, [filtersKey]);
 
   const fetchLogs = useCallback(async () => {
     if (!currentOrg) return;
@@ -107,12 +92,19 @@ export function AuditPage() {
       const res = await auditApi.getAuditLogs({
         orgId: currentOrg.id,
         page,
-        limit,
-        action: actionFilter || undefined,
+        limit: LIMIT,
+        action: effectiveFilters.action || undefined,
+        userId: effectiveFilters.userId || undefined,
+        dateFrom: effectiveFilters.dateFrom || undefined,
+        dateTo: effectiveFilters.dateTo
+          ? `${effectiveFilters.dateTo}T23:59:59`
+          : undefined,
+        q: effectiveFilters.q || undefined,
       });
       setLogs(res.items);
       setPages(res.pages);
       setTotal(res.total);
+      setPendingLive([]);
     } catch (err: any) {
       setError(err.response?.data?.error?.message || 'Не удалось загрузить журнал аудита');
       setLogs([]);
@@ -120,15 +112,51 @@ export function AuditPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentOrg, page, actionFilter]);
+  }, [currentOrg, page, effectiveFilters]);
 
   useEffect(() => {
     fetchLogs();
   }, [fetchLogs]);
 
-  const handleFilterChange = (value: string) => {
-    setActionFilter(value);
-    setPage(1);
+  const handleLiveLog = useCallback(
+    (log: AuditLogItem) => {
+      // Only auto-prepend if currently on page 1 AND log matches current filters.
+      if (page === 1 && matchesFilters(log, effectiveFilters)) {
+        setLogs((prev) => [log, ...prev].slice(0, LIMIT));
+        setTotal((t) => t + 1);
+      } else {
+        setPendingLive((prev) => [log, ...prev]);
+      }
+    },
+    [page, effectiveFilters],
+  );
+
+  useAuditLiveLog(currentOrg?.id ?? null, handleLiveLog);
+
+  const handleExport = useCallback(async () => {
+    if (!currentOrg) return;
+    setExporting(true);
+    try {
+      const blob = await auditApi.exportAuditLogs({
+        orgId: currentOrg.id,
+        action: effectiveFilters.action || undefined,
+        userId: effectiveFilters.userId || undefined,
+        dateFrom: effectiveFilters.dateFrom || undefined,
+        dateTo: effectiveFilters.dateTo
+          ? `${effectiveFilters.dateTo}T23:59:59`
+          : undefined,
+        q: effectiveFilters.q || undefined,
+      });
+      downloadBlob(blob, `audit-${currentOrg.id}-${new Date().toISOString().slice(0, 10)}.csv`);
+    } catch (err: any) {
+      setError(err.response?.data?.error?.message || 'Не удалось экспортировать журнал');
+    } finally {
+      setExporting(false);
+    }
+  }, [currentOrg, effectiveFilters]);
+
+  const handleApplyPending = () => {
+    fetchLogs();
   };
 
   return (
@@ -143,19 +171,26 @@ export function AuditPage() {
             </p>
             <div className="page-hero__meta">
               <span className="lux-pill">Событий: {total}</span>
-              <span className="lux-pill">Страница: {page} / {pages}</span>
+              <span className="lux-pill">
+                Страница: {page} / {pages}
+              </span>
             </div>
           </div>
         </section>
 
-        <section className="lux-panel" style={styles.toolbar}>
-          <LuxSelect
-            value={actionFilter}
-            onChange={handleFilterChange}
-            style={styles.select}
-            options={ACTION_GROUPS.map((group) => ({ value: group.value, label: group.label }))}
-          />
-        </section>
+        <AuditFilters
+          value={filters}
+          members={members}
+          exporting={exporting}
+          onChange={setFilters}
+          onExport={handleExport}
+        />
+
+        {pendingLive.length > 0 && (
+          <button type="button" className="lux-pill" style={styles.liveBadge} onClick={handleApplyPending}>
+            Новых событий: {pendingLive.length} — обновить
+          </button>
+        )}
 
         {error && <div className="lux-alert">{error}</div>}
 
@@ -170,24 +205,7 @@ export function AuditPage() {
               description="Активность организации появится здесь после первых действий команды."
             />
           ) : (
-            <div style={styles.tableWrap}>
-              <table style={styles.table}>
-                <thead>
-                  <tr>
-                    {['Время', 'Пользователь', 'Действие', 'Объект', 'IP', ''].map((heading) => (
-                      <th key={heading} style={styles.th}>
-                        {heading}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {logs.map((log) => (
-                    <LogRow key={log.id} log={log} />
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <AuditTable logs={logs} members={members} />
           )}
         </section>
 
@@ -201,7 +219,9 @@ export function AuditPage() {
             >
               Назад
             </button>
-            <span className="lux-pill">{page} / {pages}</span>
+            <span className="lux-pill">
+              {page} / {pages}
+            </span>
             <button
               className="lux-button-secondary"
               disabled={page >= pages}
@@ -218,12 +238,6 @@ export function AuditPage() {
 }
 
 const styles = {
-  toolbar: {
-    padding: 16,
-  },
-  select: {
-    maxWidth: 320,
-  },
   centered: {
     display: 'flex',
     justifyContent: 'center',
@@ -232,86 +246,15 @@ const styles = {
   tablePanel: {
     overflow: 'hidden',
   },
-  tableWrap: {
-    overflowX: 'auto',
-  },
-  table: {
-    width: '100%',
-    borderCollapse: 'collapse',
-    fontSize: 13,
-  },
-  th: {
-    padding: '14px 18px',
-    textAlign: 'left',
-    fontWeight: 800,
-    color: 'var(--color-text-secondary)',
-    borderBottom: '1px solid var(--color-border)',
-    whiteSpace: 'nowrap',
-    letterSpacing: '0.08em',
-    textTransform: 'uppercase',
-  },
-  tr: {
-    borderBottom: '1px solid var(--color-border)',
-  },
-  td: {
-    padding: '14px 18px',
-    verticalAlign: 'middle',
-    color: 'var(--color-text)',
-  },
-  time: {
-    color: 'var(--color-text-secondary)',
-    whiteSpace: 'nowrap',
-    fontSize: 12,
-    cursor: 'default',
-  },
-  email: {
-    fontWeight: 700,
-  },
-  badge: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    minHeight: 28,
-    padding: '0 10px',
-    borderRadius: 999,
-    fontSize: 11,
-    fontWeight: 900,
-    whiteSpace: 'nowrap',
-    letterSpacing: '0.04em',
-  },
-  entity: {
-    fontSize: 12,
-    color: 'var(--color-text-secondary)',
-  },
-  entityId: {
-    opacity: 0.65,
-  },
-  metaBtn: {
-    border: '1px solid var(--color-border)',
-    borderRadius: 999,
-    background: 'var(--color-surface-soft)',
-    cursor: 'pointer',
-    color: 'var(--color-text-secondary)',
-    fontSize: 11,
-    fontWeight: 800,
-    padding: '7px 10px',
-  },
-  metaCell: {
-    background: 'rgba(255, 255, 255, 0.56)',
-    padding: 0,
-  },
-  metaPre: {
-    margin: 0,
-    padding: '14px 20px',
-    fontSize: 11,
-    fontFamily: 'monospace',
-    color: 'var(--color-text)',
-    overflowX: 'auto',
-    maxHeight: 220,
-  },
   pagination: {
     display: 'flex',
     alignItems: 'center',
     gap: 12,
     justifyContent: 'center',
+  },
+  liveBadge: {
+    alignSelf: 'flex-start',
+    cursor: 'pointer',
+    border: 'none',
   },
 } satisfies Record<string, CSSProperties>;

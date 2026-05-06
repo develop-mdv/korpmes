@@ -5,6 +5,7 @@ import { MessagesModule } from '../messages/messages.module';
 import { ChatsModule } from '../chats/chats.module';
 import { RedisModule } from '../redis/redis.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { OrganizationsModule } from '../organizations/organizations.module';
 import { WebSocketGatewayHandler } from './websocket.gateway';
 import { WebSocketService } from './websocket.service';
 
@@ -14,6 +15,7 @@ import { WebSocketService } from './websocket.service';
     forwardRef(() => ChatsModule),
     RedisModule,
     forwardRef(() => NotificationsModule),
+    forwardRef(() => OrganizationsModule),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

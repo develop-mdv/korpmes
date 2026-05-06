@@ -2,7 +2,7 @@ import { ForbiddenException, Inject, Injectable, Logger, NotFoundException, forw
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, IsNull, LessThan, Not } from 'typeorm';
 import { TaskStatus } from '@corp/shared-types';
-import { WS_EVENTS } from '@corp/shared-constants';
+import { AUDIT_ACTIONS, WS_EVENTS } from '@corp/shared-constants';
 import { Task } from './entities/task.entity';
 import { TaskComment } from './entities/task-comment.entity';
 import { TaskChecklistItem } from './entities/task-checklist-item.entity';
@@ -73,7 +73,7 @@ export class TasksService {
     this.auditService.log({
       userId,
       organizationId: savedTask.organizationId,
-      action: 'task.create',
+      action: AUDIT_ACTIONS.TASK_CREATE,
       entityType: 'task',
       entityId: savedTask.id,
       metadata: { title: savedTask.title, priority: savedTask.priority },
@@ -246,7 +246,7 @@ export class TasksService {
     this.auditService.log({
       userId,
       organizationId: task.organizationId,
-      action: 'task.update',
+      action: AUDIT_ACTIONS.TASK_UPDATE,
       entityType: 'task',
       entityId: task.id,
       metadata: changes,
@@ -278,7 +278,7 @@ export class TasksService {
     this.auditService.log({
       userId: actorId,
       organizationId: task.organizationId,
-      action: 'task.assign',
+      action: AUDIT_ACTIONS.TASK_ASSIGN,
       entityType: 'task',
       entityId: task.id,
       metadata: { from: previousAssignee, to: assignedTo },
@@ -305,7 +305,7 @@ export class TasksService {
     this.auditService.log({
       userId: actorId,
       organizationId: task.organizationId,
-      action: 'task.delete',
+      action: AUDIT_ACTIONS.TASK_DELETE,
       entityType: 'task',
       entityId: id,
       metadata: { title: task.title },
@@ -330,7 +330,7 @@ export class TasksService {
     this.auditService.log({
       userId,
       organizationId: task.organizationId,
-      action: 'task.comment.add',
+      action: AUDIT_ACTIONS.TASK_COMMENT_ADD,
       entityType: 'task',
       entityId: taskId,
       metadata: { commentId: saved.id },
@@ -393,7 +393,7 @@ export class TasksService {
     this.auditService.log({
       userId,
       organizationId: task.organizationId,
-      action: 'task.checklist.add',
+      action: AUDIT_ACTIONS.TASK_CHECKLIST_ADD,
       entityType: 'task',
       entityId: taskId,
       metadata: { itemId: saved.id },
@@ -424,7 +424,7 @@ export class TasksService {
     this.auditService.log({
       userId,
       organizationId: task.organizationId,
-      action: 'task.checklist.update',
+      action: AUDIT_ACTIONS.TASK_CHECKLIST_UPDATE,
       entityType: 'task',
       entityId: item.taskId,
       metadata: { itemId, changes: dto },
@@ -447,7 +447,7 @@ export class TasksService {
     this.auditService.log({
       userId,
       organizationId: task.organizationId,
-      action: 'task.checklist.remove',
+      action: AUDIT_ACTIONS.TASK_CHECKLIST_REMOVE,
       entityType: 'task',
       entityId: taskId,
       metadata: { itemId },
@@ -481,7 +481,7 @@ export class TasksService {
     this.auditService.log({
       userId,
       organizationId: task.organizationId,
-      action: 'task.attachment.add',
+      action: AUDIT_ACTIONS.TASK_ATTACHMENT_ADD,
       entityType: 'task',
       entityId: taskId,
       metadata: { fileId, fileName: file.originalName },
@@ -503,7 +503,7 @@ export class TasksService {
     this.auditService.log({
       userId,
       organizationId: task.organizationId,
-      action: 'task.attachment.remove',
+      action: AUDIT_ACTIONS.TASK_ATTACHMENT_REMOVE,
       entityType: 'task',
       entityId: taskId,
       metadata: { fileId },

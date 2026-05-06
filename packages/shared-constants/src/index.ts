@@ -21,6 +21,12 @@ export {
 } from './limits';
 export { WS_EVENTS } from './events';
 export {
+  AUDIT_ACTIONS,
+  AUDIT_ACTION_PREFIXES,
+  getActionPrefix,
+} from './audit-actions';
+export type { AuditAction, AuditActionPrefix } from './audit-actions';
+export {
   ALLOWED_IMAGE_TYPES,
   ALLOWED_VIDEO_TYPES,
   ALLOWED_AUDIO_TYPES,

@@ -358,6 +358,10 @@ img {
   width: 100%;
 }
 
+.lux-dropdown:has(.lux-dropdown__trigger.is-open) {
+  z-index: 1100;
+}
+
 .lux-dropdown__trigger {
   width: 100%;
   display: flex;
@@ -428,7 +432,7 @@ img {
   left: 0;
   right: 0;
   top: calc(100% + 8px);
-  z-index: 30;
+  z-index: 1200;
   display: grid;
   gap: 4px;
   padding: 8px;

@@ -7,10 +7,17 @@ import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import { RequestContextInterceptor } from './common/interceptors/request-context.interceptor';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
+
+  // Trust the first hop proxy (so req.ip / X-Forwarded-For works behind nginx/k8s)
+  const httpAdapter = app.getHttpAdapter().getInstance?.();
+  if (httpAdapter && typeof httpAdapter.set === 'function') {
+    httpAdapter.set('trust proxy', true);
+  }
 
   const configService = app.get(ConfigService);
   const port = configService.get<number>('APP_PORT', 3000);
@@ -41,7 +48,11 @@ async function bootstrap() {
   app.useGlobalFilters(new HttpExceptionFilter());
 
   // Global interceptors
-  app.useGlobalInterceptors(new LoggingInterceptor(), new TransformInterceptor());
+  app.useGlobalInterceptors(
+    new RequestContextInterceptor(),
+    new LoggingInterceptor(),
+    new TransformInterceptor(),
+  );
 
   // WebSocket adapter
   app.useWebSocketAdapter(new IoAdapter(app));

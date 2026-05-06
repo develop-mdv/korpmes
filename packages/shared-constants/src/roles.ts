@@ -23,7 +23,10 @@ type Permission =
   | 'VIEW_ALL_MEMBERS'
   | 'DEPARTMENT_MANAGE'
   | 'ORG_SETTINGS'
-  | 'ORG_DELETE';
+  | 'ORG_DELETE'
+  | 'ORG_VIEW_AUDIT'
+  | 'EXPORT_DATA'
+  | 'GUEST_INVITE';
 
 const ALL_PERMISSIONS: Permission[] = [
   'CHAT_CREATE',
@@ -49,6 +52,9 @@ const ALL_PERMISSIONS: Permission[] = [
   'DEPARTMENT_MANAGE',
   'ORG_SETTINGS',
   'ORG_DELETE',
+  'ORG_VIEW_AUDIT',
+  'EXPORT_DATA',
+  'GUEST_INVITE',
 ] as const;
 
 export const DEFAULT_ROLE_PERMISSIONS: Record<OrgRole, Permission[]> = {
@@ -73,6 +79,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<OrgRole, Permission[]> = {
     'CHANNEL_CREATE',
     'VIEW_ALL_MEMBERS',
     'DEPARTMENT_MANAGE',
+    'GUEST_INVITE',
   ],
   EMPLOYEE: [
     'CHAT_CREATE',

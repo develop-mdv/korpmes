@@ -29,6 +29,7 @@ export const WS_EVENTS = {
   TASK_CREATED: 'task:created',
   TASK_UPDATED: 'task:updated',
   TASK_DELETED: 'task:deleted',
+  AUDIT_LOG_NEW: 'audit:log:new',
   CONNECTION: 'connection',
   DISCONNECT: 'disconnect',
   ERROR: 'error',

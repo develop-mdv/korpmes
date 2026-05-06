@@ -44,6 +44,15 @@ export class WebSocketService {
     this.server.to(`org:${organizationId}`).emit(event, data);
   }
 
+  /** Audit room is gated: only sockets with ORG_VIEW_AUDIT for this org join `org:${id}:audit`. */
+  emitToOrgAudit(organizationId: string, event: string, data: any): void {
+    if (!this.server) {
+      this.logger.warn('WebSocket server not initialized');
+      return;
+    }
+    this.server.to(`org:${organizationId}:audit`).emit(event, data);
+  }
+
   emitToAll(event: string, data: any): void {
     if (!this.server) {
       this.logger.warn('WebSocket server not initialized');

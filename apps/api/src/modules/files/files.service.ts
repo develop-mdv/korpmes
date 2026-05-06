@@ -13,7 +13,7 @@ import { Repository } from 'typeorm';
 import * as crypto from 'crypto';
 import * as sharp from 'sharp';
 import { v4 as uuidv4 } from 'uuid';
-import { ALL_ALLOWED_TYPES, MAX_FILE_SIZE_BYTES } from '@corp/shared-constants';
+import { ALL_ALLOWED_TYPES, AUDIT_ACTIONS, MAX_FILE_SIZE_BYTES } from '@corp/shared-constants';
 import { File } from './entities/file.entity';
 import { StorageService, type StorageObject } from './storage/storage.service';
 import { AuditService } from '../audit/audit.service';
@@ -165,7 +165,7 @@ export class FilesService {
     this.auditService.log({
       userId,
       organizationId: orgId,
-      action: 'file.upload',
+      action: AUDIT_ACTIONS.FILE_UPLOAD,
       entityType: 'file',
       entityId: saved.id,
       metadata: { name: originalName, size: file.size, mimeType: file.mimetype },
@@ -190,7 +190,7 @@ export class FilesService {
     this.auditService.log({
       userId,
       organizationId: file.organizationId,
-      action: 'file.download',
+      action: AUDIT_ACTIONS.FILE_DOWNLOAD,
       entityType: 'file',
       entityId: file.id,
       metadata: { name: file.originalName },
@@ -224,7 +224,7 @@ export class FilesService {
     this.auditService.log({
       userId,
       organizationId: file.organizationId,
-      action: 'file.delete',
+      action: AUDIT_ACTIONS.FILE_DELETE,
       entityType: 'file',
       entityId: file.id,
       metadata: { name: file.originalName },

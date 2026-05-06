@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { AuthGuard } from './auth-guard';
 import { OrgGuard } from './org-guard';
+import { PermissionRoute } from './permission-route';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { LoginPage } from '@/pages/auth/LoginPage';
 import { RegisterPage } from '@/pages/auth/RegisterPage';
@@ -73,7 +74,10 @@ export const router = createBrowserRouter([
               { path: '/organization/departments', element: <DepartmentsPage /> },
               { path: '/settings', element: <SettingsPage /> },
               { path: '/search', element: <SearchPage /> },
-              { path: '/audit', element: <AuditPage /> },
+              {
+                element: <PermissionRoute permission="ORG_VIEW_AUDIT" />,
+                children: [{ path: '/audit', element: <AuditPage /> }],
+              },
             ],
           },
         ],

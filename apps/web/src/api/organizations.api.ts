@@ -9,6 +9,8 @@ export interface Organization {
   updatedAt: string;
 }
 
+export type OrgRoleRaw = 'OWNER' | 'ADMIN' | 'MANAGER' | 'EMPLOYEE' | 'GUEST';
+
 export interface OrganizationMember {
   id: string;
   userId: string;
@@ -17,6 +19,7 @@ export interface OrganizationMember {
   email: string;
   avatar?: string;
   role: 'owner' | 'admin' | 'member';
+  roleRaw?: OrgRoleRaw;
   department?: string;
   joinedAt: string;
 }

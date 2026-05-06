@@ -17,6 +17,7 @@ import { RefreshToken } from './entities/refresh-token.entity';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { AuditService } from '../audit/audit.service';
+import { AUDIT_ACTIONS } from '@corp/shared-constants';
 
 @Injectable()
 export class AuthService {
@@ -48,6 +49,14 @@ export class AuthService {
     });
 
     const tokens = await this.generateTokens(user);
+
+    this.auditService.log({
+      userId: user.id,
+      userEmail: user.email,
+      action: AUDIT_ACTIONS.AUTH_REGISTER,
+      entityType: 'user',
+      entityId: user.id,
+    });
 
     const { passwordHash: _, ...safeUser } = user;
     return {
@@ -88,7 +97,7 @@ export class AuthService {
     this.auditService.log({
       userId: user.id,
       userEmail: user.email,
-      action: 'auth.login',
+      action: AUDIT_ACTIONS.AUTH_LOGIN,
       entityType: 'user',
       entityId: user.id,
     });
@@ -151,7 +160,7 @@ export class AuthService {
         await this.refreshTokenRepository.save(st);
         this.auditService.log({
           userId,
-          action: 'auth.logout',
+          action: AUDIT_ACTIONS.AUTH_LOGOUT,
           entityType: 'user',
           entityId: userId,
         });
@@ -165,6 +174,12 @@ export class AuthService {
       { userId, revokedAt: IsNull() },
       { revokedAt: new Date() },
     );
+    this.auditService.log({
+      userId,
+      action: AUDIT_ACTIONS.AUTH_LOGOUT_ALL,
+      entityType: 'user',
+      entityId: userId,
+    });
   }
 
   async generateTokens(user: User) {
@@ -209,6 +224,14 @@ export class AuthService {
 
     // In production, send email with reset link
     this.logger.log(`Password reset token for user ${user.id}: ${resetToken}`);
+
+    this.auditService.log({
+      userId: user.id,
+      userEmail: user.email,
+      action: AUDIT_ACTIONS.AUTH_PASSWORD_RESET_REQUEST,
+      entityType: 'user',
+      entityId: user.id,
+    });
   }
 
   async resetPassword(token: string, newPassword: string): Promise<void> {
@@ -237,6 +260,14 @@ export class AuthService {
           .getRepository(User)
           .update(user.id, { passwordHash }),
       );
+
+    this.auditService.log({
+      userId: user.id,
+      userEmail: user.email,
+      action: AUDIT_ACTIONS.AUTH_PASSWORD_RESET,
+      entityType: 'user',
+      entityId: user.id,
+    });
 
     // Revoke all refresh tokens
     await this.logoutAll(user.id);
@@ -275,6 +306,12 @@ export class AuthService {
     }
 
     await this.usersService.enableTwoFactor(userId);
+    this.auditService.log({
+      userId,
+      action: AUDIT_ACTIONS.AUTH_TWO_FACTOR_ENABLE,
+      entityType: 'user',
+      entityId: userId,
+    });
   }
 
   async disableTwoFactor(userId: string, code: string): Promise<void> {
@@ -299,5 +336,11 @@ export class AuthService {
     }
 
     await this.usersService.disableTwoFactor(userId);
+    this.auditService.log({
+      userId,
+      action: AUDIT_ACTIONS.AUTH_TWO_FACTOR_DISABLE,
+      entityType: 'user',
+      entityId: userId,
+    });
   }
 }
