@@ -6,6 +6,7 @@ import { FormField } from '../../components/auth/FormField';
 import { PrimaryButton } from '../../components/auth/PrimaryButton';
 import { useTheme } from '../../theme';
 import type { AuthStackParamList } from '../../navigation/types';
+import * as authApi from '../../api/auth.api';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'ForgotPassword'>;
 
@@ -24,10 +25,10 @@ export function ForgotPasswordScreen({ navigation }: Props) {
     setLoading(true);
     setError('');
     try {
-      // TODO: вызвать forgotPassword API
+      await authApi.forgotPassword(email.trim());
       setSent(true);
-    } catch {
-      setError('Не удалось отправить ссылку');
+    } catch (err: any) {
+      setError(err.response?.data?.error?.message || 'Не удалось отправить ссылку');
     } finally {
       setLoading(false);
     }

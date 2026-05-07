@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Switch, StyleSheet, Alert, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Avatar } from '../../components/Avatar';
 import { useAuthStore } from '../../stores/auth.store';
 import { useSettingsStore, type ThemePreference } from '../../stores/settings.store';
 import { useTheme } from '../../theme';
+import type { SettingsStackParamList } from '../../navigation/types';
 
 const THEME_OPTIONS: { id: ThemePreference; label: string; icon: 'phone-portrait-outline' | 'sunny-outline' | 'moon-outline' }[] = [
   { id: 'auto', label: 'Авто', icon: 'phone-portrait-outline' },
@@ -14,6 +17,7 @@ const THEME_OPTIONS: { id: ThemePreference; label: string; icon: 'phone-portrait
 
 export function SettingsScreen() {
   const theme = useTheme();
+  const navigation = useNavigation<NativeStackNavigationProp<SettingsStackParamList>>();
   const { user, logout } = useAuthStore();
   const soundEnabled = useSettingsStore((s) => s.soundEnabled);
   const setSoundEnabled = useSettingsStore((s) => s.setSoundEnabled);
@@ -21,7 +25,7 @@ export function SettingsScreen() {
   const setThemePreference = useSettingsStore((s) => s.setThemePreference);
   const [pushEnabled, setPushEnabled] = useState(true);
   const [emailEnabled, setEmailEnabled] = useState(false);
-  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const twoFactorEnabled = !!user?.twoFactorEnabled;
 
   const handleLogout = () => {
     Alert.alert('Выйти', 'Выйти из аккаунта?', [
@@ -103,7 +107,32 @@ export function SettingsScreen() {
 
       <View style={[styles.section, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, ...theme.shadows.sm }]}>
         <Text style={[styles.sectionTitle, { color: theme.colors.textTertiary }]}>Безопасность</Text>
-        <SettingRow theme={theme} label="Двухфакторная защита" value={twoFactorEnabled} onValueChange={setTwoFactorEnabled} last />
+        <Pressable
+          onPress={() =>
+            navigation.navigate(twoFactorEnabled ? 'TwoFactorDisable' : 'TwoFactorSetup')
+          }
+          style={styles.twoFactorRow}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.settingLabel, { color: theme.colors.textPrimary }]}>
+              Двухфакторная защита
+            </Text>
+            <Text style={[styles.twoFactorHint, { color: theme.colors.textTertiary }]}>
+              {twoFactorEnabled
+                ? 'Включена. Нажмите, чтобы отключить.'
+                : 'Выключена. Нажмите, чтобы включить.'}
+            </Text>
+          </View>
+          <Text
+            style={[
+              styles.twoFactorStatus,
+              { color: twoFactorEnabled ? theme.colors.primary : theme.colors.textTertiary },
+            ]}
+          >
+            {twoFactorEnabled ? 'Вкл' : 'Выкл'}
+          </Text>
+          <Ionicons name="chevron-forward" size={18} color={theme.colors.textTertiary} />
+        </Pressable>
       </View>
 
       <TouchableOpacity
@@ -168,6 +197,14 @@ const styles = StyleSheet.create({
   themeOptionText: { fontSize: 12, fontWeight: '600' },
   settingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12 },
   settingLabel: { fontSize: 15 },
+  twoFactorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    gap: 12,
+  },
+  twoFactorHint: { fontSize: 13, marginTop: 2 },
+  twoFactorStatus: { fontSize: 13, fontWeight: '700' },
   logoutButton: {
     marginTop: 8,
     paddingVertical: 14,

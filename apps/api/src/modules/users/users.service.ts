@@ -57,6 +57,10 @@ export class UsersService {
     await this.usersRepository.update(id, { lastSeenAt: new Date() });
   }
 
+  async updatePasswordHash(id: string, passwordHash: string): Promise<void> {
+    await this.usersRepository.update(id, { passwordHash });
+  }
+
   async search(query: string, orgId: string): Promise<User[]> {
     const qb = this.usersRepository
       .createQueryBuilder('user')

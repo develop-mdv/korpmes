@@ -5,6 +5,8 @@ import {
   ForbiddenException,
   UnauthorizedException,
   Logger,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
@@ -15,8 +17,11 @@ import * as sharp from 'sharp';
 import { v4 as uuidv4 } from 'uuid';
 import { ALL_ALLOWED_TYPES, AUDIT_ACTIONS, MAX_FILE_SIZE_BYTES } from '@corp/shared-constants';
 import { File } from './entities/file.entity';
+import { Chat } from '../chats/entities/chat.entity';
+import { Task } from '../tasks/entities/task.entity';
 import { StorageService, type StorageObject } from './storage/storage.service';
 import { AuditService } from '../audit/audit.service';
+import { MembersService } from '../organizations/members.service';
 
 export type DownloadKind = 'file' | 'thumbnail';
 
@@ -32,11 +37,24 @@ export class FilesService {
   constructor(
     @InjectRepository(File)
     private readonly fileRepository: Repository<File>,
+    @InjectRepository(Chat)
+    private readonly chatRepository: Repository<Chat>,
+    @InjectRepository(Task)
+    private readonly taskRepository: Repository<Task>,
     private readonly storageService: StorageService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly auditService: AuditService,
+    @Inject(forwardRef(() => MembersService))
+    private readonly membersService: MembersService,
   ) {}
+
+  private async assertMember(orgId: string, userId: string): Promise<void> {
+    const member = await this.membersService.getMember(orgId, userId);
+    if (!member) {
+      throw new ForbiddenException('You are not a member of this organization');
+    }
+  }
 
   private buildPublicUrl(path: string): string {
     const explicit = this.configService.get<string>('APP_PUBLIC_URL');
@@ -87,6 +105,8 @@ export class FilesService {
     messageId?: string,
     taskId?: string,
   ): Promise<File> {
+    await this.assertMember(orgId, userId);
+
     if (
       !(ALL_ALLOWED_TYPES as readonly string[]).includes(file.mimetype)
     ) {
@@ -185,6 +205,7 @@ export class FilesService {
 
   async getDownloadUrl(id: string, userId: string): Promise<string> {
     const file = await this.findById(id);
+    await this.assertMember(file.organizationId, userId);
     const token = this.signDownloadToken({ fileId: file.id, kind: 'file' });
 
     this.auditService.log({
@@ -199,8 +220,9 @@ export class FilesService {
     return this.buildPublicUrl(`/files/${file.id}/raw?token=${token}`);
   }
 
-  async getThumbnailUrl(id: string): Promise<string | null> {
+  async getThumbnailUrl(id: string, userId: string): Promise<string | null> {
     const file = await this.findById(id);
+    await this.assertMember(file.organizationId, userId);
     if (!file.thumbnailKey) return null;
     const token = this.signDownloadToken({ fileId: file.id, kind: 'thumbnail' });
     return this.buildPublicUrl(`/files/${file.id}/thumbnail?token=${token}`);
@@ -208,6 +230,7 @@ export class FilesService {
 
   async delete(id: string, userId: string): Promise<void> {
     const file = await this.findById(id);
+    await this.assertMember(file.organizationId, userId);
 
     if (file.uploaderId !== userId) {
       throw new ForbiddenException('Only the uploader can delete this file');
@@ -231,7 +254,13 @@ export class FilesService {
     });
   }
 
-  async findByChat(chatId: string): Promise<File[]> {
+  async findByChat(chatId: string, userId: string): Promise<File[]> {
+    const chat = await this.chatRepository.findOne({ where: { id: chatId } });
+    if (!chat) {
+      throw new NotFoundException(`Chat with id "${chatId}" not found`);
+    }
+    await this.assertMember(chat.organizationId, userId);
+
     const rows = await this.fileRepository
       .createQueryBuilder('f')
       .innerJoin('messages', 'm', 'm.id = f.message_id')
@@ -241,7 +270,13 @@ export class FilesService {
     return rows.map(fixFileNameInPlace);
   }
 
-  async findByTask(taskId: string): Promise<File[]> {
+  async findByTask(taskId: string, userId: string): Promise<File[]> {
+    const task = await this.taskRepository.findOne({ where: { id: taskId } });
+    if (!task) {
+      throw new NotFoundException(`Task with id "${taskId}" not found`);
+    }
+    await this.assertMember(task.organizationId, userId);
+
     const rows = await this.fileRepository.find({
       where: { taskId },
       order: { createdAt: 'DESC' },
@@ -249,7 +284,8 @@ export class FilesService {
     return rows.map(fixFileNameInPlace);
   }
 
-  async findByOrg(orgId: string, limit = 100): Promise<File[]> {
+  async findByOrg(orgId: string, userId: string, limit = 100): Promise<File[]> {
+    await this.assertMember(orgId, userId);
     const rows = await this.fileRepository.find({
       where: { organizationId: orgId },
       order: { createdAt: 'DESC' },

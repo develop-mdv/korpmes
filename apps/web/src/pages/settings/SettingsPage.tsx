@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { useAuthStore } from '@/stores/auth.store';
 import { useOrganizationStore } from '@/stores/organization.store';
 import { useUIStore } from '@/stores/ui.store';
+import { TwoFactorSetupModal } from '@/components/settings/TwoFactorSetupModal';
+import { TwoFactorDisableModal } from '@/components/settings/TwoFactorDisableModal';
 
 export function SettingsPage() {
   const user = useAuthStore((state) => state.user);
@@ -16,6 +18,8 @@ export function SettingsPage() {
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
   const [message, setMessage] = useState<string | null>(null);
+  const [twoFactorSetupOpen, setTwoFactorSetupOpen] = useState(false);
+  const [twoFactorDisableOpen, setTwoFactorDisableOpen] = useState(false);
 
   useEffect(() => {
     setFirstName(user?.firstName ?? '');
@@ -168,12 +172,33 @@ export function SettingsPage() {
                 </article>
                 <article className="list-card">
                   <div className="list-card__body">
-                    <div className="list-card__title">Статус 2FA</div>
+                    <div className="list-card__title">Двухфакторная защита</div>
                     <div className="list-card__subtitle" style={{ marginTop: 6 }}>
-                      {user?.twoFactorEnabled ? 'Дополнительный уровень защиты активен.' : 'Управление 2FA можно добавить следующим шагом через API.'}
+                      {user?.twoFactorEnabled
+                        ? 'Дополнительный уровень защиты активен. Код запрашивается при каждом входе.'
+                        : 'Включите 2FA, чтобы вход требовал код из приложения-аутентификатора.'}
                     </div>
                   </div>
                 </article>
+              </div>
+              <div className="form-actions" style={{ marginTop: 14, justifyContent: 'flex-start' }}>
+                {user?.twoFactorEnabled ? (
+                  <button
+                    type="button"
+                    className="lux-button-danger"
+                    onClick={() => setTwoFactorDisableOpen(true)}
+                  >
+                    Отключить 2FA
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="lux-button"
+                    onClick={() => setTwoFactorSetupOpen(true)}
+                  >
+                    Включить 2FA
+                  </button>
+                )}
               </div>
             </section>
 
@@ -204,6 +229,15 @@ export function SettingsPage() {
           </section>
         </div>
       </div>
+
+      <TwoFactorSetupModal
+        open={twoFactorSetupOpen}
+        onClose={() => setTwoFactorSetupOpen(false)}
+      />
+      <TwoFactorDisableModal
+        open={twoFactorDisableOpen}
+        onClose={() => setTwoFactorDisableOpen(false)}
+      />
     </div>
   );
 }

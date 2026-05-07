@@ -72,6 +72,11 @@ services:
       TURN_URL: turn:${SERVER_PUBLIC_IP:-localhost}:3478
       TURN_USERNAME: ${TURN_USERNAME:-turnuser}
       TURN_PASSWORD: ${TURN_PASSWORD:-turnpassword}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
     depends_on:
       postgres:
         condition: service_healthy

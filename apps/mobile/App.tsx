@@ -15,6 +15,7 @@ const linking = {
           Login: 'login',
           Register: 'register',
           ForgotPassword: 'forgot-password',
+          ResetPassword: 'reset-password',
           Invite: 'invite/:token',
         },
       },

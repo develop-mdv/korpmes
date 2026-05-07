@@ -70,6 +70,11 @@ jobs:
             APP_URL=https://korpmes.ru
             WEB_URL=https://korpmes.ru
             CORS_ORIGINS=https://korpmes.ru
+            SMTP_HOST=${{ secrets.SMTP_HOST }}
+            SMTP_PORT=${{ secrets.SMTP_PORT }}
+            SMTP_USER=${{ secrets.SMTP_USER }}
+            SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}
+            SMTP_FROM=${{ secrets.SMTP_FROM }}
             ENVEOF
             chmod 600 "$DEPLOY_DIR/.env"
 

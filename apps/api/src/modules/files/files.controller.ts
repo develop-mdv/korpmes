@@ -47,7 +47,7 @@ export class FilesController {
     const file = await this.filesService.findById(id);
     const [signedUrl, thumbnailUrl] = await Promise.all([
       this.filesService.getDownloadUrl(id, user.id),
-      this.filesService.getThumbnailUrl(id),
+      this.filesService.getThumbnailUrl(id, user.id),
     ]);
     return { ...file, signedUrl, thumbnailUrl };
   }
@@ -72,18 +72,19 @@ export class FilesController {
 
   @Get()
   async listFiles(
+    @CurrentUser() user: { id: string },
     @Query('chatId') chatId?: string,
     @Query('taskId') taskId?: string,
     @Query('orgId') orgId?: string,
   ) {
     if (chatId) {
-      return this.filesService.findByChat(chatId);
+      return this.filesService.findByChat(chatId, user.id);
     }
     if (taskId) {
-      return this.filesService.findByTask(taskId);
+      return this.filesService.findByTask(taskId, user.id);
     }
     if (orgId) {
-      return this.filesService.findByOrg(orgId);
+      return this.filesService.findByOrg(orgId, user.id);
     }
     return [];
   }

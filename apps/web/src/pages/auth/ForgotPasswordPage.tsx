@@ -1,17 +1,23 @@
 import { FormEvent, useState } from 'react';
 import { Link } from 'react-router-dom';
+import * as authApi from '@/api/auth.api';
 import { AuthShell } from '@/components/layout/AuthShell';
 
 export function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
+    setError('');
     setLoading(true);
     try {
+      await authApi.forgotPassword(email.trim());
       setSent(true);
+    } catch (err: any) {
+      setError(err.response?.data?.error?.message || 'Не удалось отправить ссылку');
     } finally {
       setLoading(false);
     }
@@ -47,6 +53,7 @@ export function ForgotPasswordPage() {
         </div>
       ) : (
         <form className="auth-shell__form" onSubmit={handleSubmit}>
+          {error && <div className="lux-alert">{error}</div>}
           <div className="field-group">
             <label className="field-group__label">Email</label>
             <input className="lux-input" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@company.com" autoFocus required />

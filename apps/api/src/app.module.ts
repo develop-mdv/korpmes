@@ -17,6 +17,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { SearchModule } from './modules/search/search.module';
 import { WebSocketModule } from './modules/websocket/websocket.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { MailModule } from './modules/mail/mail.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { AuditModule } from './modules/audit/audit.module';
     SearchModule,
     WebSocketModule,
     AuditModule,
+    MailModule,
   ],
   controllers: [AppController],
   providers: [AppService],

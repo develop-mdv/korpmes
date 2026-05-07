@@ -47,7 +47,7 @@ export function resetPassword(token: string, password: string): Promise<{ messag
   return apiClient.post('/auth/reset-password', { token, password }).then((r) => r.data);
 }
 
-export function setup2FA(): Promise<{ secret: string; qrCodeUrl: string }> {
+export function setup2FA(): Promise<{ secret: string; otpauthUrl: string }> {
   return apiClient.post('/auth/2fa/setup').then((r) => r.data);
 }
 

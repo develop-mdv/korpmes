@@ -11,6 +11,7 @@ export type AuthStackParamList = {
   Login: undefined;
   Register: undefined;
   ForgotPassword: undefined;
+  ResetPassword: { token: string };
   Invite: { token: string };
 };
 
@@ -19,7 +20,13 @@ export type AppTabParamList = {
   TasksTab: NavigatorScreenParams<TaskStackParamList>;
   CallsTab: undefined;
   FilesTab: undefined;
-  SettingsTab: undefined;
+  SettingsTab: NavigatorScreenParams<SettingsStackParamList>;
+};
+
+export type SettingsStackParamList = {
+  SettingsRoot: undefined;
+  TwoFactorSetup: undefined;
+  TwoFactorDisable: undefined;
 };
 
 export type ChatStackParamList = {

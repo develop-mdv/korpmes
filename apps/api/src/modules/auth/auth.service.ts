@@ -17,6 +17,7 @@ import { RefreshToken } from './entities/refresh-token.entity';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { AuditService } from '../audit/audit.service';
+import { MailService } from '../mail/mail.service';
 import { AUDIT_ACTIONS } from '@corp/shared-constants';
 
 @Injectable()
@@ -30,6 +31,7 @@ export class AuthService {
     @InjectRepository(RefreshToken)
     private readonly refreshTokenRepository: Repository<RefreshToken>,
     private readonly auditService: AuditService,
+    private readonly mailService: MailService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -222,8 +224,12 @@ export class AuthService {
       },
     );
 
-    // In production, send email with reset link
-    this.logger.log(`Password reset token for user ${user.id}: ${resetToken}`);
+    const webUrl = (
+      this.configService.get<string>('WEB_URL') || 'http://localhost:5173'
+    ).replace(/\/$/, '');
+    const resetUrl = `${webUrl}/reset-password?token=${encodeURIComponent(resetToken)}`;
+
+    await this.mailService.sendPasswordReset(user.email, resetUrl);
 
     this.auditService.log({
       userId: user.id,
@@ -251,15 +257,7 @@ export class AuthService {
     const user = await this.usersService.findById(payload.sub);
     const passwordHash = await bcrypt.hash(newPassword, 12);
 
-    await this.usersService.update(user.id, {} as any);
-    // Directly update password hash
-    await this.usersService
-      .findById(user.id)
-      .then(() =>
-        this.refreshTokenRepository.manager
-          .getRepository(User)
-          .update(user.id, { passwordHash }),
-      );
+    await this.usersService.updatePasswordHash(user.id, passwordHash);
 
     this.auditService.log({
       userId: user.id,

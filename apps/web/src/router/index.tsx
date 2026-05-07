@@ -6,6 +6,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { LoginPage } from '@/pages/auth/LoginPage';
 import { RegisterPage } from '@/pages/auth/RegisterPage';
 import { ForgotPasswordPage } from '@/pages/auth/ForgotPasswordPage';
+import { ResetPasswordPage } from '@/pages/auth/ResetPasswordPage';
 import { CreateOrganizationPage } from '@/pages/organization/CreateOrganizationPage';
 import { JoinOrganizationPage } from '@/pages/organization/JoinOrganizationPage';
 import { InvitePage } from '@/pages/invite/InvitePage';
@@ -39,6 +40,10 @@ export const router = createBrowserRouter([
   {
     path: '/forgot-password',
     element: <ForgotPasswordPage />,
+  },
+  {
+    path: '/reset-password',
+    element: <ResetPasswordPage />,
   },
   {
     path: '/invite/:token',

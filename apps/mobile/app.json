@@ -37,6 +37,7 @@
           "autoVerify": true,
           "data": [
             { "scheme": "https", "host": "korpmes.ru", "pathPrefix": "/invite" },
+            { "scheme": "https", "host": "korpmes.ru", "pathPrefix": "/reset-password" },
             { "scheme": "corpmessenger" }
           ],
           "category": ["BROWSABLE", "DEFAULT"]

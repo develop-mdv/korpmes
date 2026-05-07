@@ -61,6 +61,17 @@ jobs:
             # Public URL for API-served file streams (avoids leaking internal MinIO hostname)
             grep -q "^APP_PUBLIC_URL=" .env 2>/dev/null || echo "APP_PUBLIC_URL=https://korpmes.ru/api" >> .env
 
+            echo "=== Syncing SMTP credentials from GitHub secrets ==="
+            # Always replace SMTP_* from secrets so rotation works on next push.
+            sed -i '/^SMTP_HOST=/d;/^SMTP_PORT=/d;/^SMTP_USER=/d;/^SMTP_PASSWORD=/d;/^SMTP_FROM=/d' .env
+            cat >> .env <<SMTPEOF
+            SMTP_HOST=${{ secrets.SMTP_HOST }}
+            SMTP_PORT=${{ secrets.SMTP_PORT }}
+            SMTP_USER=${{ secrets.SMTP_USER }}
+            SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}
+            SMTP_FROM=${{ secrets.SMTP_FROM }}
+            SMTPEOF
+
             echo "=== Rebuilding api and web containers ==="
             docker compose build --no-cache api web
 
