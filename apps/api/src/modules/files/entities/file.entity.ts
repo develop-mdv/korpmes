@@ -46,6 +46,9 @@ export class File {
   @Column({ type: 'varchar', nullable: true })
   checksum: string | null;
 
+  @Column({ name: 'duration_ms', type: 'int', nullable: true })
+  durationMs: number | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 }

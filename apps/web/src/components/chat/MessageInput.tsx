@@ -3,17 +3,24 @@ import {
   CSSProperties,
   DragEvent,
   KeyboardEvent,
+  PointerEvent as ReactPointerEvent,
   useCallback,
   useEffect,
   useRef,
   useState,
 } from 'react';
 import type { StagedFile } from '@/hooks/useAttachmentStaging';
+import { useVoiceRecorder, type VoiceRecording } from '@/hooks/useVoiceRecorder';
+import type { VideoNoteRecording } from '@/hooks/useVideoNoteRecorder';
+import { RecordingBar } from './RecordingBar';
+import { VideoNoteRecorderOverlay } from './VideoNoteRecorderOverlay';
 
 interface MessageInputProps {
   onSend: (content: string) => void;
   onTyping?: () => void;
   onAttach?: (files: FileList) => void;
+  onSendVoice?: (rec: VoiceRecording) => void;
+  onSendVideoNote?: (rec: VideoNoteRecording) => void;
   stagedFiles?: StagedFile[];
   onRemoveStaged?: (localId: string) => void;
   disabled?: boolean;
@@ -152,6 +159,8 @@ export function MessageInput({
   onSend,
   onTyping,
   onAttach,
+  onSendVoice,
+  onSendVideoNote,
   stagedFiles = [],
   onRemoveStaged,
   disabled = false,
@@ -159,8 +168,21 @@ export function MessageInput({
 }: MessageInputProps) {
   const [text, setText] = useState('');
   const [isDragOver, setIsDragOver] = useState(false);
+  const [showVideoNote, setShowVideoNote] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pressOriginRef = useRef<{ x: number; y: number } | null>(null);
+
+  const recorder = useVoiceRecorder({
+    onComplete: (rec) => {
+      onSendVoice?.(rec);
+    },
+    onError: (err) => {
+      console.warn('Voice recorder error:', err);
+    },
+  });
+
+  const isRecording = recorder.state === 'recording' || recorder.state === 'locked';
 
   const hasReadyFiles = stagedFiles.some((s) => s.status === 'done');
   const canSend = !disableSend && (text.trim().length > 0 || hasReadyFiles);
@@ -211,8 +233,39 @@ export function MessageInput({
     if (!onAttach) return;
     event.preventDefault();
     setIsDragOver(false);
-    const files = event.dataTransfer?.files;
+    const files = event.dataTransfer?.types?.includes('Files') ? event.dataTransfer.files : null;
     if (files && files.length > 0) onAttach(files);
+  };
+
+  const handleMicPointerDown = (e: ReactPointerEvent<HTMLButtonElement>) => {
+    if (!onSendVoice) return;
+    e.preventDefault();
+    pressOriginRef.current = { x: e.clientX, y: e.clientY };
+    recorder.start();
+    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+  };
+
+  const handleMicPointerMove = (e: ReactPointerEvent<HTMLButtonElement>) => {
+    if (!isRecording || recorder.state === 'locked' || !pressOriginRef.current) return;
+    const dx = e.clientX - pressOriginRef.current.x;
+    const dy = e.clientY - pressOriginRef.current.y;
+    if (dx < -80) {
+      recorder.cancel();
+      pressOriginRef.current = null;
+      return;
+    }
+    if (dy < -50) {
+      recorder.lock();
+      pressOriginRef.current = null;
+    }
+  };
+
+  const handleMicPointerUp = (e: ReactPointerEvent<HTMLButtonElement>) => {
+    if (recorder.state === 'recording') {
+      recorder.stop();
+    }
+    (e.currentTarget as Element).releasePointerCapture?.(e.pointerId);
+    pressOriginRef.current = null;
   };
 
   return (
@@ -222,56 +275,109 @@ export function MessageInput({
           <span>📎 Отпустите, чтобы прикрепить (до 10 файлов)</span>
         </div>
       )}
-      {stagedFiles.length > 0 && (
+      {stagedFiles.length > 0 && !isRecording && (
         <div style={stagedStyles.strip}>
           {stagedFiles.map((s) => (
             <StagedAttachment key={s.localId} item={s} onRemove={() => onRemoveStaged?.(s.localId)} />
           ))}
         </div>
       )}
-      <div className="composer">
-        <button
-          className="composer__attach"
-          onClick={() => fileInputRef.current?.click()}
-          title="Прикрепить файл"
-          disabled={!onAttach}
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-          </svg>
-        </button>
 
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          style={{ display: 'none' }}
-          onChange={handleFileChange}
+      {isRecording ? (
+        <RecordingBar
+          state={recorder.state}
+          elapsedMs={recorder.elapsedMs}
+          amplitude={recorder.amplitude}
+          onCancel={recorder.cancel}
+          onSend={recorder.stop}
+          onLock={recorder.lock}
         />
+      ) : (
+        <div className="composer">
+          <button
+            className="composer__attach"
+            onClick={() => fileInputRef.current?.click()}
+            title="Прикрепить файл"
+            disabled={!onAttach}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+            </svg>
+          </button>
 
-        <textarea
-          ref={textareaRef}
-          className="composer__input"
-          value={text}
-          rows={1}
-          placeholder="Напишите сообщение..."
-          disabled={disabled}
-          onChange={(event) => resizeInput(event.target.value)}
-          onKeyDown={handleKeyDown}
-        />
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            style={{ display: 'none' }}
+            onChange={handleFileChange}
+          />
 
-        <button
-          className="composer__send"
-          onClick={handleSend}
-          disabled={!canSend || disabled}
-          title="Отправить"
-          style={{ opacity: canSend ? 1 : 0.5 }}
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z" />
-          </svg>
-        </button>
-      </div>
+          <textarea
+            ref={textareaRef}
+            className="composer__input"
+            value={text}
+            rows={1}
+            placeholder="Напишите сообщение..."
+            disabled={disabled}
+            onChange={(event) => resizeInput(event.target.value)}
+            onKeyDown={handleKeyDown}
+          />
+
+          {onSendVideoNote && !canSend && (
+            <button
+              className="composer__attach"
+              onClick={() => setShowVideoNote(true)}
+              title="Записать кружок"
+              disabled={disabled}
+              style={{ marginLeft: 4 }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="9" />
+                <circle cx="12" cy="12" r="4" fill="currentColor" />
+              </svg>
+            </button>
+          )}
+
+          {onSendVoice && !canSend ? (
+            <button
+              className="composer__send"
+              onPointerDown={handleMicPointerDown}
+              onPointerMove={handleMicPointerMove}
+              onPointerUp={handleMicPointerUp}
+              onPointerCancel={handleMicPointerUp}
+              title="Удерживайте, чтобы записать"
+              disabled={disabled}
+              style={{ touchAction: 'none' }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3z" />
+                <path d="M19 11a1 1 0 0 0-2 0 5 5 0 0 1-10 0 1 1 0 0 0-2 0 7 7 0 0 0 6 6.92V20H8a1 1 0 0 0 0 2h8a1 1 0 0 0 0-2h-3v-2.08A7 7 0 0 0 19 11z" />
+              </svg>
+            </button>
+          ) : (
+            <button
+              className="composer__send"
+              onClick={handleSend}
+              disabled={!canSend || disabled}
+              title="Отправить"
+              style={{ opacity: canSend ? 1 : 0.5 }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z" />
+              </svg>
+            </button>
+          )}
+        </div>
+      )}
+
+      <VideoNoteRecorderOverlay
+        open={showVideoNote}
+        onClose={() => setShowVideoNote(false)}
+        onRecorded={(rec) => {
+          onSendVideoNote?.(rec);
+        }}
+      />
     </div>
   );
 }

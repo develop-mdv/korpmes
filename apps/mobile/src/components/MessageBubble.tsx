@@ -4,6 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { useFileStore } from '../stores/file.store';
 import { useTheme } from '../theme';
+import { VoiceMessagePlayer } from './VoiceMessagePlayer';
+import { VideoNotePlayer } from './VideoNotePlayer';
 
 interface MessageBubbleProps {
   content: string;
@@ -14,6 +16,8 @@ interface MessageBubbleProps {
   showSender?: boolean;
   replyCount?: number;
   attachments?: string[];
+  type?: string;
+  metadata?: { duration?: number; waveform?: number[] };
   onOpenThread?: () => void;
 }
 
@@ -81,12 +85,18 @@ export const MessageBubble = memo(function MessageBubble({
   showSender = false,
   replyCount,
   attachments = [],
+  type,
+  metadata,
   onOpenThread,
 }: MessageBubbleProps) {
   const theme = useTheme();
   const parsedDate = new Date(createdAt);
   const time = Number.isNaN(parsedDate.getTime()) ? '' : format(parsedDate, 'HH:mm');
   const hasThread = (replyCount ?? 0) > 0 || onOpenThread !== undefined;
+  const lowerType = type?.toLowerCase();
+  const isVoice = lowerType === 'voice';
+  const isVideoNote = lowerType === 'video_note';
+  const specialFileId = (isVoice || isVideoNote) && attachments.length > 0 ? attachments[0] : null;
 
   const ownBubble = { backgroundColor: theme.colors.primary, borderBottomRightRadius: 8 };
   const otherBubble = {
@@ -101,23 +111,45 @@ export const MessageBubble = memo(function MessageBubble({
   const otherMeta = { color: theme.colors.textTertiary };
 
   const bubbleContent = (
-    <View style={[styles.bubble, isOwn ? ownBubble : otherBubble]}>
-      {showSender && !isOwn && (
+    <View
+      style={[
+        isVideoNote ? styles.bubbleNote : styles.bubble,
+        isVideoNote ? null : isOwn ? ownBubble : otherBubble,
+      ]}
+    >
+      {showSender && !isOwn && !isVideoNote && (
         <Text style={[styles.senderName, { color: theme.colors.primary }]}>{senderName}</Text>
       )}
-      {attachments.length > 0 && (
+      {isVoice && specialFileId && (
+        <VoiceMessagePlayer
+          fileId={specialFileId}
+          durationMs={metadata?.duration}
+          waveform={metadata?.waveform}
+          isOwn={isOwn}
+        />
+      )}
+      {isVideoNote && specialFileId && (
+        <VideoNotePlayer fileId={specialFileId} durationMs={metadata?.duration} />
+      )}
+      {!isVoice && !isVideoNote && attachments.length > 0 && (
         <View style={styles.attachments}>
           {attachments.map((id) => (
             <AttachmentItem key={id} fileId={id} isOwn={isOwn} />
           ))}
         </View>
       )}
-      {content ? <Text style={[styles.content, isOwn ? ownText : otherText]}>{content}</Text> : null}
-      <View style={styles.meta}>
+      {content && !isVideoNote ? <Text style={[styles.content, isOwn ? ownText : otherText]}>{content}</Text> : null}
+      <View style={[styles.meta, isVideoNote && styles.metaNote]}>
         {isEdited && (
-          <Text style={[styles.edited, isOwn ? ownMeta : otherMeta]}>изменено</Text>
+          <Text style={[styles.edited, isVideoNote ? { color: theme.colors.textTertiary } : isOwn ? ownMeta : otherMeta]}>
+            изменено
+          </Text>
         )}
-        {time ? <Text style={[styles.time, isOwn ? ownMeta : otherMeta]}>{time}</Text> : null}
+        {time ? (
+          <Text style={[styles.time, isVideoNote ? { color: theme.colors.textTertiary } : isOwn ? ownMeta : otherMeta]}>
+            {time}
+          </Text>
+        ) : null}
       </View>
     </View>
   );
@@ -155,10 +187,12 @@ const styles = StyleSheet.create({
   wrapperOwn: { alignItems: 'flex-end' },
   wrapperOther: { alignItems: 'flex-start' },
   bubble: { maxWidth: '82%', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 9 },
+  bubbleNote: { padding: 0, backgroundColor: 'transparent' },
   senderName: { fontSize: 12, fontWeight: '600', marginBottom: 2 },
   content: { fontSize: 15, lineHeight: 20 },
   attachments: { gap: 6, marginBottom: 6 },
   meta: { flexDirection: 'row', justifyContent: 'flex-end', gap: 6, marginTop: 4 },
+  metaNote: { paddingHorizontal: 4, paddingTop: 4 },
   time: { fontSize: 11 },
   edited: { fontSize: 11, fontStyle: 'italic' },
   threadBtn: { marginTop: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, borderWidth: 1 },

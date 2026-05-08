@@ -5,6 +5,7 @@ export enum MessageType {
   VIDEO = 'VIDEO',
   AUDIO = 'AUDIO',
   VOICE = 'VOICE',
+  VIDEO_NOTE = 'VIDEO_NOTE',
   SYSTEM = 'SYSTEM',
   TASK = 'TASK',
   CALL = 'CALL',

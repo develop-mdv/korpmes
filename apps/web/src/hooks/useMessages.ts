@@ -33,7 +33,13 @@ export function useMessages(chatId: string | undefined) {
   }, [chatId, hasMore, cursor, prependMessages]);
 
   const sendMessage = useCallback(
-    (content: string, fileIds?: string[], replyToId?: string) => {
+    (
+      content: string,
+      fileIds?: string[],
+      replyToId?: string,
+      type?: string,
+      metadata?: Record<string, unknown>,
+    ) => {
       if (!chatId) return;
       const socket = getSocket();
       socket.emit('message:send', {
@@ -41,6 +47,8 @@ export function useMessages(chatId: string | undefined) {
         content,
         fileIds,
         parentMessageId: replyToId,
+        type,
+        metadata,
       });
     },
     [chatId],

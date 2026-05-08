@@ -331,4 +331,19 @@ export class ChatsService {
       throw new ForbiddenException('Only chat admins can perform this action');
     }
   }
+
+  async isMember(chatId: string, userId: string): Promise<boolean> {
+    const member = await this.chatMemberRepo.findOne({
+      where: { chatId, userId, leftAt: IsNull() },
+      select: ['id'],
+    });
+    return !!member;
+  }
+
+  async assertMember(chatId: string, userId: string): Promise<void> {
+    const ok = await this.isMember(chatId, userId);
+    if (!ok) {
+      throw new ForbiddenException('You are not a member of this chat');
+    }
+  }
 }

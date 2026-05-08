@@ -38,22 +38,31 @@ export class MessagesController {
   @ApiQuery({ name: 'limit', required: false, type: Number })
   async getMessages(
     @Param('chatId', ParseUUIDPipe) chatId: string,
+    @CurrentUser() user: any,
     @Query('cursor') cursor?: string,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit?: number,
   ) {
+    await this.chatsService.assertMember(chatId, user.id);
     return this.messagesService.findByChatId(chatId, cursor, limit);
   }
 
   @Get('chats/:chatId/messages/pinned')
   async getPinnedMessages(
     @Param('chatId', ParseUUIDPipe) chatId: string,
+    @CurrentUser() user: any,
   ) {
+    await this.chatsService.assertMember(chatId, user.id);
     return this.messagesService.getPinnedMessages(chatId);
   }
 
   @Get('messages/:id')
-  async getMessage(@Param('id', ParseUUIDPipe) id: string) {
-    return this.messagesService.findById(id);
+  async getMessage(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: any,
+  ) {
+    const message = await this.messagesService.findById(id);
+    await this.chatsService.assertMember(message.chatId, user.id);
+    return message;
   }
 
   @Patch('messages/:id')
@@ -93,6 +102,8 @@ export class MessagesController {
     @CurrentUser() user: any,
     @Body() dto: ReactionDto,
   ) {
+    const message = await this.messagesService.findById(id);
+    await this.chatsService.assertMember(message.chatId, user.id);
     return this.messagesService.addReaction(id, user.id, dto.emoji);
   }
 
@@ -102,6 +113,8 @@ export class MessagesController {
     @CurrentUser() user: any,
     @Param('emoji') emoji: string,
   ) {
+    const message = await this.messagesService.findById(id);
+    await this.chatsService.assertMember(message.chatId, user.id);
     return this.messagesService.removeReaction(id, user.id, emoji);
   }
 
@@ -110,9 +123,12 @@ export class MessagesController {
   @ApiQuery({ name: 'limit', required: false, type: Number })
   async getThread(
     @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: any,
     @Query('cursor') cursor?: string,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit?: number,
   ) {
+    const parent = await this.messagesService.findById(id);
+    await this.chatsService.assertMember(parent.chatId, user.id);
     return this.messagesService.getThreadReplies(id, cursor, limit);
   }
 }

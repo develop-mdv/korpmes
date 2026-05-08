@@ -11,9 +11,10 @@ export interface Message {
   senderName: string;
   senderAvatarUrl?: string;
   content: string;
-  type: 'text' | 'image' | 'file' | 'audio' | 'video' | 'system';
+  type: 'text' | 'image' | 'file' | 'audio' | 'video' | 'voice' | 'video_note' | 'system';
   fileUrl?: string;
   attachments?: string[];
+  metadata?: { duration?: number; waveform?: number[]; fileIds?: string[] };
   parentMessageId?: string;
   replyCount?: number;
   createdAt: string;
@@ -53,6 +54,8 @@ interface RawMessage {
   metadata?: {
     fileUrl?: string;
     fileIds?: string[];
+    duration?: number;
+    waveform?: number[];
   };
   fileUrl?: string;
   parentMessageId?: string | null;
@@ -75,11 +78,19 @@ let refreshPromise: Promise<string> | null = null;
 
 export function normalizeMessage(raw: RawMessage): Message {
   const sender = raw.sender || {};
-  const fileIds = Array.isArray(raw.metadata?.fileIds)
-    ? raw.metadata.fileIds.filter(
+  const rawMeta = (raw.metadata && typeof raw.metadata === 'object') ? raw.metadata : ({} as RawMessage['metadata'] & object);
+  const fileIds = Array.isArray(rawMeta?.fileIds)
+    ? rawMeta!.fileIds.filter(
         (x: unknown): x is string => typeof x === 'string' && x.length > 0,
       )
     : [];
+
+  const meta: Message['metadata'] = {};
+  if (typeof rawMeta?.duration === 'number') meta.duration = rawMeta.duration;
+  if (Array.isArray(rawMeta?.waveform)) {
+    meta.waveform = rawMeta!.waveform.filter((v: unknown) => typeof v === 'number');
+  }
+  if (fileIds.length > 0) meta.fileIds = fileIds;
 
   return {
     id: raw.id,
@@ -94,8 +105,9 @@ export function normalizeMessage(raw: RawMessage): Message {
     senderAvatarUrl: raw.senderAvatarUrl || sender.avatarUrl,
     content: raw.content || '',
     type: ((raw.type || 'TEXT').toLowerCase() as Message['type']),
-    fileUrl: raw.fileUrl || raw.metadata?.fileUrl,
+    fileUrl: raw.fileUrl || rawMeta?.fileUrl,
     attachments: fileIds,
+    metadata: Object.keys(meta).length > 0 ? meta : undefined,
     parentMessageId: raw.parentMessageId || undefined,
     replyCount: raw.replyCount || raw.threadCount || 0,
     createdAt: raw.createdAt,

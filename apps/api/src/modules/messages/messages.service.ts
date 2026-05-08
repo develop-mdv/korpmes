@@ -2,11 +2,13 @@ import {
   Injectable,
   ForbiddenException,
   NotFoundException,
+  BadRequestException,
   Inject,
   forwardRef,
 } from '@nestjs/common';
+import { VOICE_WAVEFORM_BARS } from '@corp/shared-constants';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan, DataSource } from 'typeorm';
+import { In, Repository, LessThan, DataSource } from 'typeorm';
 import { Message } from './entities/message.entity';
 import { MessageStatus } from './entities/message-status.entity';
 import { Reaction } from './entities/reaction.entity';
@@ -38,6 +40,25 @@ export class MessagesService {
     senderId: string,
     dto: CreateMessageDto,
   ): Promise<Message> {
+    // SECURITY: verify the sender is actually a member of this chat. Without
+    // this, anyone with a chatId can inject messages broadcast to the chat
+    // room (other members would receive them via WS).
+    const chat = await this.chatsService.findById(chatId);
+    await this.chatsService.assertMember(chatId, senderId);
+
+    // SECURITY: a thread reply must point to a parent in the same chat.
+    if (dto.parentMessageId) {
+      const parent = await this.messageRepository.findOne({
+        where: { id: dto.parentMessageId },
+        select: ['id', 'chatId'],
+      });
+      if (!parent || parent.chatId !== chatId) {
+        throw new BadRequestException(
+          'Parent message does not belong to this chat',
+        );
+      }
+    }
+
     // Defend against null/undefined slipping into fileIds (e.g. clients that
     // forget to unwrap the upload response and end up sending [undefined]).
     const cleanFileIds = Array.isArray(dto.fileIds)
@@ -49,18 +70,69 @@ export class MessagesService {
     const hasContent = typeof dto.content === 'string' && dto.content.trim().length > 0;
     const inferredType = dto.type || (hasFiles && !hasContent ? 'FILE' : 'TEXT');
 
+    // SECURITY: validate every referenced file BEFORE we save the message.
+    // - File must exist
+    // - File must have been uploaded by the sender (no attaching someone else's blob)
+    // - File must belong to the chat's organization (no cross-org leakage)
+    // - File must not already be linked to another message (no replay/forwarding
+    //   without explicit support — that path needs its own audit)
+    let validatedFiles: File[] = [];
+    if (hasFiles && cleanFileIds) {
+      validatedFiles = await this.dataSource.getRepository(File).find({
+        where: { id: In(cleanFileIds) },
+      });
+      if (validatedFiles.length !== cleanFileIds.length) {
+        throw new BadRequestException('One or more referenced files do not exist');
+      }
+      for (const file of validatedFiles) {
+        if (file.uploaderId !== senderId) {
+          throw new ForbiddenException('You can only attach files you uploaded');
+        }
+        if (file.organizationId !== chat.organizationId) {
+          throw new ForbiddenException(
+            'File does not belong to this chat\'s organization',
+          );
+        }
+        if (file.messageId && file.messageId !== null) {
+          throw new BadRequestException('File is already attached to another message');
+        }
+      }
+    }
+
+    // For VOICE/VIDEO_NOTE messages: enforce single file with matching MIME type.
+    if (inferredType === 'VOICE' || inferredType === 'VIDEO_NOTE') {
+      if (validatedFiles.length !== 1) {
+        throw new BadRequestException(
+          `${inferredType} messages must reference exactly one file`,
+        );
+      }
+      const file = validatedFiles[0];
+      const mimePrefix = inferredType === 'VOICE' ? 'audio/' : 'video/';
+      if (!file.mimeType.startsWith(mimePrefix)) {
+        throw new BadRequestException(
+          `${inferredType} message requires a ${mimePrefix}* file, got "${file.mimeType}"`,
+        );
+      }
+    }
+
+    const cleanMetadata = sanitizeMessageMetadata(dto.metadata);
+    const baseMetadata: Record<string, unknown> = hasFiles ? { fileIds: cleanFileIds } : {};
+    const finalMetadata = { ...baseMetadata, ...cleanMetadata };
+
     const message = this.messageRepository.create({
       chatId,
       senderId,
       content: hasContent ? dto.content! : null,
       type: inferredType,
       parentMessageId: dto.parentMessageId || null,
-      metadata: hasFiles ? { fileIds: cleanFileIds } : {},
+      metadata: finalMetadata,
     });
 
     const saved = await this.messageRepository.save(message);
 
-    // Link orphan files (uploaded without messageId) to this message
+    // Link orphan files (uploaded without messageId) to this message. The
+    // pre-validation above already verified ownership/org/orphan-state, so
+    // the WHERE clause is now belt-and-suspenders.
     if (hasFiles) {
       await this.dataSource
         .createQueryBuilder()
@@ -359,4 +431,27 @@ export class MessagesService {
       order: { createdAt: 'DESC' },
     });
   }
+}
+
+// Whitelist of safe metadata keys clients are allowed to set. Prevents
+// accidentally overwriting server-managed keys like `fileIds`.
+function sanitizeMessageMetadata(
+  raw: unknown,
+): Record<string, unknown> {
+  if (!raw || typeof raw !== 'object') return {};
+  const src = raw as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+
+  if (typeof src.duration === 'number' && Number.isFinite(src.duration) && src.duration >= 0) {
+    out.duration = Math.round(src.duration);
+  }
+
+  if (Array.isArray(src.waveform)) {
+    const arr = src.waveform
+      .slice(0, VOICE_WAVEFORM_BARS)
+      .map((v) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(100, Math.round(v))) : 0));
+    if (arr.length > 0) out.waveform = arr;
+  }
+
+  return out;
 }

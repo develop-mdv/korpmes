@@ -5,6 +5,7 @@ import {
   IsEnum,
   IsUUID,
   IsArray,
+  IsObject,
   ValidateIf,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
@@ -16,6 +17,7 @@ export enum CreateMessageType {
   VIDEO = 'VIDEO',
   AUDIO = 'AUDIO',
   VOICE = 'VOICE',
+  VIDEO_NOTE = 'VIDEO_NOTE',
   SYSTEM = 'SYSTEM',
 }
 
@@ -42,4 +44,11 @@ export class CreateMessageDto {
   @IsArray()
   @IsUUID('4', { each: true })
   fileIds?: string[];
+
+  @ApiPropertyOptional({
+    description: 'Extra metadata for VOICE/VIDEO_NOTE messages: { duration, waveform }',
+  })
+  @IsOptional()
+  @IsObject()
+  metadata?: Record<string, unknown>;
 }

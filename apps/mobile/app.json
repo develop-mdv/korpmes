@@ -55,6 +55,16 @@
         "android.permission.INTERNET"
       ]
     },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "CorpMessenger needs camera access to record video messages",
+          "microphonePermission": "CorpMessenger needs microphone access to record voice and video messages",
+          "recordAudioAndroid": true
+        }
+      ]
+    ],
     "extra": {
       "eas": {
         "projectId": "b710febb-6318-44b4-8f73-c874d82bc097"

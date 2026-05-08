@@ -15,7 +15,12 @@ import { Repository } from 'typeorm';
 import * as crypto from 'crypto';
 import * as sharp from 'sharp';
 import { v4 as uuidv4 } from 'uuid';
-import { ALL_ALLOWED_TYPES, AUDIT_ACTIONS, MAX_FILE_SIZE_BYTES } from '@corp/shared-constants';
+import {
+  ALL_ALLOWED_TYPES,
+  AUDIT_ACTIONS,
+  MAX_FILE_SIZE_BYTES,
+  MAX_MEDIA_DURATION_MS,
+} from '@corp/shared-constants';
 import { File } from './entities/file.entity';
 import { Chat } from '../chats/entities/chat.entity';
 import { Task } from '../tasks/entities/task.entity';
@@ -104,11 +109,15 @@ export class FilesService {
     orgId: string,
     messageId?: string,
     taskId?: string,
+    durationMs?: number,
   ): Promise<File> {
     await this.assertMember(orgId, userId);
 
+    // MediaRecorder produces blobs with codec params (e.g. "video/webm;codecs=vp8,opus");
+    // strip them so allowlist matches the canonical type.
+    const baseMime = file.mimetype.split(';')[0].trim().toLowerCase();
     if (
-      !(ALL_ALLOWED_TYPES as readonly string[]).includes(file.mimetype)
+      !(ALL_ALLOWED_TYPES as readonly string[]).includes(baseMime)
     ) {
       throw new BadRequestException(
         `File type "${file.mimetype}" is not allowed`,
@@ -119,6 +128,16 @@ export class FilesService {
       throw new BadRequestException(
         `File size exceeds the maximum allowed size of ${MAX_FILE_SIZE_BYTES} bytes`,
       );
+    }
+
+    let validatedDuration: number | null = null;
+    if (durationMs !== undefined && durationMs !== null) {
+      if (!Number.isFinite(durationMs) || durationMs < 0 || durationMs > MAX_MEDIA_DURATION_MS) {
+        throw new BadRequestException(
+          `Invalid duration: must be between 0 and ${MAX_MEDIA_DURATION_MS} ms`,
+        );
+      }
+      validatedDuration = Math.round(durationMs);
     }
 
     // Multer decodes the multipart filename header as latin-1; re-encode as
@@ -138,13 +157,13 @@ export class FilesService {
       .update(file.buffer)
       .digest('hex');
 
-    await this.storageService.upload(storageKey, file.buffer, file.mimetype);
+    await this.storageService.upload(storageKey, file.buffer, baseMime);
 
     let thumbnailKey: string | null = null;
     let width: number | null = null;
     let height: number | null = null;
 
-    if (file.mimetype.startsWith('image/')) {
+    if (baseMime.startsWith('image/')) {
       try {
         const metadata = await (sharp as any)(file.buffer).metadata();
         width = metadata.width ?? null;
@@ -158,7 +177,7 @@ export class FilesService {
         await this.storageService.upload(
           thumbnailKey,
           thumbnailBuffer,
-          file.mimetype,
+          baseMime,
         );
       } catch (err) {
         this.logger.warn(`Failed to generate thumbnail: ${err}`);
@@ -172,12 +191,13 @@ export class FilesService {
       taskId: taskId ?? null,
       originalName,
       storageKey,
-      mimeType: file.mimetype,
+      mimeType: baseMime,
       sizeBytes: file.size,
       width,
       height,
       thumbnailKey,
       checksum,
+      durationMs: validatedDuration,
     });
 
     const saved = await this.fileRepository.save(entity);
@@ -188,7 +208,7 @@ export class FilesService {
       action: AUDIT_ACTIONS.FILE_UPLOAD,
       entityType: 'file',
       entityId: saved.id,
-      metadata: { name: originalName, size: file.size, mimeType: file.mimetype },
+      metadata: { name: originalName, size: file.size, mimeType: baseMime },
     });
 
     return saved;

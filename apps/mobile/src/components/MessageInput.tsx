@@ -1,7 +1,9 @@
-import React, { useState, useCallback, memo } from 'react';
-import { View, TextInput, Pressable, Text, StyleSheet, Alert, ScrollView, Image } from 'react-native';
+import React, { useState, useCallback, memo, useRef } from 'react';
+import { View, TextInput, Pressable, Text, StyleSheet, Alert, ScrollView, Image, GestureResponderEvent } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { StagedAttachment, StagingInput } from '../hooks/useAttachmentStaging';
+import { useVoiceRecorder, type VoiceRecording } from '../hooks/useVoiceRecorder';
+import { RecordingBar } from './RecordingBar';
 import * as ImagePicker from 'expo-image-picker';
 // @ts-ignore - expo-document-picker types may not resolve until full install
 import * as DocumentPicker from 'expo-document-picker';
@@ -10,6 +12,8 @@ import { useTheme } from '../theme';
 interface MessageInputProps {
   onSend: (text: string) => void;
   onAttach?: (files: StagingInput[]) => void;
+  onSendVoice?: (rec: VoiceRecording) => void;
+  onOpenVideoNote?: () => void;
   stagedFiles?: StagedAttachment[];
   onRemoveStaged?: (localId: string) => void;
   disableSend?: boolean;
@@ -69,6 +73,8 @@ async function pickDocuments(): Promise<StagingInput[]> {
 export const MessageInput = memo(function MessageInput({
   onSend,
   onAttach,
+  onSendVoice,
+  onOpenVideoNote,
   stagedFiles = [],
   onRemoveStaged,
   disableSend,
@@ -76,14 +82,51 @@ export const MessageInput = memo(function MessageInput({
 }: MessageInputProps) {
   const theme = useTheme();
   const [text, setText] = useState('');
+  const pressOriginRef = useRef<{ x: number; y: number } | null>(null);
   const hasReady = stagedFiles.some((s) => s.status === 'done');
   const canSend = !disableSend && (text.trim().length > 0 || hasReady);
+
+  const recorder = useVoiceRecorder({
+    onComplete: (rec) => {
+      onSendVoice?.(rec);
+    },
+    onError: (err) => {
+      console.warn('Voice recorder error:', err);
+    },
+  });
+  const isRecording = recorder.state === 'recording' || recorder.state === 'locked';
 
   const handleSend = useCallback(() => {
     if (!canSend) return;
     onSend(text.trim());
     setText('');
   }, [text, onSend, canSend]);
+
+  const handleMicPressIn = (e: GestureResponderEvent) => {
+    if (!onSendVoice) return;
+    pressOriginRef.current = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY };
+    void recorder.start();
+  };
+  const handleMicMove = (e: GestureResponderEvent) => {
+    if (!isRecording || recorder.state === 'locked' || !pressOriginRef.current) return;
+    const dx = e.nativeEvent.pageX - pressOriginRef.current.x;
+    const dy = e.nativeEvent.pageY - pressOriginRef.current.y;
+    if (dx < -80) {
+      void recorder.cancel();
+      pressOriginRef.current = null;
+      return;
+    }
+    if (dy < -50) {
+      recorder.lock();
+      pressOriginRef.current = null;
+    }
+  };
+  const handleMicPressOut = () => {
+    if (recorder.state === 'recording') {
+      void recorder.stop();
+    }
+    pressOriginRef.current = null;
+  };
 
   const openAttachMenu = useCallback(() => {
     if (!onAttach) return;
@@ -120,7 +163,7 @@ export const MessageInput = memo(function MessageInput({
 
   return (
     <View>
-      {stagedFiles.length > 0 && (
+      {stagedFiles.length > 0 && !isRecording && (
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -159,52 +202,91 @@ export const MessageInput = memo(function MessageInput({
           })}
         </ScrollView>
       )}
-      <View style={[styles.container, { backgroundColor: theme.colors.bg, borderTopColor: theme.colors.border }]}>
-        {onAttach && (
-          <Pressable
-            style={({ pressed }) => [
-              styles.iconButton,
-              { backgroundColor: theme.colors.surfaceSoft, opacity: pressed ? 0.7 : 1 },
-            ]}
-            onPress={openAttachMenu}
-          >
-            <Ionicons name="attach" size={22} color={theme.colors.textSecondary} />
-          </Pressable>
-        )}
-        <TextInput
-          style={[
-            styles.input,
-            {
-              backgroundColor: theme.colors.surface,
-              color: theme.colors.textPrimary,
-              borderColor: theme.colors.border,
-            },
-          ]}
-          value={text}
-          onChangeText={setText}
-          placeholder={placeholder}
-          placeholderTextColor={theme.colors.textTertiary}
-          multiline
-          maxLength={4000}
+      {isRecording ? (
+        <RecordingBar
+          state={recorder.state}
+          elapsedMs={recorder.elapsedMs}
+          amplitude={recorder.amplitude}
+          onCancel={() => void recorder.cancel()}
+          onSend={() => void recorder.stop()}
+          onLock={recorder.lock}
         />
-        <Pressable
-          style={({ pressed }) => [
-            styles.sendButton,
-            {
-              backgroundColor: canSend ? theme.colors.primary : theme.colors.surfaceSoft,
-              opacity: pressed ? 0.85 : 1,
-            },
-          ]}
-          onPress={handleSend}
-          disabled={!canSend}
-        >
-          <Ionicons
-            name="send"
-            size={18}
-            color={canSend ? theme.colors.onPrimary : theme.colors.textTertiary}
+      ) : (
+        <View style={[styles.container, { backgroundColor: theme.colors.bg, borderTopColor: theme.colors.border }]}>
+          {onAttach && (
+            <Pressable
+              style={({ pressed }) => [
+                styles.iconButton,
+                { backgroundColor: theme.colors.surfaceSoft, opacity: pressed ? 0.7 : 1 },
+              ]}
+              onPress={openAttachMenu}
+            >
+              <Ionicons name="attach" size={22} color={theme.colors.textSecondary} />
+            </Pressable>
+          )}
+          <TextInput
+            style={[
+              styles.input,
+              {
+                backgroundColor: theme.colors.surface,
+                color: theme.colors.textPrimary,
+                borderColor: theme.colors.border,
+              },
+            ]}
+            value={text}
+            onChangeText={setText}
+            placeholder={placeholder}
+            placeholderTextColor={theme.colors.textTertiary}
+            multiline
+            maxLength={4000}
           />
-        </Pressable>
-      </View>
+          {onOpenVideoNote && !canSend && (
+            <Pressable
+              style={({ pressed }) => [
+                styles.iconButton,
+                { backgroundColor: theme.colors.surfaceSoft, opacity: pressed ? 0.7 : 1 },
+              ]}
+              onPress={onOpenVideoNote}
+            >
+              <Ionicons name="radio-button-on" size={22} color={theme.colors.textSecondary} />
+            </Pressable>
+          )}
+          {onSendVoice && !canSend ? (
+            <Pressable
+              style={({ pressed }) => [
+                styles.sendButton,
+                {
+                  backgroundColor: theme.colors.surfaceSoft,
+                  opacity: pressed ? 0.85 : 1,
+                },
+              ]}
+              onPressIn={handleMicPressIn}
+              onPressOut={handleMicPressOut}
+              onTouchMove={handleMicMove}
+            >
+              <Ionicons name="mic" size={20} color={theme.colors.textSecondary} />
+            </Pressable>
+          ) : (
+            <Pressable
+              style={({ pressed }) => [
+                styles.sendButton,
+                {
+                  backgroundColor: canSend ? theme.colors.primary : theme.colors.surfaceSoft,
+                  opacity: pressed ? 0.85 : 1,
+                },
+              ]}
+              onPress={handleSend}
+              disabled={!canSend}
+            >
+              <Ionicons
+                name="send"
+                size={18}
+                color={canSend ? theme.colors.onPrimary : theme.colors.textTertiary}
+              />
+            </Pressable>
+          )}
+        </View>
+      )}
     </View>
   );
 });

@@ -11,6 +11,7 @@ export interface FileInfo {
   taskId?: string;
   uploaderId: string;
   thumbnailKey?: string;
+  durationMs?: number;
   createdAt: string;
 }
 
@@ -20,6 +21,7 @@ export function uploadFile(
   messageId?: string,
   onProgress?: (progress: number) => void,
   taskId?: string,
+  durationMs?: number,
 ): Promise<FileInfo> {
   return new Promise((resolve, reject) => {
     const formData = new FormData();
@@ -28,6 +30,9 @@ export function uploadFile(
     const params = new URLSearchParams({ orgId });
     if (messageId) params.set('messageId', messageId);
     if (taskId) params.set('taskId', taskId);
+    if (durationMs !== undefined && Number.isFinite(durationMs)) {
+      params.set('durationMs', String(Math.round(durationMs)));
+    }
 
     const xhr = new XMLHttpRequest();
     xhr.open('POST', `/api/files/upload?${params.toString()}`);

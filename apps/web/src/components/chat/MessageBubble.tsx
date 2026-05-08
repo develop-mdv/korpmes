@@ -3,6 +3,8 @@ import clsx from 'clsx';
 import { Avatar } from '@/components/common/Avatar';
 import { useFileStore, type CachedFile } from '@/stores/file.store';
 import { FilePreviewModal } from '@/components/files/FilePreviewModal';
+import { VoiceMessagePlayer } from './VoiceMessagePlayer';
+import { VideoNotePlayer } from './VideoNotePlayer';
 
 interface MessageBubbleProps {
   message: {
@@ -15,6 +17,7 @@ interface MessageBubbleProps {
     createdAt: string;
     reactions?: { emoji: string; userId: string }[];
     attachments?: string[];
+    metadata?: { duration?: number; waveform?: number[]; fileIds?: string[] };
   };
   isOwn: boolean;
   showSender: boolean;
@@ -109,13 +112,28 @@ export function MessageBubble({ message, isOwn, showSender }: MessageBubbleProps
   const time = new Date(message.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
   const [preview, setPreview] = useState<CachedFile | null>(null);
   const attachments = message.attachments ?? [];
+  const messageType = message.type?.toLowerCase();
+  const isVoice = messageType === 'voice';
+  const isVideoNote = messageType === 'video_note';
+  const specialFileId = (isVoice || isVideoNote) && attachments.length > 0 ? attachments[0] : null;
 
   return (
     <div className={clsx('message-row', isOwn && 'message-row--own')}>
       {!isOwn && showSender && <Avatar name={message.senderName || '?'} size="sm" />}
       <div className={clsx('message-row__bubble', isOwn && 'message-row__bubble--own')}>
         {!isOwn && showSender && <div className="message-row__sender">{message.senderName}</div>}
-        {attachments.length > 0 && (
+        {isVoice && specialFileId && (
+          <VoiceMessagePlayer
+            fileId={specialFileId}
+            durationMs={message.metadata?.duration}
+            waveform={message.metadata?.waveform}
+            isOwn={isOwn}
+          />
+        )}
+        {isVideoNote && specialFileId && (
+          <VideoNotePlayer fileId={specialFileId} durationMs={message.metadata?.duration} />
+        )}
+        {!isVoice && !isVideoNote && attachments.length > 0 && (
           <div className="message-row__attachments">
             {attachments.map((id) => (
               <AttachmentItem key={id} fileId={id} onPreview={setPreview} />

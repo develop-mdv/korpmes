@@ -35,6 +35,7 @@ export type ChatStackParamList = {
   NewChat: undefined;
   ChatSettings: { chatId: string };
   Thread: { chatId: string; parentMessageId: string; parentContent: string };
+  VideoNoteRecorder: { chatId: string };
 };
 
 export type TaskStackParamList = {

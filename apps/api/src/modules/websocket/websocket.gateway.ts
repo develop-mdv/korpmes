@@ -113,22 +113,40 @@ export class WebSocketGatewayHandler
   }
 
   @SubscribeMessage('chat:join')
-  handleChatJoin(
+  async handleChatJoin(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: { chatId: string },
-  ): void {
-    if (payload.chatId) {
+  ): Promise<void> {
+    if (!payload?.chatId) return;
+    const userId = client.data.userId;
+    if (!userId) return;
+    // SECURITY: only members of the chat may join the WS room. Without this
+    // check, anyone with a chatId could subscribe and receive every voice
+    // message, video note, and text the room emits.
+    try {
+      const isMember = await this.chatsService.isMember(payload.chatId, userId);
+      if (!isMember) return;
       client.join(`chat:${payload.chatId}`);
+    } catch (err: any) {
+      this.logger.warn(`chat:join failed: ${err.message}`);
     }
   }
 
   @SubscribeMessage('org:join')
-  handleOrgJoin(
+  async handleOrgJoin(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: { orgId: string },
-  ): void {
-    if (payload?.orgId) {
+  ): Promise<void> {
+    if (!payload?.orgId) return;
+    const userId = client.data.userId;
+    if (!userId) return;
+    // SECURITY: only org members may join the org room.
+    try {
+      const role = await this.membersService.getUserRole(payload.orgId, userId);
+      if (!role) return;
       client.join(`org:${payload.orgId}`);
+    } catch (err: any) {
+      this.logger.warn(`org:join failed: ${err.message}`);
     }
   }
 
@@ -178,6 +196,11 @@ export class WebSocketGatewayHandler
     @MessageBody() payload: { chatId: string; afterSeq: string | number },
   ): Promise<void> {
     if (!payload.chatId || payload.afterSeq == null) return;
+    const userId = client.data.userId;
+    if (!userId) return;
+    // SECURITY: only members may replay missed messages from a chat.
+    const isMember = await this.chatsService.isMember(payload.chatId, userId);
+    if (!isMember) return;
     try {
       const { messages } = await this.messagesService.catchupSince(
         payload.chatId,
@@ -201,6 +224,7 @@ export class WebSocketGatewayHandler
       type?: string;
       parentMessageId?: string;
       fileIds?: string[];
+      metadata?: Record<string, unknown>;
     },
   ): Promise<void> {
     try {
@@ -221,6 +245,7 @@ export class WebSocketGatewayHandler
         type: payload.type as any,
         parentMessageId: payload.parentMessageId,
         fileIds: payload.fileIds,
+        metadata: payload.metadata,
       });
 
       // Emit to chat room (including sender for multi-device)

@@ -9,13 +9,14 @@ export interface Message {
   senderName: string;
   senderAvatar?: string;
   content: string;
-  type: 'text' | 'file' | 'image' | 'video' | 'audio' | 'system';
+  type: 'text' | 'file' | 'image' | 'video' | 'audio' | 'voice' | 'video_note' | 'system';
   replyToId?: string;
   reactions: Array<{ emoji: string; userId: string }>;
   isPinned: boolean;
   isEdited: boolean;
   threadCount: number;
   attachments?: string[];
+  metadata?: { duration?: number; waveform?: number[]; fileIds?: string[] };
   createdAt: string;
   updatedAt: string;
 }

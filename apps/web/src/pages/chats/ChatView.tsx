@@ -7,11 +7,14 @@ import { TypingIndicator } from '@/components/chat/TypingIndicator';
 import { useMessages } from '@/hooks/useMessages';
 import { useTypingIndicator } from '@/hooks/useTypingIndicator';
 import { useAttachmentStaging } from '@/hooks/useAttachmentStaging';
+import type { VoiceRecording } from '@/hooks/useVoiceRecorder';
+import type { VideoNoteRecording } from '@/hooks/useVideoNoteRecorder';
 import { useAuthStore } from '@/stores/auth.store';
 import { useChatStore } from '@/stores/chat.store';
 import { useOrganizationStore } from '@/stores/organization.store';
 import { useUIStore } from '@/stores/ui.store';
 import { stopTitleFlash } from '@/services/title-flash.service';
+import * as filesApi from '@/api/files.api';
 
 interface ChatViewProps {
   chatId: string;
@@ -38,6 +41,58 @@ export function ChatView({ chatId }: ChatViewProps) {
     staging.reset();
   };
 
+  const handleSendVoice = async (rec: VoiceRecording) => {
+    if (!currentOrg) return;
+    try {
+      const ext = rec.mimeType.includes('webm')
+        ? 'webm'
+        : rec.mimeType.includes('ogg')
+          ? 'ogg'
+          : 'mp4';
+      const file = new File([rec.blob], `voice-${Date.now()}.${ext}`, { type: rec.mimeType });
+      const info = await filesApi.uploadFile(
+        file,
+        currentOrg.id,
+        undefined,
+        undefined,
+        undefined,
+        rec.durationMs,
+      );
+      sendMessage('', [info.id], undefined, 'VOICE', {
+        duration: rec.durationMs,
+        waveform: rec.waveform,
+      });
+    } catch (err) {
+      console.warn('Failed to send voice message', err);
+    }
+  };
+
+  const handleSendVideoNote = async (rec: VideoNoteRecording) => {
+    if (!currentOrg) {
+      window.alert('Не выбрана организация');
+      return;
+    }
+    try {
+      const ext = rec.mimeType.includes('webm') ? 'webm' : 'mp4';
+      const file = new File([rec.blob], `video-note-${Date.now()}.${ext}`, { type: rec.mimeType });
+      const info = await filesApi.uploadFile(
+        file,
+        currentOrg.id,
+        undefined,
+        undefined,
+        undefined,
+        rec.durationMs,
+      );
+      sendMessage('', [info.id], undefined, 'VIDEO_NOTE', {
+        duration: rec.durationMs,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn('Failed to send video note', err);
+      window.alert(`Не удалось отправить кружок: ${msg}`);
+    }
+  };
+
   const typingNames = typingUsers.map((entry) => entry.userName);
 
   return (
@@ -59,6 +114,8 @@ export function ChatView({ chatId }: ChatViewProps) {
             onSend={handleSend}
             onTyping={startTyping}
             onAttach={staging.add}
+            onSendVoice={handleSendVoice}
+            onSendVideoNote={handleSendVideoNote}
             stagedFiles={staging.staged}
             onRemoveStaged={staging.remove}
             disableSend={staging.isUploading}

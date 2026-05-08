@@ -35,8 +35,19 @@ export class FilesController {
     @CurrentUser() user: { id: string },
     @Query('orgId') orgId: string,
     @Query('messageId') messageId?: string,
+    @Query('taskId') taskId?: string,
+    @Query('durationMs') durationMs?: string,
   ) {
-    return this.filesService.upload(file, user.id, orgId, messageId);
+    const parsedDuration =
+      durationMs !== undefined ? Number.parseInt(durationMs, 10) : undefined;
+    return this.filesService.upload(
+      file,
+      user.id,
+      orgId,
+      messageId,
+      taskId,
+      Number.isFinite(parsedDuration) ? (parsedDuration as number) : undefined,
+    );
   }
 
   @Get(':id')

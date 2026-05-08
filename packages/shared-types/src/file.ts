@@ -20,6 +20,7 @@ export interface FileAttachment {
   width?: number;
   height?: number;
   thumbnailKey?: string;
+  durationMs?: number;
   createdAt: string;
 }
 

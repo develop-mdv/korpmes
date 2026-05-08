@@ -4,6 +4,7 @@ import { ChatsListScreen } from '../screens/chats/ChatsListScreen';
 import { ChatViewScreen } from '../screens/chats/ChatViewScreen';
 import { NewChatScreen } from '../screens/chats/NewChatScreen';
 import { ThreadScreen } from '../screens/chats/ThreadScreen';
+import { VideoNoteRecorderScreen } from '../screens/chats/VideoNoteRecorderScreen';
 import { useTheme } from '../theme';
 import type { ChatStackParamList } from './types';
 
@@ -29,6 +30,11 @@ export function ChatStack() {
       <Stack.Screen name="NewChat" component={NewChatScreen} options={{ title: 'Новый чат' }} />
       <Stack.Screen name="ChatSettings" component={ChatSettingsPlaceholder} options={{ title: 'Настройки' }} />
       <Stack.Screen name="Thread" component={ThreadScreen} options={{ title: 'Тред' }} />
+      <Stack.Screen
+        name="VideoNoteRecorder"
+        component={VideoNoteRecorderScreen}
+        options={{ presentation: 'fullScreenModal', headerShown: false }}
+      />
     </Stack.Navigator>
   );
 }

@@ -11,6 +11,7 @@ export interface FileInfo {
   taskId?: string;
   uploaderId: string;
   thumbnailKey?: string;
+  durationMs?: number;
   createdAt: string;
   signedUrl?: string;
   thumbnailUrl?: string;
@@ -23,9 +24,10 @@ export async function uploadFile(params: {
   orgId: string;
   taskId?: string;
   messageId?: string;
+  durationMs?: number;
   onProgress?: (progress: number) => void;
 }): Promise<FileInfo> {
-  const { uri, name, mimeType, orgId, taskId, messageId } = params;
+  const { uri, name, mimeType, orgId, taskId, messageId, durationMs } = params;
   const token = await AsyncStorage.getItem(AUTH_TOKEN_KEY);
   const formData = new FormData();
   // React Native FormData accepts `{uri, name, type}` shape that differs from
@@ -35,6 +37,9 @@ export async function uploadFile(params: {
   const queryParams = new URLSearchParams({ orgId });
   if (taskId) queryParams.set('taskId', taskId);
   if (messageId) queryParams.set('messageId', messageId);
+  if (durationMs !== undefined && Number.isFinite(durationMs)) {
+    queryParams.set('durationMs', String(Math.round(durationMs)));
+  }
 
   const response = await fetch(
     `${API_BASE_URL}/files/upload?${queryParams.toString()}`,

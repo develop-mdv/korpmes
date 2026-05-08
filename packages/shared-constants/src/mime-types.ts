@@ -17,6 +17,9 @@ export const ALLOWED_AUDIO_TYPES = [
   'audio/wav',
   'audio/ogg',
   'audio/webm',
+  'audio/mp4',
+  'audio/aac',
+  'audio/x-m4a',
 ] as const;
 
 export const ALLOWED_DOCUMENT_TYPES = [

@@ -22,9 +22,11 @@ import { useChatStore } from '../../stores/chat.store';
 import { useCallStore } from '../../stores/call.store';
 import { useOrganizationStore } from '../../stores/organization.store';
 import { useAttachmentStaging } from '../../hooks/useAttachmentStaging';
+import type { VoiceRecording } from '../../hooks/useVoiceRecorder';
 import * as messagesApi from '../../api/messages.api';
 import * as callsApi from '../../api/calls.api';
 import * as chatsApi from '../../api/chats.api';
+import * as filesApi from '../../api/files.api';
 import type { ChatStackParamList } from '../../navigation/types';
 import type { Message } from '../../api/messages.api';
 import { getExistingSocket } from '../../socket/socket';
@@ -250,6 +252,39 @@ export function ChatViewScreen({ route, navigation }: Props) {
     [chatId, staging],
   );
 
+  const handleSendVoice = useCallback(
+    async (rec: VoiceRecording) => {
+      if (!currentOrg) return;
+      try {
+        const fileInfo = await filesApi.uploadFile({
+          uri: rec.uri,
+          name: `voice-${Date.now()}.m4a`,
+          mimeType: rec.mimeType,
+          orgId: currentOrg.id,
+          durationMs: rec.durationMs,
+        });
+        const socket = getExistingSocket();
+        if (!socket?.connected) {
+          throw new Error('Socket is not connected');
+        }
+        socket.emit(WS_EVENTS.MESSAGE_SEND, {
+          chatId,
+          type: 'VOICE',
+          fileIds: [fileInfo.id],
+          metadata: { duration: rec.durationMs, waveform: rec.waveform },
+        });
+      } catch (err) {
+        console.error('Failed to send voice message:', err);
+        Alert.alert('Не удалось отправить', String((err as Error).message));
+      }
+    },
+    [chatId, currentOrg],
+  );
+
+  const handleOpenVideoNote = useCallback(() => {
+    navigation.navigate('VideoNoteRecorder', { chatId });
+  }, [navigation, chatId]);
+
   const renderMessage = useCallback(
     ({ item, index }: { item: Message; index: number }) => {
       const isOwn = item.senderId === userId;
@@ -266,6 +301,8 @@ export function ChatViewScreen({ route, navigation }: Props) {
           showSender={showSender}
           replyCount={item.replyCount}
           attachments={item.attachments}
+          type={item.type}
+          metadata={item.metadata}
           onOpenThread={() =>
             navigation.navigate('Thread', {
               chatId,
@@ -326,6 +363,8 @@ export function ChatViewScreen({ route, navigation }: Props) {
       <MessageInput
         onSend={handleSend}
         onAttach={staging.add}
+        onSendVoice={handleSendVoice}
+        onOpenVideoNote={handleOpenVideoNote}
         stagedFiles={staging.staged}
         onRemoveStaged={staging.remove}
         disableSend={staging.isUploading}
