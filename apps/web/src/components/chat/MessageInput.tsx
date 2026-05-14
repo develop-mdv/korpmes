@@ -10,6 +10,7 @@ import {
   useState,
 } from 'react';
 import type { StagedFile } from '@/hooks/useAttachmentStaging';
+import type { FileDisplayMode } from '@/api/files.api';
 import { useVoiceRecorder, type VoiceRecording } from '@/hooks/useVoiceRecorder';
 import type { VideoNoteRecording } from '@/hooks/useVideoNoteRecorder';
 import { RecordingBar } from './RecordingBar';
@@ -18,7 +19,7 @@ import { VideoNoteRecorderOverlay } from './VideoNoteRecorderOverlay';
 interface MessageInputProps {
   onSend: (content: string) => void;
   onTyping?: () => void;
-  onAttach?: (files: FileList) => void;
+  onAttach?: (files: FileList, mode: FileDisplayMode) => void;
   onSendVoice?: (rec: VoiceRecording) => void;
   onSendVideoNote?: (rec: VideoNoteRecording) => void;
   stagedFiles?: StagedFile[];
@@ -75,6 +76,53 @@ const stagedStyles: Record<string, CSSProperties> = {
     whiteSpace: 'nowrap',
   },
   meta: { fontSize: 11, color: 'var(--color-text-secondary)' },
+  badge: {
+    display: 'inline-block',
+    padding: '0 6px',
+    borderRadius: 6,
+    fontSize: 10,
+    fontWeight: 600,
+    background: 'var(--color-primary-faint)',
+    color: 'var(--color-primary-dark)',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  attachMenu: {
+    position: 'absolute',
+    bottom: 'calc(100% + 8px)',
+    left: 0,
+    minWidth: 180,
+    padding: 6,
+    background: 'var(--color-surface-strong)',
+    border: '1px solid var(--color-border)',
+    borderRadius: 12,
+    boxShadow: 'var(--shadow-lg)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 2,
+    zIndex: 30,
+  },
+  attachMenuItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    padding: '8px 10px',
+    border: 'none',
+    background: 'transparent',
+    color: 'var(--color-text-primary)',
+    borderRadius: 8,
+    cursor: 'pointer',
+    textAlign: 'left' as const,
+    fontSize: 13,
+    width: '100%',
+  },
+  attachMenuItemActive: {
+    background: 'var(--color-surface-soft)',
+  },
+  attachWrap: {
+    position: 'relative',
+    display: 'inline-flex',
+  },
   progressBar: {
     height: 3,
     background: 'var(--color-border)',
@@ -117,19 +165,27 @@ const stagedStyles: Record<string, CSSProperties> = {
 
 function StagedAttachment({ item, onRemove }: { item: StagedFile; onRemove: () => void }) {
   const isImage = item.file.type.startsWith('image/');
+  const isVideo = item.file.type.startsWith('video/');
+  const showMediaPreview = item.displayMode === 'media' && (isImage || isVideo);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isImage) return;
+    if (!showMediaPreview) return;
     const url = URL.createObjectURL(item.file);
     setPreviewUrl(url);
     return () => URL.revokeObjectURL(url);
-  }, [item.file, isImage]);
+  }, [item.file, showMediaPreview]);
+
+  const badgeText = item.displayMode === 'media' ? 'Медиа' : 'Файл';
 
   return (
     <div style={stagedStyles.item}>
-      {isImage && previewUrl ? (
-        <img src={previewUrl} alt={item.file.name} style={stagedStyles.thumb} />
+      {showMediaPreview && previewUrl ? (
+        isVideo ? (
+          <video src={previewUrl} muted preload="metadata" style={stagedStyles.thumb} />
+        ) : (
+          <img src={previewUrl} alt={item.file.name} style={stagedStyles.thumb} />
+        )
       ) : (
         <div style={stagedStyles.fileIcon}>📄</div>
       )}
@@ -138,6 +194,8 @@ function StagedAttachment({ item, onRemove }: { item: StagedFile; onRemove: () =
           {item.file.name}
         </div>
         <div style={stagedStyles.meta}>
+          <span style={stagedStyles.badge}>{badgeText}</span>
+          {' · '}
           {formatSize(item.file.size)}
           {item.status === 'uploading' && ` · ${item.progress}%`}
           {item.status === 'error' && ` · ${item.error}`}
@@ -169,8 +227,13 @@ export function MessageInput({
   const [text, setText] = useState('');
   const [isDragOver, setIsDragOver] = useState(false);
   const [showVideoNote, setShowVideoNote] = useState(false);
+  const [attachMenuOpen, setAttachMenuOpen] = useState(false);
+  const [attachMenuFocus, setAttachMenuFocus] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const mediaInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pendingModeRef = useRef<FileDisplayMode>('file');
+  const attachWrapRef = useRef<HTMLDivElement>(null);
   const pressOriginRef = useRef<{ x: number; y: number } | null>(null);
 
   const recorder = useVoiceRecorder({
@@ -213,10 +276,63 @@ export function MessageInput({
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files.length > 0) {
-      onAttach?.(event.target.files);
+      onAttach?.(event.target.files, pendingModeRef.current);
       event.target.value = '';
     }
   };
+
+  const inferModeFromFiles = (files: FileList): FileDisplayMode => {
+    const first = files.item(0);
+    if (!first) return 'file';
+    return first.type.startsWith('image/') || first.type.startsWith('video/')
+      ? 'media'
+      : 'file';
+  };
+
+  const openAttachInput = (mode: FileDisplayMode) => {
+    pendingModeRef.current = mode;
+    setAttachMenuOpen(false);
+    if (mode === 'media') {
+      mediaInputRef.current?.click();
+    } else {
+      fileInputRef.current?.click();
+    }
+  };
+
+  const handleAttachKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (!attachMenuOpen) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      setAttachMenuOpen(false);
+      return;
+    }
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setAttachMenuFocus((i) => (i + 1) % 2);
+      return;
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setAttachMenuFocus((i) => (i + 1) % 2);
+      return;
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      openAttachInput(attachMenuFocus === 0 ? 'media' : 'file');
+    }
+  };
+
+  useEffect(() => {
+    if (!attachMenuOpen) return;
+    const handler = (event: MouseEvent) => {
+      if (!attachWrapRef.current) return;
+      if (!attachWrapRef.current.contains(event.target as Node)) {
+        setAttachMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [attachMenuOpen]);
 
   const handleDragOver = (event: DragEvent) => {
     if (!onAttach) return;
@@ -234,7 +350,7 @@ export function MessageInput({
     event.preventDefault();
     setIsDragOver(false);
     const files = event.dataTransfer?.types?.includes('Files') ? event.dataTransfer.files : null;
-    if (files && files.length > 0) onAttach(files);
+    if (files && files.length > 0) onAttach(files, inferModeFromFiles(files));
   };
 
   const handleMicPointerDown = (e: ReactPointerEvent<HTMLButtonElement>) => {
@@ -294,17 +410,63 @@ export function MessageInput({
         />
       ) : (
         <div className="composer">
-          <button
-            className="composer__attach"
-            onClick={() => fileInputRef.current?.click()}
-            title="Прикрепить файл"
-            disabled={!onAttach}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-            </svg>
-          </button>
+          <div ref={attachWrapRef} style={stagedStyles.attachWrap} onKeyDown={handleAttachKeyDown}>
+            <button
+              className="composer__attach"
+              onClick={() => {
+                if (!onAttach) return;
+                setAttachMenuFocus(0);
+                setAttachMenuOpen((v) => !v);
+              }}
+              title="Прикрепить"
+              disabled={!onAttach}
+              aria-haspopup="menu"
+              aria-expanded={attachMenuOpen}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+              </svg>
+            </button>
+            {attachMenuOpen && (
+              <div role="menu" style={stagedStyles.attachMenu}>
+                <button
+                  type="button"
+                  role="menuitem"
+                  style={{
+                    ...stagedStyles.attachMenuItem,
+                    ...(attachMenuFocus === 0 ? stagedStyles.attachMenuItemActive : {}),
+                  }}
+                  onMouseEnter={() => setAttachMenuFocus(0)}
+                  onClick={() => openAttachInput('media')}
+                >
+                  <span aria-hidden="true">🖼️</span>
+                  <span>Фото / видео</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  style={{
+                    ...stagedStyles.attachMenuItem,
+                    ...(attachMenuFocus === 1 ? stagedStyles.attachMenuItemActive : {}),
+                  }}
+                  onMouseEnter={() => setAttachMenuFocus(1)}
+                  onClick={() => openAttachInput('file')}
+                >
+                  <span aria-hidden="true">📎</span>
+                  <span>Файл</span>
+                </button>
+              </div>
+            )}
+          </div>
 
+          <input
+            ref={mediaInputRef}
+            type="file"
+            multiple
+            accept="image/*,video/*"
+            style={{ display: 'none' }}
+            onChange={handleFileChange}
+          />
           <input
             ref={fileInputRef}
             type="file"

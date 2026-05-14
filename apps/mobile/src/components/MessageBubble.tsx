@@ -1,11 +1,15 @@
-import React, { memo, useEffect } from 'react';
+import React, { memo, useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Video as VideoRaw, ResizeMode } from 'expo-av';
+
+const Video = VideoRaw as unknown as React.ComponentType<any>;
 import { format } from 'date-fns';
 import { useFileStore } from '../stores/file.store';
 import { useTheme } from '../theme';
 import { VoiceMessagePlayer } from './VoiceMessagePlayer';
 import { VideoNotePlayer } from './VideoNotePlayer';
+import { FullscreenMediaViewer, type MediaItem } from './FullscreenMediaViewer';
 
 interface MessageBubbleProps {
   content: string;
@@ -27,7 +31,15 @@ function formatSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-function AttachmentItem({ fileId, isOwn }: { fileId: string; isOwn: boolean }) {
+function AttachmentItem({
+  fileId,
+  isOwn,
+  onOpenMedia,
+}: {
+  fileId: string;
+  isOwn: boolean;
+  onOpenMedia: (file: NonNullable<ReturnType<typeof useFileStore.getState>['filesById'][string]>) => void;
+}) {
   const theme = useTheme();
   const fetchFile = useFileStore((s) => s.fetchFile);
   const file = useFileStore((s) => s.filesById[fileId]);
@@ -45,15 +57,32 @@ function AttachmentItem({ fileId, isOwn }: { fileId: string; isOwn: boolean }) {
   }
 
   const isImage = file.mimeType.startsWith('image/');
+  const isVideo = file.mimeType.startsWith('video/');
+  const effectiveMode: 'media' | 'file' = file.displayMode ?? (isImage ? 'media' : 'file');
   const previewSrc = file.thumbnailUrl || file.signedUrl;
   const openUrl = () => {
     if (file.signedUrl) void Linking.openURL(file.signedUrl);
   };
 
-  if (isImage && previewSrc) {
+  if (effectiveMode === 'media' && isImage && previewSrc) {
     return (
-      <TouchableOpacity onPress={openUrl} activeOpacity={0.85}>
+      <TouchableOpacity onPress={() => onOpenMedia(file)} activeOpacity={0.85}>
         <Image source={{ uri: previewSrc }} style={attachStyles.image} />
+      </TouchableOpacity>
+    );
+  }
+
+  if (effectiveMode === 'media' && isVideo && file.signedUrl) {
+    return (
+      <TouchableOpacity onLongPress={() => onOpenMedia(file)} activeOpacity={0.95}>
+        <Video
+          source={{ uri: file.signedUrl }}
+          posterSource={file.thumbnailUrl ? { uri: file.thumbnailUrl } : undefined}
+          usePoster={!!file.thumbnailUrl}
+          useNativeControls
+          resizeMode={ResizeMode.CONTAIN}
+          style={attachStyles.image}
+        />
       </TouchableOpacity>
     );
   }
@@ -97,6 +126,24 @@ export const MessageBubble = memo(function MessageBubble({
   const isVoice = lowerType === 'voice';
   const isVideoNote = lowerType === 'video_note';
   const specialFileId = (isVoice || isVideoNote) && attachments.length > 0 ? attachments[0] : null;
+  const filesById = useFileStore((s) => s.filesById);
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+
+  const handleOpenMedia = (file: { id: string }) => {
+    const idx = attachments.findIndex((id) => id === file.id);
+    setViewerIndex(idx >= 0 ? idx : 0);
+  };
+
+  const viewerItems: MediaItem[] = attachments
+    .map((id) => filesById[id])
+    .filter((f): f is NonNullable<typeof f> => !!f && !!f.signedUrl)
+    .map((f) => ({
+      id: f.id,
+      mimeType: f.mimeType,
+      signedUrl: f.signedUrl!,
+      thumbnailUrl: f.thumbnailUrl,
+      originalName: f.originalName,
+    }));
 
   const ownBubble = { backgroundColor: theme.colors.primary, borderBottomRightRadius: 8 };
   const otherBubble = {
@@ -134,7 +181,7 @@ export const MessageBubble = memo(function MessageBubble({
       {!isVoice && !isVideoNote && attachments.length > 0 && (
         <View style={styles.attachments}>
           {attachments.map((id) => (
-            <AttachmentItem key={id} fileId={id} isOwn={isOwn} />
+            <AttachmentItem key={id} fileId={id} isOwn={isOwn} onOpenMedia={handleOpenMedia} />
           ))}
         </View>
       )}
@@ -177,6 +224,14 @@ export const MessageBubble = memo(function MessageBubble({
             {replyCount} {replyCount === 1 ? 'ответ' : 'ответа'} →
           </Text>
         </TouchableOpacity>
+      )}
+      {viewerIndex !== null && viewerItems.length > 0 && (
+        <FullscreenMediaViewer
+          items={viewerItems}
+          index={Math.min(viewerIndex, viewerItems.length - 1)}
+          onIndexChange={setViewerIndex}
+          onClose={() => setViewerIndex(null)}
+        />
       )}
     </View>
   );

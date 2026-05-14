@@ -6,6 +6,16 @@ export interface StorageObject {
   contentLength: number;
 }
 
+export interface StorageStat {
+  contentType: string;
+  contentLength: number;
+}
+
+export interface StorageRange {
+  start: number;
+  length: number;
+}
+
 export abstract class StorageService {
   abstract upload(
     key: string,
@@ -16,7 +26,9 @@ export abstract class StorageService {
 
   abstract getSignedUrl(key: string, expiresIn?: number): Promise<string>;
 
-  abstract getObject(key: string): Promise<StorageObject>;
+  abstract getObject(key: string, range?: StorageRange): Promise<StorageObject>;
+
+  abstract stat(key: string): Promise<StorageStat>;
 
   abstract delete(key: string): Promise<void>;
 

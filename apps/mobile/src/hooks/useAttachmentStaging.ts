@@ -15,6 +15,7 @@ export interface StagedAttachment {
   progress: number;
   fileInfo?: filesApi.FileInfo;
   error?: string;
+  displayMode: filesApi.FileDisplayMode;
 }
 
 let idCounter = 0;
@@ -42,7 +43,7 @@ export function useAttachmentStaging(orgId: string | undefined) {
   );
 
   const add = useCallback(
-    (inputs: StagingInput[]) => {
+    (inputs: StagingInput[], mode: filesApi.FileDisplayMode = 'file') => {
       if (!orgId || inputs.length === 0) return;
       const current = stagedRef.current;
       const capacity = MAX_FILE_ATTACHMENTS_PER_MESSAGE - current.length;
@@ -60,6 +61,7 @@ export function useAttachmentStaging(orgId: string | undefined) {
             status: 'error',
             progress: 0,
             error: `Exceeds ${Math.round(MAX_FILE_SIZE_BYTES / 1024 / 1024)} MB`,
+            displayMode: mode,
           };
         }
         return {
@@ -70,6 +72,7 @@ export function useAttachmentStaging(orgId: string | undefined) {
           sizeBytes: inp.sizeBytes,
           status: 'uploading',
           progress: 0,
+          displayMode: mode,
         };
       });
 
@@ -83,6 +86,7 @@ export function useAttachmentStaging(orgId: string | undefined) {
             name: item.name,
             mimeType: item.mimeType,
             orgId,
+            displayMode: item.displayMode,
           })
           .then((info) =>
             updateOne(item.localId, {

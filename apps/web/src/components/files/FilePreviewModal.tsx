@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { VideoPlayer } from './VideoPlayer';
 
 export interface PreviewFile {
   id: string;
@@ -11,6 +12,10 @@ interface Props {
   file: PreviewFile;
   signedUrl: string;
   onClose: () => void;
+  index?: number;
+  total?: number;
+  onPrev?: () => void;
+  onNext?: () => void;
 }
 
 type Category = 'image' | 'video' | 'audio' | 'pdf' | 'office' | 'text' | 'unknown';
@@ -69,14 +74,119 @@ function TextPreview({ url }: { url: string }) {
   return <pre style={styles.pre}>{content}</pre>;
 }
 
-export function FilePreviewModal({ file, signedUrl, onClose }: Props) {
+interface ZoomState {
+  scale: number;
+  tx: number;
+  ty: number;
+}
+
+const ZOOM_INITIAL: ZoomState = { scale: 1, tx: 0, ty: 0 };
+
+function ZoomableImage({ src, alt }: { src: string; alt: string }) {
+  const [zoom, setZoom] = useState<ZoomState>(ZOOM_INITIAL);
+  const dragRef = useRef<{ startX: number; startY: number; baseTx: number; baseTy: number } | null>(null);
+
+  useEffect(() => {
+    setZoom(ZOOM_INITIAL);
+  }, [src]);
+
+  const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const delta = -event.deltaY * 0.0015;
+    setZoom((prev) => {
+      const next = Math.min(5, Math.max(1, prev.scale + delta * prev.scale));
+      if (next === 1) return ZOOM_INITIAL;
+      return { ...prev, scale: next };
+    });
+  };
+
+  const handleDoubleClick = () => {
+    setZoom((prev) => (prev.scale > 1 ? ZOOM_INITIAL : { scale: 2, tx: 0, ty: 0 }));
+  };
+
+  const handleMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (zoom.scale <= 1) return;
+    event.preventDefault();
+    dragRef.current = {
+      startX: event.clientX,
+      startY: event.clientY,
+      baseTx: zoom.tx,
+      baseTy: zoom.ty,
+    };
+  };
+
+  useEffect(() => {
+    const onMove = (event: MouseEvent) => {
+      const drag = dragRef.current;
+      if (!drag) return;
+      const dx = event.clientX - drag.startX;
+      const dy = event.clientY - drag.startY;
+      const nextTx = drag.baseTx + dx;
+      const nextTy = drag.baseTy + dy;
+      setZoom((prev) => ({ ...prev, tx: nextTx, ty: nextTy }));
+    };
+    const onUp = () => {
+      dragRef.current = null;
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, []);
+
+  return (
+    <div
+      style={{
+        ...styles.zoomWrap,
+        cursor: zoom.scale > 1 ? 'grab' : 'zoom-in',
+      }}
+      onWheel={handleWheel}
+      onDoubleClick={handleDoubleClick}
+      onMouseDown={handleMouseDown}
+    >
+      <img
+        src={src}
+        alt={alt}
+        draggable={false}
+        style={{
+          ...styles.image,
+          transform: `translate(${zoom.tx}px, ${zoom.ty}px) scale(${zoom.scale})`,
+          transition: dragRef.current ? 'none' : 'transform 0.12s ease-out',
+        }}
+      />
+    </div>
+  );
+}
+
+export function FilePreviewModal({ file, signedUrl, onClose, index, total, onPrev, onNext }: Props) {
   const category = getCategory(file.mimeType);
   const officeReachable = isPubliclyReachable(signedUrl);
   const officeViewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(signedUrl)}`;
+  const showNav = typeof index === 'number' && typeof total === 'number' && total > 1;
 
   const handleBackdropClick = (event: React.MouseEvent) => {
     if (event.target === event.currentTarget) onClose();
   };
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+        return;
+      }
+      if (event.key === 'ArrowLeft' && onPrev) {
+        onPrev();
+        return;
+      }
+      if (event.key === 'ArrowRight' && onNext) {
+        onNext();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose, onPrev, onNext]);
 
   return (
     <div style={styles.backdrop} onClick={handleBackdropClick}>
@@ -88,6 +198,7 @@ export function FilePreviewModal({ file, signedUrl, onClose }: Props) {
             </span>
             <span style={styles.meta}>
               {file.mimeType} • {formatSize(file.sizeBytes)}
+              {showNav && ` • ${(index ?? 0) + 1} / ${total}`}
             </span>
           </div>
           <div style={styles.headerRight}>
@@ -101,8 +212,22 @@ export function FilePreviewModal({ file, signedUrl, onClose }: Props) {
         </div>
 
         <div style={styles.body}>
-          {category === 'image' && <img src={signedUrl} alt={file.originalName} style={styles.image} draggable={false} />}
-          {category === 'video' && <video src={signedUrl} controls autoPlay={false} style={styles.video} />}
+          {showNav && onPrev && (
+            <button style={{ ...styles.navBtn, left: 12 }} onClick={onPrev} aria-label="Назад">
+              ‹
+            </button>
+          )}
+          {showNav && onNext && (
+            <button style={{ ...styles.navBtn, right: 12 }} onClick={onNext} aria-label="Вперёд">
+              ›
+            </button>
+          )}
+          {category === 'image' && <ZoomableImage key={file.id} src={signedUrl} alt={file.originalName} />}
+          {category === 'video' && (
+            <div key={file.id} style={styles.videoWrap}>
+              <VideoPlayer src={signedUrl} />
+            </div>
+          )}
 
           {category === 'audio' && (
             <div style={styles.audioWrap}>
@@ -238,14 +363,41 @@ const styles: Record<string, React.CSSProperties> = {
   body: {
     flex: 1,
     minHeight: 0,
-    overflow: 'auto',
+    overflow: 'hidden',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     background:
       'radial-gradient(circle at top left, rgba(159, 122, 61, 0.1), transparent 28%), linear-gradient(180deg, var(--color-bg-secondary), var(--color-bg))',
+    position: 'relative',
   },
-  image: { maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' },
+  navBtn: {
+    position: 'absolute',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    width: 44,
+    height: 44,
+    borderRadius: '50%',
+    border: '1px solid var(--color-border)',
+    background: 'rgba(0, 0, 0, 0.45)',
+    color: '#fff',
+    fontSize: 28,
+    lineHeight: 1,
+    cursor: 'pointer',
+    display: 'grid',
+    placeItems: 'center',
+    zIndex: 5,
+  },
+  zoomWrap: {
+    width: '100%',
+    height: '100%',
+    overflow: 'hidden',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  image: { maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', userSelect: 'none' },
+  videoWrap: { width: '100%', height: '100%', display: 'flex', alignItems: 'stretch', justifyContent: 'center' },
   video: { maxWidth: '100%', maxHeight: '100%' },
   audioWrap: {
     display: 'flex',

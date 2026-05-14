@@ -49,6 +49,9 @@ export class File {
   @Column({ name: 'duration_ms', type: 'int', nullable: true })
   durationMs: number | null;
 
+  @Column({ name: 'display_mode', type: 'varchar', length: 16, nullable: true })
+  displayMode: 'media' | 'file' | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 }

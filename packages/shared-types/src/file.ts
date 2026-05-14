@@ -7,6 +7,8 @@ export enum FileCategory {
   OTHER = 'OTHER',
 }
 
+export type FileDisplayMode = 'media' | 'file';
+
 export interface FileAttachment {
   id: string;
   uploaderId: string;
@@ -21,6 +23,7 @@ export interface FileAttachment {
   height?: number;
   thumbnailKey?: string;
   durationMs?: number;
+  displayMode?: FileDisplayMode | null;
   createdAt: string;
 }
 

@@ -13,6 +13,11 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Repository } from 'typeorm';
 import * as crypto from 'crypto';
+import * as fs from 'fs/promises';
+import * as os from 'os';
+import * as path from 'path';
+import * as ffmpeg from 'fluent-ffmpeg';
+import * as ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 import * as sharp from 'sharp';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -24,9 +29,18 @@ import {
 import { File } from './entities/file.entity';
 import { Chat } from '../chats/entities/chat.entity';
 import { Task } from '../tasks/entities/task.entity';
-import { StorageService, type StorageObject } from './storage/storage.service';
+import {
+  StorageService,
+  type StorageObject,
+  type StorageRange,
+  type StorageStat,
+} from './storage/storage.service';
 import { AuditService } from '../audit/audit.service';
 import { MembersService } from '../organizations/members.service';
+
+if ((ffmpegInstaller as any)?.path) {
+  (ffmpeg as any).setFfmpegPath((ffmpegInstaller as any).path);
+}
 
 export type DownloadKind = 'file' | 'thumbnail';
 
@@ -90,7 +104,11 @@ export class FilesService {
     }
   }
 
-  async openFileStream(id: string, kind: DownloadKind): Promise<{
+  async openFileStream(
+    id: string,
+    kind: DownloadKind,
+    range?: StorageRange,
+  ): Promise<{
     object: StorageObject;
     filename: string;
   }> {
@@ -99,8 +117,18 @@ export class FilesService {
     if (!key) {
       throw new NotFoundException('Requested file content is not available');
     }
-    const object = await this.storageService.getObject(key);
+    const object = await this.storageService.getObject(key, range);
     return { object, filename: file.originalName };
+  }
+
+  async statFile(id: string, kind: DownloadKind): Promise<{ stat: StorageStat; filename: string }> {
+    const file = await this.findById(id);
+    const key = kind === 'thumbnail' ? file.thumbnailKey : file.storageKey;
+    if (!key) {
+      throw new NotFoundException('Requested file content is not available');
+    }
+    const stat = await this.storageService.stat(key);
+    return { stat, filename: file.originalName };
   }
 
   async upload(
@@ -110,6 +138,7 @@ export class FilesService {
     messageId?: string,
     taskId?: string,
     durationMs?: number,
+    displayMode?: 'media' | 'file',
   ): Promise<File> {
     await this.assertMember(orgId, userId);
 
@@ -140,6 +169,15 @@ export class FilesService {
       validatedDuration = Math.round(durationMs);
     }
 
+    const isImageMime = baseMime.startsWith('image/');
+    const isVideoMime = baseMime.startsWith('video/');
+    let resolvedDisplayMode: 'media' | 'file' | null = null;
+    if (displayMode === 'media') {
+      resolvedDisplayMode = isImageMime || isVideoMime ? 'media' : 'file';
+    } else if (displayMode === 'file') {
+      resolvedDisplayMode = 'file';
+    }
+
     // Multer decodes the multipart filename header as latin-1; re-encode as
     // utf-8 so cyrillic/etc filenames don't get stored as mojibake.
     const originalName = Buffer.from(file.originalname, 'latin1').toString(
@@ -163,7 +201,7 @@ export class FilesService {
     let width: number | null = null;
     let height: number | null = null;
 
-    if (baseMime.startsWith('image/')) {
+    if (isImageMime) {
       try {
         const metadata = await (sharp as any)(file.buffer).metadata();
         width = metadata.width ?? null;
@@ -182,6 +220,37 @@ export class FilesService {
       } catch (err) {
         this.logger.warn(`Failed to generate thumbnail: ${err}`);
       }
+    } else if (isVideoMime && resolvedDisplayMode === 'media') {
+      const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'thumb-'));
+      const inputPath = path.join(tmpDir, `${fileId}.bin`);
+      const thumbName = `${fileId}.jpg`;
+      const thumbPath = path.join(tmpDir, thumbName);
+      try {
+        await fs.writeFile(inputPath, file.buffer);
+        await new Promise<void>((resolve, reject) => {
+          (ffmpeg as any)(inputPath)
+            .on('end', () => resolve())
+            .on('error', (err: Error) => reject(err))
+            .screenshots({
+              timestamps: ['00:00:01'],
+              count: 1,
+              folder: tmpDir,
+              filename: thumbName,
+              size: '480x?',
+            });
+        });
+        const thumbBuf = await fs.readFile(thumbPath);
+        thumbnailKey = `${orgId}/${fileId}/thumbnail_${safeKeyName}.jpg`;
+        await this.storageService.upload(thumbnailKey, thumbBuf, 'image/jpeg');
+      } catch (err) {
+        this.logger.warn(`Failed to generate video thumbnail: ${err}`);
+      } finally {
+        try {
+          await fs.rm(tmpDir, { recursive: true, force: true });
+        } catch {
+          /* ignore */
+        }
+      }
     }
 
     const entity = this.fileRepository.create({
@@ -198,6 +267,7 @@ export class FilesService {
       thumbnailKey,
       checksum,
       durationMs: validatedDuration,
+      displayMode: resolvedDisplayMode,
     });
 
     const saved = await this.fileRepository.save(entity);

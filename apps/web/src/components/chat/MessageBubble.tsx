@@ -42,6 +42,24 @@ const attachStyles: Record<string, CSSProperties> = {
     opacity: 0.6,
   },
   image: { maxWidth: 'min(260px, 70vw)', maxHeight: 280, borderRadius: 14, cursor: 'pointer', objectFit: 'cover' },
+  video: { maxWidth: 'min(320px, 70vw)', maxHeight: 280, borderRadius: 14, background: '#000' },
+  videoWrap: { position: 'relative', display: 'inline-block', cursor: 'pointer' },
+  videoPlay: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)',
+    width: 52,
+    height: 52,
+    borderRadius: '50%',
+    background: 'rgba(0,0,0,0.6)',
+    color: '#fff',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 22,
+    pointerEvents: 'none',
+  },
   card: {
     display: 'flex',
     alignItems: 'center',
@@ -89,10 +107,26 @@ function AttachmentItem({
 
   const isImage = file.mimeType.startsWith('image/');
   const isVideo = file.mimeType.startsWith('video/');
+  const effectiveMode: 'media' | 'file' = file.displayMode
+    ?? (isImage ? 'media' : 'file');
   const previewSrc = file.thumbnailUrl || file.signedUrl;
 
-  if (isImage && previewSrc) {
+  if (effectiveMode === 'media' && isImage && previewSrc) {
     return <img src={previewSrc} alt={file.originalName} style={attachStyles.image} onClick={() => onPreview(file)} />;
+  }
+
+  if (effectiveMode === 'media' && isVideo && file.signedUrl) {
+    return (
+      <div style={attachStyles.videoWrap} onClick={() => onPreview(file)}>
+        <video
+          src={file.signedUrl}
+          poster={file.thumbnailUrl || undefined}
+          preload="metadata"
+          style={attachStyles.video}
+        />
+        <div style={attachStyles.videoPlay} aria-hidden="true">▶</div>
+      </div>
+    );
   }
 
   return (
@@ -110,12 +144,23 @@ function AttachmentItem({
 
 export function MessageBubble({ message, isOwn, showSender }: MessageBubbleProps) {
   const time = new Date(message.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-  const [preview, setPreview] = useState<CachedFile | null>(null);
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const filesById = useFileStore((s) => s.filesById);
   const attachments = message.attachments ?? [];
   const messageType = message.type?.toLowerCase();
   const isVoice = messageType === 'voice';
   const isVideoNote = messageType === 'video_note';
   const specialFileId = (isVoice || isVideoNote) && attachments.length > 0 ? attachments[0] : null;
+
+  const openPreviewFor = (file: CachedFile) => {
+    const idx = attachments.findIndex((id) => id === file.id);
+    setPreviewIndex(idx >= 0 ? idx : 0);
+  };
+
+  const previewFile: CachedFile | null =
+    previewIndex !== null && attachments[previewIndex]
+      ? filesById[attachments[previewIndex]] ?? null
+      : null;
 
   return (
     <div className={clsx('message-row', isOwn && 'message-row--own')}>
@@ -136,7 +181,7 @@ export function MessageBubble({ message, isOwn, showSender }: MessageBubbleProps
         {!isVoice && !isVideoNote && attachments.length > 0 && (
           <div className="message-row__attachments">
             {attachments.map((id) => (
-              <AttachmentItem key={id} fileId={id} onPreview={setPreview} />
+              <AttachmentItem key={id} fileId={id} onPreview={openPreviewFor} />
             ))}
           </div>
         )}
@@ -155,16 +200,26 @@ export function MessageBubble({ message, isOwn, showSender }: MessageBubbleProps
           </div>
         )}
       </div>
-      {preview && preview.signedUrl && (
+      {previewFile && previewFile.signedUrl && previewIndex !== null && (
         <FilePreviewModal
           file={{
-            id: preview.id,
-            originalName: preview.originalName,
-            mimeType: preview.mimeType,
-            sizeBytes: preview.sizeBytes,
+            id: previewFile.id,
+            originalName: previewFile.originalName,
+            mimeType: previewFile.mimeType,
+            sizeBytes: previewFile.sizeBytes,
           }}
-          signedUrl={preview.signedUrl}
-          onClose={() => setPreview(null)}
+          signedUrl={previewFile.signedUrl}
+          onClose={() => setPreviewIndex(null)}
+          index={previewIndex}
+          total={attachments.length}
+          onPrev={
+            previewIndex > 0 ? () => setPreviewIndex((i) => (i ?? 0) - 1) : undefined
+          }
+          onNext={
+            previewIndex < attachments.length - 1
+              ? () => setPreviewIndex((i) => (i ?? 0) + 1)
+              : undefined
+          }
         />
       )}
     </div>

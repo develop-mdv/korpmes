@@ -1,7 +1,12 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as Minio from 'minio';
-import { StorageService, type StorageObject } from './storage.service';
+import {
+  StorageService,
+  type StorageObject,
+  type StorageRange,
+  type StorageStat,
+} from './storage.service';
 
 @Injectable()
 export class MinioStorageService extends StorageService implements OnModuleInit {
@@ -51,19 +56,27 @@ export class MinioStorageService extends StorageService implements OnModuleInit 
     return this.client.presignedGetObject(this.bucket, key, expiresIn);
   }
 
-  async getObject(key: string): Promise<StorageObject> {
-    const [stat, stream] = await Promise.all([
-      this.client.statObject(this.bucket, key),
-      this.client.getObject(this.bucket, key),
-    ]);
+  async getObject(key: string, range?: StorageRange): Promise<StorageObject> {
+    const stat = await this.client.statObject(this.bucket, key);
     const contentType =
       (stat.metaData && (stat.metaData['content-type'] as string)) ||
       'application/octet-stream';
+    const stream = range
+      ? await this.client.getPartialObject(this.bucket, key, range.start, range.length)
+      : await this.client.getObject(this.bucket, key);
     return {
       stream,
       contentType,
       contentLength: stat.size,
     };
+  }
+
+  async stat(key: string): Promise<StorageStat> {
+    const stat = await this.client.statObject(this.bucket, key);
+    const contentType =
+      (stat.metaData && (stat.metaData['content-type'] as string)) ||
+      'application/octet-stream';
+    return { contentType, contentLength: stat.size };
   }
 
   async delete(key: string): Promise<void> {

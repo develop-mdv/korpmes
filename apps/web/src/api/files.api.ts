@@ -1,6 +1,8 @@
 import { apiClient } from './client';
 import { useAuthStore } from '@/stores/auth.store';
 
+export type FileDisplayMode = 'media' | 'file';
+
 export interface FileInfo {
   id: string;
   originalName: string;
@@ -12,7 +14,12 @@ export interface FileInfo {
   uploaderId: string;
   thumbnailKey?: string;
   durationMs?: number;
+  displayMode?: FileDisplayMode | null;
   createdAt: string;
+}
+
+export interface UploadOptions {
+  displayMode?: FileDisplayMode;
 }
 
 export function uploadFile(
@@ -22,6 +29,7 @@ export function uploadFile(
   onProgress?: (progress: number) => void,
   taskId?: string,
   durationMs?: number,
+  options?: UploadOptions,
 ): Promise<FileInfo> {
   return new Promise((resolve, reject) => {
     const formData = new FormData();
@@ -32,6 +40,9 @@ export function uploadFile(
     if (taskId) params.set('taskId', taskId);
     if (durationMs !== undefined && Number.isFinite(durationMs)) {
       params.set('durationMs', String(Math.round(durationMs)));
+    }
+    if (options?.displayMode) {
+      params.set('displayMode', options.displayMode);
     }
 
     const xhr = new XMLHttpRequest();

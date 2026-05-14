@@ -37,9 +37,12 @@ export class FilesController {
     @Query('messageId') messageId?: string,
     @Query('taskId') taskId?: string,
     @Query('durationMs') durationMs?: string,
+    @Query('displayMode') displayMode?: string,
   ) {
     const parsedDuration =
       durationMs !== undefined ? Number.parseInt(durationMs, 10) : undefined;
+    const mode =
+      displayMode === 'media' || displayMode === 'file' ? displayMode : undefined;
     return this.filesService.upload(
       file,
       user.id,
@@ -47,6 +50,7 @@ export class FilesController {
       messageId,
       taskId,
       Number.isFinite(parsedDuration) ? (parsedDuration as number) : undefined,
+      mode,
     );
   }
 

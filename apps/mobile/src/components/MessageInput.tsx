@@ -2,6 +2,7 @@ import React, { useState, useCallback, memo, useRef } from 'react';
 import { View, TextInput, Pressable, Text, StyleSheet, Alert, ScrollView, Image, GestureResponderEvent } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { StagedAttachment, StagingInput } from '../hooks/useAttachmentStaging';
+import type { FileDisplayMode } from '../api/files.api';
 import { useVoiceRecorder, type VoiceRecording } from '../hooks/useVoiceRecorder';
 import { RecordingBar } from './RecordingBar';
 import * as ImagePicker from 'expo-image-picker';
@@ -11,7 +12,7 @@ import { useTheme } from '../theme';
 
 interface MessageInputProps {
   onSend: (text: string) => void;
-  onAttach?: (files: StagingInput[]) => void;
+  onAttach?: (files: StagingInput[], mode: FileDisplayMode) => void;
   onSendVoice?: (rec: VoiceRecording) => void;
   onOpenVideoNote?: () => void;
   stagedFiles?: StagedAttachment[];
@@ -138,21 +139,28 @@ export const MessageInput = memo(function MessageInput({
           text: 'Фото / видео',
           onPress: async () => {
             const files = await pickImages().catch(() => []);
-            if (files.length > 0) onAttach(files);
+            if (files.length > 0) onAttach(files, 'media');
           },
         },
         {
           text: 'Снять фото',
           onPress: async () => {
             const files = await takePhoto().catch(() => []);
-            if (files.length > 0) onAttach(files);
+            if (files.length > 0) onAttach(files, 'media');
+          },
+        },
+        {
+          text: 'Изображение/видео как файл',
+          onPress: async () => {
+            const files = await pickImages().catch(() => []);
+            if (files.length > 0) onAttach(files, 'file');
           },
         },
         {
           text: 'Документ',
           onPress: async () => {
             const files = await pickDocuments().catch(() => []);
-            if (files.length > 0) onAttach(files);
+            if (files.length > 0) onAttach(files, 'file');
           },
         },
         { text: 'Отмена', style: 'cancel' },
@@ -172,9 +180,12 @@ export const MessageInput = memo(function MessageInput({
         >
           {stagedFiles.map((s) => {
             const isImage = s.mimeType.startsWith('image/');
+            const isVideo = s.mimeType.startsWith('video/');
+            const showThumb = s.displayMode === 'media' && (isImage || isVideo);
+            const badgeText = s.displayMode === 'media' ? 'Медиа' : 'Файл';
             return (
               <View key={s.localId} style={[stripStyles.item, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-                {isImage ? (
+                {showThumb ? (
                   <Image source={{ uri: s.uri }} style={stripStyles.thumb} />
                 ) : (
                   <View style={[stripStyles.fileIcon, { backgroundColor: theme.colors.surfaceSoft }]}>
@@ -186,7 +197,7 @@ export const MessageInput = memo(function MessageInput({
                     {s.name}
                   </Text>
                   <Text style={[stripStyles.itemMeta, { color: theme.colors.textTertiary }]}>
-                    {formatSize(s.sizeBytes)}
+                    {badgeText} · {formatSize(s.sizeBytes)}
                     {s.status === 'uploading' && ` · ${s.progress}%`}
                     {s.status === 'error' && ` · ${s.error}`}
                   </Text>

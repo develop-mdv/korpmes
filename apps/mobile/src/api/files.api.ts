@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL, AUTH_TOKEN_KEY, apiClient } from './client';
 
+export type FileDisplayMode = 'media' | 'file';
+
 export interface FileInfo {
   id: string;
   originalName: string;
@@ -12,6 +14,7 @@ export interface FileInfo {
   uploaderId: string;
   thumbnailKey?: string;
   durationMs?: number;
+  displayMode?: FileDisplayMode | null;
   createdAt: string;
   signedUrl?: string;
   thumbnailUrl?: string;
@@ -25,9 +28,10 @@ export async function uploadFile(params: {
   taskId?: string;
   messageId?: string;
   durationMs?: number;
+  displayMode?: FileDisplayMode;
   onProgress?: (progress: number) => void;
 }): Promise<FileInfo> {
-  const { uri, name, mimeType, orgId, taskId, messageId, durationMs } = params;
+  const { uri, name, mimeType, orgId, taskId, messageId, durationMs, displayMode } = params;
   const token = await AsyncStorage.getItem(AUTH_TOKEN_KEY);
   const formData = new FormData();
   // React Native FormData accepts `{uri, name, type}` shape that differs from
@@ -39,6 +43,9 @@ export async function uploadFile(params: {
   if (messageId) queryParams.set('messageId', messageId);
   if (durationMs !== undefined && Number.isFinite(durationMs)) {
     queryParams.set('durationMs', String(Math.round(durationMs)));
+  }
+  if (displayMode) {
+    queryParams.set('displayMode', displayMode);
   }
 
   const response = await fetch(
