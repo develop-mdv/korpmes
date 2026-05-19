@@ -49,3 +49,7 @@ export {
   URL_REGEX,
   STRONG_PASSWORD_REGEX,
 } from './regex';
+export {
+  parseChatCommand,
+  type ChatCommandParseResult,
+} from './chat-commands';

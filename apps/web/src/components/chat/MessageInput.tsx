@@ -17,7 +17,7 @@ import { RecordingBar } from './RecordingBar';
 import { VideoNoteRecorderOverlay } from './VideoNoteRecorderOverlay';
 
 interface MessageInputProps {
-  onSend: (content: string) => void;
+  onSend: (content: string) => boolean | void | Promise<boolean | void>;
   onTyping?: () => void;
   onAttach?: (files: FileList, mode: FileDisplayMode) => void;
   onSendVoice?: (rec: VoiceRecording) => void;
@@ -250,9 +250,10 @@ export function MessageInput({
   const hasReadyFiles = stagedFiles.some((s) => s.status === 'done');
   const canSend = !disableSend && (text.trim().length > 0 || hasReadyFiles);
 
-  const handleSend = useCallback(() => {
+  const handleSend = useCallback(async () => {
     if (!canSend) return;
-    onSend(text.trim());
+    const result = await onSend(text.trim());
+    if (result === false) return;
     setText('');
     if (textareaRef.current) {
       textareaRef.current.style.height = '48px';

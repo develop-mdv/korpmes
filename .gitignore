@@ -22,6 +22,9 @@ build/
 # Claude Code (local agent state)
 .claude/
 
+# Codex/Superpowers local planning artifacts
+docs/superpowers/
+
 # OS
 .DS_Store
 Thumbs.db

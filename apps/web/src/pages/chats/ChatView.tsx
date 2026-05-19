@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { parseChatCommand } from '@corp/shared-constants';
 import { ChatHeader } from '@/components/chat/ChatHeader';
 import { ChatInsightsPanel } from '@/components/chat/ChatInsightsPanel';
 import { MessageInput } from '@/components/chat/MessageInput';
@@ -15,6 +16,7 @@ import { useOrganizationStore } from '@/stores/organization.store';
 import { useUIStore } from '@/stores/ui.store';
 import { stopTitleFlash } from '@/services/title-flash.service';
 import * as filesApi from '@/api/files.api';
+import { createTask, TaskPriority } from '@/api/tasks.api';
 
 interface ChatViewProps {
   chatId: string;
@@ -35,10 +37,45 @@ export function ChatView({ chatId }: ChatViewProps) {
 
   if (!chat) return null;
 
-  const handleSend = (content: string) => {
+  const handleSend = async (content: string) => {
+    const command = parseChatCommand(content);
+
+    if (command.kind === 'invalid') {
+      window.alert('Используйте: /task Название задачи');
+      return false;
+    }
+
+    if (command.kind === 'task') {
+      if (!currentOrg) {
+        window.alert('Не выбрана организация');
+        return false;
+      }
+
+      if (staging.staged.length > 0) {
+        window.alert('Команда /task создаёт только текстовую задачу. Отправьте файлы отдельно.');
+        return false;
+      }
+
+      try {
+        await createTask({
+          title: command.title,
+          organizationId: currentOrg.id,
+          chatId,
+          priority: TaskPriority.MEDIUM,
+        });
+        window.alert('Задача создана');
+        return true;
+      } catch (err) {
+        console.warn('Failed to create task from chat command', err);
+        window.alert('Не удалось создать задачу из чата');
+        return false;
+      }
+    }
+
     const fileIds = staging.getReadyFileIds();
     sendMessage(content, fileIds.length > 0 ? fileIds : undefined);
     staging.reset();
+    return true;
   };
 
   const handleSendVoice = async (rec: VoiceRecording) => {

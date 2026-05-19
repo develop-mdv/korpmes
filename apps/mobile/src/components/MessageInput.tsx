@@ -11,7 +11,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { useTheme } from '../theme';
 
 interface MessageInputProps {
-  onSend: (text: string) => void;
+  onSend: (text: string) => boolean | void | Promise<boolean | void>;
   onAttach?: (files: StagingInput[], mode: FileDisplayMode) => void;
   onSendVoice?: (rec: VoiceRecording) => void;
   onOpenVideoNote?: () => void;
@@ -97,9 +97,10 @@ export const MessageInput = memo(function MessageInput({
   });
   const isRecording = recorder.state === 'recording' || recorder.state === 'locked';
 
-  const handleSend = useCallback(() => {
+  const handleSend = useCallback(async () => {
     if (!canSend) return;
-    onSend(text.trim());
+    const result = await onSend(text.trim());
+    if (result === false) return;
     setText('');
   }, [text, onSend, canSend]);
 

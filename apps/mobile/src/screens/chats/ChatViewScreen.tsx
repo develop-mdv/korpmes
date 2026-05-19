@@ -1,4 +1,5 @@
 import React, { useEffect, useCallback, useRef, useLayoutEffect, useState, useMemo } from 'react';
+import { parseChatCommand } from '@corp/shared-constants';
 import {
   Alert,
   View,
@@ -27,6 +28,7 @@ import * as messagesApi from '../../api/messages.api';
 import * as callsApi from '../../api/calls.api';
 import * as chatsApi from '../../api/chats.api';
 import * as filesApi from '../../api/files.api';
+import { createTask, TaskPriority } from '../../api/tasks.api';
 import type { ChatStackParamList } from '../../navigation/types';
 import type { Message } from '../../api/messages.api';
 import { getExistingSocket } from '../../socket/socket';
@@ -232,6 +234,43 @@ export function ChatViewScreen({ route, navigation }: Props) {
 
   const handleSend = useCallback(
     async (text: string) => {
+      const command = parseChatCommand(text);
+
+      if (command.kind === 'invalid') {
+        Alert.alert('Команда задачи', 'Используйте: /task Название задачи');
+        return false;
+      }
+
+      if (command.kind === 'task') {
+        if (!currentOrg) {
+          Alert.alert('Организация', 'Не выбрана организация.');
+          return false;
+        }
+
+        if (staging.staged.length > 0) {
+          Alert.alert(
+            'Команда задачи',
+            'Команда /task создаёт только текстовую задачу. Отправьте файлы отдельно.',
+          );
+          return false;
+        }
+
+        try {
+          await createTask({
+            title: command.title,
+            organizationId: currentOrg.id,
+            chatId,
+            priority: TaskPriority.MEDIUM,
+          });
+          Alert.alert('Задача создана', command.title);
+          return true;
+        } catch (err) {
+          console.error('Failed to create task from chat command:', err);
+          Alert.alert('Не удалось создать задачу', 'Попробуйте ещё раз.');
+          return false;
+        }
+      }
+
       try {
         const socket = getExistingSocket();
         if (!socket?.connected) {
@@ -245,11 +284,13 @@ export function ChatViewScreen({ route, navigation }: Props) {
           fileIds: fileIds.length > 0 ? fileIds : undefined,
         });
         staging.reset();
+        return true;
       } catch (err) {
         console.error('Failed to send message:', err);
+        return false;
       }
     },
-    [chatId, staging],
+    [chatId, currentOrg, staging],
   );
 
   const handleSendVoice = useCallback(

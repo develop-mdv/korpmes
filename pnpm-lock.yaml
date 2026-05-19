@@ -183,6 +183,9 @@ importers:
 
   apps/mobile:
     dependencies:
+      '@corp/shared-constants':
+        specifier: workspace:*
+        version: link:../../packages/shared-constants
       '@expo/vector-icons':
         specifier: ^14.0.0
         version: 14.0.4
