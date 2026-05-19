@@ -186,15 +186,17 @@ export class AuthService {
 
   async generateTokens(user: User) {
     const payload = { sub: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName };
+    const accessTokenTtl = this.configService.get<string>('JWT_ACCESS_TTL', '15m');
+    const refreshTokenTtl = this.configService.get<string>('JWT_REFRESH_TTL', '90d');
 
     const accessToken = this.jwtService.sign(payload, {
       secret: this.configService.get<string>('JWT_ACCESS_SECRET'),
-      expiresIn: this.configService.get<string>('JWT_ACCESS_EXPIRATION', '15m'),
+      expiresIn: accessTokenTtl,
     });
 
     const refreshToken = this.jwtService.sign(payload, {
       secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
-      expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRATION', '7d'),
+      expiresIn: refreshTokenTtl,
     });
 
     // Hash and store refresh token
@@ -202,7 +204,7 @@ export class AuthService {
     const refreshTokenEntity = this.refreshTokenRepository.create({
       userId: user.id,
       tokenHash,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      expiresAt: new Date(Date.now() + parseJwtTtlToMs(refreshTokenTtl)),
     });
     await this.refreshTokenRepository.save(refreshTokenEntity);
 
@@ -341,4 +343,29 @@ export class AuthService {
       entityId: userId,
     });
   }
+}
+
+function parseJwtTtlToMs(ttl: string): number {
+  const value = ttl.trim();
+  const match = /^(\d+)([smhd])$/.exec(value);
+
+  if (match) {
+    const amount = Number(match[1]);
+    const unit = match[2] as 's' | 'm' | 'h' | 'd';
+    const unitMs: Record<typeof unit, number> = {
+      s: 1000,
+      m: 60 * 1000,
+      h: 60 * 60 * 1000,
+      d: 24 * 60 * 60 * 1000,
+    };
+
+    return amount * unitMs[unit];
+  }
+
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds > 0) {
+    return seconds * 1000;
+  }
+
+  throw new Error(`Invalid JWT refresh TTL: ${ttl}`);
 }

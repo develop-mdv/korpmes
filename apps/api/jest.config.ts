@@ -13,9 +13,9 @@ const config: Config = {
   passWithNoTests: true,
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
-    '^@corp/shared-types$': '<rootDir>/../../packages/shared-types/src',
-    '^@corp/shared-constants$': '<rootDir>/../../packages/shared-constants/src',
-    '^@corp/shared-validation$': '<rootDir>/../../packages/shared-validation/src',
+    '^@corp/shared-types$': '<rootDir>/../../../packages/shared-types/src',
+    '^@corp/shared-constants$': '<rootDir>/../../../packages/shared-constants/src',
+    '^@corp/shared-validation$': '<rootDir>/../../../packages/shared-validation/src',
   },
 };
 
