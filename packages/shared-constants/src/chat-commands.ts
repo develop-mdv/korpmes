@@ -5,7 +5,7 @@ export type ChatCommandParseResult =
 
 export type PreparedTaskCommand =
   | { kind: 'none' }
-  | { kind: 'ready'; title: string; chatId: string; organizationId: string }
+  | { kind: 'ready'; title: string; chatId: string; organizationId: string; assignedTo?: string }
   | { kind: 'error'; message: string };
 
 export interface PrepareTaskCommandInput {
@@ -14,6 +14,9 @@ export interface PrepareTaskCommandInput {
   chatOrganizationId?: string | null;
   currentOrganizationId?: string | null;
   hasAttachments: boolean;
+  chatType?: 'PERSONAL' | 'GROUP' | 'CHANNEL' | 'PROJECT' | null;
+  currentUserId?: string | null;
+  chatMemberUserIds?: readonly (string | null | undefined)[] | null;
 }
 
 export interface ChatCommandSuggestion {
@@ -79,10 +82,16 @@ export function prepareTaskCommand(input: PrepareTaskCommandInput): PreparedTask
     return { kind: 'error', message: 'Не удалось определить организацию чата' };
   }
 
+  const assignedTo =
+    input.chatType === 'PERSONAL' && input.currentUserId
+      ? input.chatMemberUserIds?.find((userId): userId is string => Boolean(userId && userId !== input.currentUserId))
+      : undefined;
+
   return {
     kind: 'ready',
     title: input.command.title,
     chatId: input.chatId,
     organizationId,
+    ...(assignedTo ? { assignedTo } : {}),
   };
 }

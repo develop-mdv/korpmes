@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { NavigationProp } from '@react-navigation/native';
 import { MessageBubble } from '../../components/MessageBubble';
 import { MessageInput } from '../../components/MessageInput';
 import { EmptyState } from '../../components/EmptyState';
@@ -29,7 +30,7 @@ import * as callsApi from '../../api/calls.api';
 import * as chatsApi from '../../api/chats.api';
 import * as filesApi from '../../api/files.api';
 import { createTask, TaskPriority } from '../../api/tasks.api';
-import type { ChatStackParamList } from '../../navigation/types';
+import type { AppTabParamList, ChatStackParamList } from '../../navigation/types';
 import type { Message } from '../../api/messages.api';
 import { getExistingSocket } from '../../socket/socket';
 import { WS_EVENTS } from '../../constants/ws-events';
@@ -42,6 +43,8 @@ const EMPTY_MESSAGES: Message[] = [];
 interface ComposerFeedback {
   tone: 'success' | 'error' | 'info';
   message: string;
+  actionLabel?: string;
+  onAction?: () => void;
 }
 
 function withTimeout<T>(
@@ -260,6 +263,9 @@ export function ChatViewScreen({ route, navigation }: Props) {
         chatOrganizationId: chat?.organizationId,
         currentOrganizationId: currentOrg?.id,
         hasAttachments: staging.staged.length > 0,
+        chatType: chat?.type,
+        currentUserId: userId,
+        chatMemberUserIds: chat?.members.map((member) => member.userId),
       });
 
       if (taskCommand.kind === 'error') {
@@ -271,13 +277,25 @@ export function ChatViewScreen({ route, navigation }: Props) {
         const title = taskCommand.title;
 
         try {
-          await createTask({
+          const task = await createTask({
             title,
             organizationId: taskCommand.organizationId,
             chatId: taskCommand.chatId,
             priority: TaskPriority.MEDIUM,
+            assignedTo: taskCommand.assignedTo,
           });
-          showComposerFeedback({ tone: 'success', message: `Задача создана: ${title}` });
+          showComposerFeedback({
+            tone: 'success',
+            message: `Задача создана: ${title}`,
+            actionLabel: 'Открыть',
+            onAction: () => {
+              const tabsNavigation = navigation.getParent<NavigationProp<AppTabParamList>>();
+              tabsNavigation?.navigate('TasksTab', {
+                screen: 'TaskDetail',
+                params: { taskId: task.id },
+              });
+            },
+          });
           return true;
         } catch (err) {
           console.error('Failed to create task from chat command:', err);
@@ -306,7 +324,7 @@ export function ChatViewScreen({ route, navigation }: Props) {
         return false;
       }
     },
-    [chat?.organizationId, chatId, currentOrg?.id, showComposerFeedback, staging],
+    [chat?.members, chat?.organizationId, chat?.type, chatId, currentOrg?.id, navigation, showComposerFeedback, staging, userId],
   );
 
   const handleSendVoice = useCallback(

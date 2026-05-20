@@ -77,6 +77,47 @@ describe('prepareTaskCommand', () => {
     });
   });
 
+  it('assigns task commands from personal chats to the other member', () => {
+    const input = {
+      command: { kind: 'task' as const, title: 'Prepare report' },
+      chatId: 'chat-1',
+      chatOrganizationId: 'org-1',
+      currentOrganizationId: 'org-1',
+      hasAttachments: false,
+      chatType: 'PERSONAL' as const,
+      currentUserId: 'user-1',
+      chatMemberUserIds: ['user-1', 'user-2'],
+    };
+
+    expect(prepareTaskCommand(input)).toEqual({
+      kind: 'ready',
+      title: 'Prepare report',
+      chatId: 'chat-1',
+      organizationId: 'org-1',
+      assignedTo: 'user-2',
+    });
+  });
+
+  it('does not assign task commands from self personal chats', () => {
+    const input = {
+      command: { kind: 'task' as const, title: 'Prepare report' },
+      chatId: 'chat-1',
+      chatOrganizationId: 'org-1',
+      currentOrganizationId: 'org-1',
+      hasAttachments: false,
+      chatType: 'PERSONAL' as const,
+      currentUserId: 'user-1',
+      chatMemberUserIds: ['user-1'],
+    };
+
+    expect(prepareTaskCommand(input)).toEqual({
+      kind: 'ready',
+      title: 'Prepare report',
+      chatId: 'chat-1',
+      organizationId: 'org-1',
+    });
+  });
+
   it('rejects task commands with attachments', () => {
     expect(
       prepareTaskCommand({

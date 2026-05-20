@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { parseChatCommand, prepareTaskCommand } from '@corp/shared-constants';
+import { useNavigate } from 'react-router-dom';
 import { ChatHeader } from '@/components/chat/ChatHeader';
 import { ChatInsightsPanel } from '@/components/chat/ChatInsightsPanel';
 import { MessageInput } from '@/components/chat/MessageInput';
@@ -25,9 +26,12 @@ interface ChatViewProps {
 interface ComposerFeedback {
   tone: 'success' | 'error' | 'info';
   message: string;
+  actionLabel?: string;
+  onAction?: () => void;
 }
 
 export function ChatView({ chatId }: ChatViewProps) {
+  const navigate = useNavigate();
   const { messages, hasMore, sendMessage, loadMore } = useMessages(chatId);
   const { typingUsers, startTyping } = useTypingIndicator(chatId);
   const user = useAuthStore((state) => state.user);
@@ -64,6 +68,9 @@ export function ChatView({ chatId }: ChatViewProps) {
       chatOrganizationId: chat.organizationId,
       currentOrganizationId: currentOrg?.id,
       hasAttachments: staging.staged.length > 0,
+      chatType: chat.type,
+      currentUserId: user?.id,
+      chatMemberUserIds: chat.members.map((member) => member.userId),
     });
 
     if (taskCommand.kind === 'error') {
@@ -75,13 +82,19 @@ export function ChatView({ chatId }: ChatViewProps) {
       const title = taskCommand.title;
 
       try {
-        await createTask({
+        const task = await createTask({
           title,
           organizationId: taskCommand.organizationId,
           chatId: taskCommand.chatId,
           priority: TaskPriority.MEDIUM,
+          assignedTo: taskCommand.assignedTo,
         });
-        showComposerFeedback({ tone: 'success', message: `Задача создана: ${title}` });
+        showComposerFeedback({
+          tone: 'success',
+          message: `Задача создана: ${title}`,
+          actionLabel: 'Открыть',
+          onAction: () => navigate(`/tasks/${task.id}`),
+        });
         return true;
       } catch (err) {
         console.warn('Failed to create task from chat command', err);

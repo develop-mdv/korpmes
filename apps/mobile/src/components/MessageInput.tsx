@@ -29,6 +29,8 @@ interface MessageInputProps {
 interface ComposerFeedback {
   tone: 'success' | 'error' | 'info';
   message: string;
+  actionLabel?: string;
+  onAction?: () => void;
 }
 
 function formatSize(bytes: number): string {
@@ -184,8 +186,12 @@ export const MessageInput = memo(function MessageInput({
   }, [onAttach]);
 
   const chooseCommand = useCallback((command: ChatCommandSuggestion) => {
-    setText(`${command.command} `);
-    requestAnimationFrame(() => inputRef.current?.focus());
+    const value = `${command.command} `;
+    setText(value);
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      inputRef.current?.setNativeProps({ selection: { start: value.length, end: value.length } });
+    });
   }, []);
 
   return (
@@ -214,9 +220,9 @@ export const MessageInput = memo(function MessageInput({
           ))}
         </View>
       )}
-      {feedback && !isRecording && (
-        <View
-          style={[
+      {feedback && !isRecording &&
+        (() => {
+          const feedbackBoxStyle = [
             styles.feedback,
             {
               backgroundColor:
@@ -232,25 +238,33 @@ export const MessageInput = memo(function MessageInput({
                     ? 'rgba(201, 78, 78, 0.2)'
                     : theme.colors.border,
             },
-          ]}
-        >
-          <Text
-            style={[
-              styles.feedbackText,
-              {
-                color:
-                  feedback.tone === 'success'
-                    ? '#24744f'
-                    : feedback.tone === 'error'
-                      ? '#9a3737'
-                      : theme.colors.textSecondary,
-              },
-            ]}
-          >
-            {feedback.message}
-          </Text>
-        </View>
-      )}
+          ];
+          const feedbackTextColor = {
+            color:
+              feedback.tone === 'success'
+                ? '#24744f'
+                : feedback.tone === 'error'
+                  ? '#9a3737'
+                  : theme.colors.textSecondary,
+          };
+
+          if (!feedback.onAction) {
+            return (
+              <View style={feedbackBoxStyle}>
+                <Text style={[styles.feedbackText, feedbackTextColor]}>{feedback.message}</Text>
+              </View>
+            );
+          }
+
+          return (
+            <Pressable style={feedbackBoxStyle} onPress={feedback.onAction}>
+              <Text style={[styles.feedbackText, feedbackTextColor]}>{feedback.message}</Text>
+              <Text style={[styles.feedbackActionText, feedbackTextColor]}>
+                {feedback.actionLabel ?? 'Открыть'}
+              </Text>
+            </Pressable>
+          );
+        })()}
       {stagedFiles.length > 0 && !isRecording && (
         <ScrollView
           horizontal
@@ -450,6 +464,9 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   feedback: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
     marginHorizontal: 10,
     marginBottom: 8,
     paddingHorizontal: 10,
@@ -458,8 +475,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   feedbackText: {
+    flex: 1,
     fontSize: 13,
     fontWeight: '700',
+  },
+  feedbackActionText: {
+    flex: 0,
+    textDecorationLine: 'underline',
   },
 });
 

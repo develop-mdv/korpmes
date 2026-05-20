@@ -35,6 +35,8 @@ interface MessageInputProps {
 interface ComposerFeedback {
   tone: 'success' | 'error' | 'info';
   message: string;
+  actionLabel?: string;
+  onAction?: () => void;
 }
 
 function formatSize(bytes: number): string {
@@ -223,6 +225,13 @@ const stagedStyles: Record<string, CSSProperties> = {
     fontSize: 13,
     fontWeight: 700,
   },
+  feedbackAction: {
+    marginLeft: 12,
+    color: 'inherit',
+    opacity: 0.8,
+    textDecoration: 'underline',
+    whiteSpace: 'nowrap',
+  },
 };
 
 function StagedAttachment({ item, onRemove }: { item: StagedFile; onRemove: () => void }) {
@@ -340,8 +349,12 @@ export function MessageInput({
   };
 
   const chooseCommand = (command: ChatCommandSuggestion) => {
-    resizeInput(`${command.command} `);
-    requestAnimationFrame(() => textareaRef.current?.focus());
+    const value = `${command.command} `;
+    resizeInput(value);
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+      textareaRef.current?.setSelectionRange(value.length, value.length);
+    });
   };
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -499,9 +512,9 @@ export function MessageInput({
               ))}
             </div>
           )}
-          {feedback && (
-            <div
-              style={{
+          {feedback &&
+            (() => {
+              const feedbackStyle: CSSProperties = {
                 ...stagedStyles.feedback,
                 color:
                   feedback.tone === 'success'
@@ -521,11 +534,32 @@ export function MessageInput({
                     : feedback.tone === 'error'
                       ? 'rgba(201, 78, 78, 0.12)'
                       : 'var(--color-surface-soft)',
-              }}
-            >
-              {feedback.message}
-            </div>
-          )}
+              };
+
+              if (!feedback.onAction) {
+                return <div style={feedbackStyle}>{feedback.message}</div>;
+              }
+
+              return (
+                <button
+                  type="button"
+                  onClick={feedback.onAction}
+                  style={{
+                    ...feedbackStyle,
+                    width: 'calc(100% - 36px)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <span>{feedback.message}</span>
+                  <span style={stagedStyles.feedbackAction}>{feedback.actionLabel ?? 'Открыть'}</span>
+                </button>
+              );
+            })()}
           <div className="composer">
             <div ref={attachWrapRef} style={stagedStyles.attachWrap} onKeyDown={handleAttachKeyDown}>
               <button
