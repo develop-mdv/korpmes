@@ -6,9 +6,12 @@ import {
   PointerEvent as ReactPointerEvent,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
+import { getChatCommandSuggestions } from '@corp/shared-constants';
+import type { ChatCommandSuggestion } from '@corp/shared-constants';
 import type { StagedFile } from '@/hooks/useAttachmentStaging';
 import type { FileDisplayMode } from '@/api/files.api';
 import { useVoiceRecorder, type VoiceRecording } from '@/hooks/useVoiceRecorder';
@@ -26,6 +29,12 @@ interface MessageInputProps {
   onRemoveStaged?: (localId: string) => void;
   disabled?: boolean;
   disableSend?: boolean;
+  feedback?: ComposerFeedback | null;
+}
+
+interface ComposerFeedback {
+  tone: 'success' | 'error' | 'info';
+  message: string;
 }
 
 function formatSize(bytes: number): string {
@@ -161,6 +170,59 @@ const stagedStyles: Record<string, CSSProperties> = {
     fontWeight: 600,
     pointerEvents: 'none',
   },
+  commandMenu: {
+    margin: '0 18px 8px',
+    padding: 6,
+    background: 'var(--color-surface-strong)',
+    border: '1px solid var(--color-border)',
+    borderRadius: 12,
+    boxShadow: 'var(--shadow-md)',
+  },
+  commandButton: {
+    width: '100%',
+    display: 'grid',
+    gridTemplateColumns: '80px minmax(0, 1fr)',
+    alignItems: 'center',
+    gap: 10,
+    padding: '9px 10px',
+    border: 'none',
+    borderRadius: 8,
+    background: 'transparent',
+    color: 'var(--color-text-primary)',
+    cursor: 'pointer',
+    textAlign: 'left' as const,
+  },
+  commandName: {
+    fontFamily: 'monospace',
+    fontSize: 13,
+    fontWeight: 800,
+    color: 'var(--color-primary)',
+  },
+  commandTitle: {
+    display: 'block',
+    fontSize: 13,
+    fontWeight: 800,
+    color: 'var(--color-text-primary)',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  commandDescription: {
+    display: 'block',
+    fontSize: 12,
+    color: 'var(--color-text-secondary)',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  feedback: {
+    margin: '0 18px 8px',
+    padding: '8px 10px',
+    borderRadius: 10,
+    border: '1px solid',
+    fontSize: 13,
+    fontWeight: 700,
+  },
 };
 
 function StagedAttachment({ item, onRemove }: { item: StagedFile; onRemove: () => void }) {
@@ -223,6 +285,7 @@ export function MessageInput({
   onRemoveStaged,
   disabled = false,
   disableSend = false,
+  feedback = null,
 }: MessageInputProps) {
   const [text, setText] = useState('');
   const [isDragOver, setIsDragOver] = useState(false);
@@ -235,6 +298,7 @@ export function MessageInput({
   const pendingModeRef = useRef<FileDisplayMode>('file');
   const attachWrapRef = useRef<HTMLDivElement>(null);
   const pressOriginRef = useRef<{ x: number; y: number } | null>(null);
+  const commandSuggestions = useMemo(() => getChatCommandSuggestions(text), [text]);
 
   const recorder = useVoiceRecorder({
     onComplete: (rec) => {
@@ -273,6 +337,11 @@ export function MessageInput({
     if (!textareaRef.current) return;
     textareaRef.current.style.height = '48px';
     textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 150)}px`;
+  };
+
+  const chooseCommand = (command: ChatCommandSuggestion) => {
+    resizeInput(`${command.command} `);
+    requestAnimationFrame(() => textareaRef.current?.focus());
   };
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -410,55 +479,102 @@ export function MessageInput({
           onLock={recorder.lock}
         />
       ) : (
-        <div className="composer">
-          <div ref={attachWrapRef} style={stagedStyles.attachWrap} onKeyDown={handleAttachKeyDown}>
-            <button
-              className="composer__attach"
-              onClick={() => {
-                if (!onAttach) return;
-                setAttachMenuFocus(0);
-                setAttachMenuOpen((v) => !v);
+        <>
+          {commandSuggestions.length > 0 && (
+            <div style={stagedStyles.commandMenu}>
+              {commandSuggestions.map((command) => (
+                <button
+                  key={command.name}
+                  type="button"
+                  style={stagedStyles.commandButton}
+                  onClick={() => chooseCommand(command)}
+                  title={command.usage}
+                >
+                  <span style={stagedStyles.commandName}>{command.command}</span>
+                  <span style={{ minWidth: 0 }}>
+                    <span style={stagedStyles.commandTitle}>{command.title}</span>
+                    <span style={stagedStyles.commandDescription}>{command.description}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+          {feedback && (
+            <div
+              style={{
+                ...stagedStyles.feedback,
+                color:
+                  feedback.tone === 'success'
+                    ? '#24744f'
+                    : feedback.tone === 'error'
+                      ? '#9a3737'
+                      : 'var(--color-text-secondary)',
+                borderColor:
+                  feedback.tone === 'success'
+                    ? 'rgba(42, 153, 101, 0.22)'
+                    : feedback.tone === 'error'
+                      ? 'rgba(201, 78, 78, 0.2)'
+                      : 'var(--color-border)',
+                background:
+                  feedback.tone === 'success'
+                    ? 'rgba(42, 153, 101, 0.13)'
+                    : feedback.tone === 'error'
+                      ? 'rgba(201, 78, 78, 0.12)'
+                      : 'var(--color-surface-soft)',
               }}
-              title="Прикрепить"
-              disabled={!onAttach}
-              aria-haspopup="menu"
-              aria-expanded={attachMenuOpen}
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-              </svg>
-            </button>
-            {attachMenuOpen && (
-              <div role="menu" style={stagedStyles.attachMenu}>
-                <button
-                  type="button"
-                  role="menuitem"
-                  style={{
-                    ...stagedStyles.attachMenuItem,
-                    ...(attachMenuFocus === 0 ? stagedStyles.attachMenuItemActive : {}),
-                  }}
-                  onMouseEnter={() => setAttachMenuFocus(0)}
-                  onClick={() => openAttachInput('media')}
-                >
-                  <span aria-hidden="true">🖼️</span>
-                  <span>Фото / видео</span>
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  style={{
-                    ...stagedStyles.attachMenuItem,
-                    ...(attachMenuFocus === 1 ? stagedStyles.attachMenuItemActive : {}),
-                  }}
-                  onMouseEnter={() => setAttachMenuFocus(1)}
-                  onClick={() => openAttachInput('file')}
-                >
-                  <span aria-hidden="true">📎</span>
-                  <span>Файл</span>
-                </button>
-              </div>
-            )}
-          </div>
+              {feedback.message}
+            </div>
+          )}
+          <div className="composer">
+            <div ref={attachWrapRef} style={stagedStyles.attachWrap} onKeyDown={handleAttachKeyDown}>
+              <button
+                className="composer__attach"
+                onClick={() => {
+                  if (!onAttach) return;
+                  setAttachMenuFocus(0);
+                  setAttachMenuOpen((v) => !v);
+                }}
+                title="Прикрепить"
+                disabled={!onAttach}
+                aria-haspopup="menu"
+                aria-expanded={attachMenuOpen}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                </svg>
+              </button>
+              {attachMenuOpen && (
+                <div role="menu" style={stagedStyles.attachMenu}>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    style={{
+                      ...stagedStyles.attachMenuItem,
+                      ...(attachMenuFocus === 0 ? stagedStyles.attachMenuItemActive : {}),
+                    }}
+                    onMouseEnter={() => setAttachMenuFocus(0)}
+                    onClick={() => openAttachInput('media')}
+                  >
+                    <span aria-hidden="true">🖼️</span>
+                    <span>Фото / видео</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    style={{
+                      ...stagedStyles.attachMenuItem,
+                      ...(attachMenuFocus === 1 ? stagedStyles.attachMenuItemActive : {}),
+                    }}
+                    onMouseEnter={() => setAttachMenuFocus(1)}
+                    onClick={() => openAttachInput('file')}
+                  >
+                    <span aria-hidden="true">📎</span>
+                    <span>Файл</span>
+                  </button>
+                </div>
+              )}
+            </div>
 
           <input
             ref={mediaInputRef}
@@ -532,6 +648,7 @@ export function MessageInput({
             </button>
           )}
         </div>
+        </>
       )}
 
       <VideoNoteRecorderOverlay

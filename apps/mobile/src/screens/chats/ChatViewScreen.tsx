@@ -1,5 +1,5 @@
 import React, { useEffect, useCallback, useRef, useLayoutEffect, useState, useMemo } from 'react';
-import { parseChatCommand } from '@corp/shared-constants';
+import { parseChatCommand, prepareTaskCommand } from '@corp/shared-constants';
 import {
   Alert,
   View,
@@ -39,6 +39,11 @@ const PAGE_SIZE = 20;
 const REQUEST_TIMEOUT_MS = 15000;
 const EMPTY_MESSAGES: Message[] = [];
 
+interface ComposerFeedback {
+  tone: 'success' | 'error' | 'info';
+  message: string;
+}
+
 function withTimeout<T>(
   promise: Promise<T>,
   timeoutMs: number,
@@ -66,6 +71,7 @@ export function ChatViewScreen({ route, navigation }: Props) {
   const theme = useTheme();
   const { chatId } = route.params;
   const flatListRef = useRef<FlatList<Message>>(null);
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const userId = useAuthStore((state) => state.user?.id);
   const chat = useChatStore((state) => state.chats.find((item) => item.id === chatId));
   const activeCall = useCallStore((state) => state.activeCall);
@@ -83,6 +89,7 @@ export function ChatViewScreen({ route, navigation }: Props) {
   const [initialLoading, setInitialLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [composerFeedback, setComposerFeedback] = useState<ComposerFeedback | null>(null);
 
   const canStartDirectCall =
     !!chat &&
@@ -174,6 +181,18 @@ export function ChatViewScreen({ route, navigation }: Props) {
     socket.emit('chat:join', { chatId });
   }, [chatId]);
 
+  useEffect(() => {
+    return () => {
+      if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+    };
+  }, []);
+
+  const showComposerFeedback = useCallback((feedback: ComposerFeedback) => {
+    if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+    setComposerFeedback(feedback);
+    feedbackTimerRef.current = setTimeout(() => setComposerFeedback(null), 4000);
+  }, []);
+
   const fetchMessages = useCallback(async () => {
     const existingMessages = useMessageStore.getState().messages[chatId] || [];
     const showFullScreenLoader = existingMessages.length === 0;
@@ -235,38 +254,34 @@ export function ChatViewScreen({ route, navigation }: Props) {
   const handleSend = useCallback(
     async (text: string) => {
       const command = parseChatCommand(text);
+      const taskCommand = prepareTaskCommand({
+        command,
+        chatId,
+        chatOrganizationId: chat?.organizationId,
+        currentOrganizationId: currentOrg?.id,
+        hasAttachments: staging.staged.length > 0,
+      });
 
-      if (command.kind === 'invalid') {
-        Alert.alert('Команда задачи', 'Используйте: /task Название задачи');
+      if (taskCommand.kind === 'error') {
+        showComposerFeedback({ tone: 'error', message: taskCommand.message });
         return false;
       }
 
-      if (command.kind === 'task') {
-        if (!currentOrg) {
-          Alert.alert('Организация', 'Не выбрана организация.');
-          return false;
-        }
-
-        if (staging.staged.length > 0) {
-          Alert.alert(
-            'Команда задачи',
-            'Команда /task создаёт только текстовую задачу. Отправьте файлы отдельно.',
-          );
-          return false;
-        }
+      if (taskCommand.kind === 'ready') {
+        const title = taskCommand.title;
 
         try {
           await createTask({
-            title: command.title,
-            organizationId: currentOrg.id,
-            chatId,
+            title,
+            organizationId: taskCommand.organizationId,
+            chatId: taskCommand.chatId,
             priority: TaskPriority.MEDIUM,
           });
-          Alert.alert('Задача создана', command.title);
+          showComposerFeedback({ tone: 'success', message: `Задача создана: ${title}` });
           return true;
         } catch (err) {
           console.error('Failed to create task from chat command:', err);
-          Alert.alert('Не удалось создать задачу', 'Попробуйте ещё раз.');
+          showComposerFeedback({ tone: 'error', message: 'Не удалось создать задачу. Попробуйте ещё раз.' });
           return false;
         }
       }
@@ -287,10 +302,11 @@ export function ChatViewScreen({ route, navigation }: Props) {
         return true;
       } catch (err) {
         console.error('Failed to send message:', err);
+        showComposerFeedback({ tone: 'error', message: 'Не удалось отправить сообщение' });
         return false;
       }
     },
-    [chatId, currentOrg, staging],
+    [chat?.organizationId, chatId, currentOrg?.id, showComposerFeedback, staging],
   );
 
   const handleSendVoice = useCallback(
@@ -409,6 +425,7 @@ export function ChatViewScreen({ route, navigation }: Props) {
         stagedFiles={staging.staged}
         onRemoveStaged={staging.remove}
         disableSend={staging.isUploading}
+        feedback={composerFeedback}
       />
     </KeyboardAvoidingView>
   );

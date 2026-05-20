@@ -3,6 +3,37 @@ export type ChatCommandParseResult =
   | { kind: 'task'; title: string }
   | { kind: 'invalid'; command: 'task'; reason: 'missing-title' };
 
+export type PreparedTaskCommand =
+  | { kind: 'none' }
+  | { kind: 'ready'; title: string; chatId: string; organizationId: string }
+  | { kind: 'error'; message: string };
+
+export interface PrepareTaskCommandInput {
+  command: ChatCommandParseResult;
+  chatId: string;
+  chatOrganizationId?: string | null;
+  currentOrganizationId?: string | null;
+  hasAttachments: boolean;
+}
+
+export interface ChatCommandSuggestion {
+  command: '/task';
+  name: 'task';
+  title: string;
+  description: string;
+  usage: string;
+}
+
+export const CHAT_COMMAND_SUGGESTIONS: readonly ChatCommandSuggestion[] = [
+  {
+    command: '/task',
+    name: 'task',
+    title: 'Создать задачу',
+    description: 'Создаёт задачу в текущем чате',
+    usage: '/task Название задачи',
+  },
+];
+
 export function parseChatCommand(input: string): ChatCommandParseResult {
   const trimmed = input.trim();
   if (!trimmed.startsWith('/')) return { kind: 'none' };
@@ -16,4 +47,42 @@ export function parseChatCommand(input: string): ChatCommandParseResult {
   }
 
   return { kind: 'task', title };
+}
+
+export function getChatCommandSuggestions(input: string): ChatCommandSuggestion[] {
+  const trimmedStart = input.trimStart();
+  if (!trimmedStart.startsWith('/')) return [];
+  if (/\s/.test(trimmedStart)) return [];
+
+  const query = trimmedStart.slice(1).split(/\s+/, 1)[0].toLowerCase();
+  if (query.length === 0) return [...CHAT_COMMAND_SUGGESTIONS];
+
+  return CHAT_COMMAND_SUGGESTIONS.filter((item) => item.name.startsWith(query));
+}
+
+export function prepareTaskCommand(input: PrepareTaskCommandInput): PreparedTaskCommand {
+  if (input.command.kind === 'none') return { kind: 'none' };
+
+  if (input.command.kind === 'invalid') {
+    return { kind: 'error', message: 'Используйте: /task Название задачи' };
+  }
+
+  if (input.hasAttachments) {
+    return {
+      kind: 'error',
+      message: 'Команда /task создаёт только текстовую задачу. Отправьте файлы отдельно.',
+    };
+  }
+
+  const organizationId = input.chatOrganizationId || input.currentOrganizationId;
+  if (!organizationId) {
+    return { kind: 'error', message: 'Не удалось определить организацию чата' };
+  }
+
+  return {
+    kind: 'ready',
+    title: input.command.title,
+    chatId: input.chatId,
+    organizationId,
+  };
 }

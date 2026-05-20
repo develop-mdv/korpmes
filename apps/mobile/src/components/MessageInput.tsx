@@ -1,6 +1,10 @@
-import React, { useState, useCallback, memo, useRef } from 'react';
-import { View, TextInput, Pressable, Text, StyleSheet, Alert, ScrollView, Image, GestureResponderEvent } from 'react-native';
+import React, { useState, useCallback, memo, useMemo, useRef } from 'react';
+import { View, TextInput, Pressable, Text, StyleSheet, Alert, ScrollView, Image, GestureResponderEvent, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import {
+  getChatCommandSuggestions,
+  type ChatCommandSuggestion,
+} from '@corp/shared-constants';
 import type { StagedAttachment, StagingInput } from '../hooks/useAttachmentStaging';
 import type { FileDisplayMode } from '../api/files.api';
 import { useVoiceRecorder, type VoiceRecording } from '../hooks/useVoiceRecorder';
@@ -19,6 +23,12 @@ interface MessageInputProps {
   onRemoveStaged?: (localId: string) => void;
   disableSend?: boolean;
   placeholder?: string;
+  feedback?: ComposerFeedback | null;
+}
+
+interface ComposerFeedback {
+  tone: 'success' | 'error' | 'info';
+  message: string;
 }
 
 function formatSize(bytes: number): string {
@@ -80,12 +90,15 @@ export const MessageInput = memo(function MessageInput({
   onRemoveStaged,
   disableSend,
   placeholder = 'Напишите сообщение…',
+  feedback = null,
 }: MessageInputProps) {
   const theme = useTheme();
   const [text, setText] = useState('');
+  const inputRef = useRef<TextInput>(null);
   const pressOriginRef = useRef<{ x: number; y: number } | null>(null);
   const hasReady = stagedFiles.some((s) => s.status === 'done');
   const canSend = !disableSend && (text.trim().length > 0 || hasReady);
+  const commandSuggestions = useMemo(() => getChatCommandSuggestions(text), [text]);
 
   const recorder = useVoiceRecorder({
     onComplete: (rec) => {
@@ -170,8 +183,74 @@ export const MessageInput = memo(function MessageInput({
     );
   }, [onAttach]);
 
+  const chooseCommand = useCallback((command: ChatCommandSuggestion) => {
+    setText(`${command.command} `);
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }, []);
+
   return (
     <View>
+      {commandSuggestions.length > 0 && !isRecording && (
+        <View style={[styles.commandMenu, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+          {commandSuggestions.map((command) => (
+            <Pressable
+              key={command.name}
+              style={({ pressed }) => [
+                styles.commandItem,
+                { backgroundColor: pressed ? theme.colors.surfaceSoft : 'transparent' },
+              ]}
+              onPress={() => chooseCommand(command)}
+            >
+              <Text style={[styles.commandName, { color: theme.colors.primary }]}>{command.command}</Text>
+              <View style={styles.commandCopy}>
+                <Text numberOfLines={1} style={[styles.commandTitle, { color: theme.colors.textPrimary }]}>
+                  {command.title}
+                </Text>
+                <Text numberOfLines={1} style={[styles.commandDescription, { color: theme.colors.textSecondary }]}>
+                  {command.description}
+                </Text>
+              </View>
+            </Pressable>
+          ))}
+        </View>
+      )}
+      {feedback && !isRecording && (
+        <View
+          style={[
+            styles.feedback,
+            {
+              backgroundColor:
+                feedback.tone === 'success'
+                  ? 'rgba(42, 153, 101, 0.13)'
+                  : feedback.tone === 'error'
+                    ? 'rgba(201, 78, 78, 0.12)'
+                    : theme.colors.surfaceSoft,
+              borderColor:
+                feedback.tone === 'success'
+                  ? 'rgba(42, 153, 101, 0.22)'
+                  : feedback.tone === 'error'
+                    ? 'rgba(201, 78, 78, 0.2)'
+                    : theme.colors.border,
+            },
+          ]}
+        >
+          <Text
+            style={[
+              styles.feedbackText,
+              {
+                color:
+                  feedback.tone === 'success'
+                    ? '#24744f'
+                    : feedback.tone === 'error'
+                      ? '#9a3737'
+                      : theme.colors.textSecondary,
+              },
+            ]}
+          >
+            {feedback.message}
+          </Text>
+        </View>
+      )}
       {stagedFiles.length > 0 && !isRecording && (
         <ScrollView
           horizontal
@@ -237,6 +316,7 @@ export const MessageInput = memo(function MessageInput({
             </Pressable>
           )}
           <TextInput
+            ref={inputRef}
             style={[
               styles.input,
               {
@@ -335,6 +415,51 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  commandMenu: {
+    marginHorizontal: 10,
+    marginBottom: 8,
+    padding: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  commandItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+  },
+  commandName: {
+    width: 72,
+    fontSize: 13,
+    fontWeight: '800',
+    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
+  },
+  commandCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  commandTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  commandDescription: {
+    fontSize: 12,
+    marginTop: 1,
+  },
+  feedback: {
+    marginHorizontal: 10,
+    marginBottom: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  feedbackText: {
+    fontSize: 13,
+    fontWeight: '700',
   },
 });
 

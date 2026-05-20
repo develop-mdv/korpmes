@@ -50,6 +50,12 @@ export {
   STRONG_PASSWORD_REGEX,
 } from './regex';
 export {
+  CHAT_COMMAND_SUGGESTIONS,
+  getChatCommandSuggestions,
   parseChatCommand,
+  prepareTaskCommand,
+  type ChatCommandSuggestion,
   type ChatCommandParseResult,
+  type PrepareTaskCommandInput,
+  type PreparedTaskCommand,
 } from './chat-commands';

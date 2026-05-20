@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { parseChatCommand } from '@corp/shared-constants';
+import { useEffect, useRef, useState } from 'react';
+import { parseChatCommand, prepareTaskCommand } from '@corp/shared-constants';
 import { ChatHeader } from '@/components/chat/ChatHeader';
 import { ChatInsightsPanel } from '@/components/chat/ChatInsightsPanel';
 import { MessageInput } from '@/components/chat/MessageInput';
@@ -22,6 +22,11 @@ interface ChatViewProps {
   chatId: string;
 }
 
+interface ComposerFeedback {
+  tone: 'success' | 'error' | 'info';
+  message: string;
+}
+
 export function ChatView({ chatId }: ChatViewProps) {
   const { messages, hasMore, sendMessage, loadMore } = useMessages(chatId);
   const { typingUsers, startTyping } = useTypingIndicator(chatId);
@@ -30,44 +35,57 @@ export function ChatView({ chatId }: ChatViewProps) {
   const currentOrg = useOrganizationStore((state) => state.currentOrg);
   const staging = useAttachmentStaging(currentOrg?.id);
   const rightPanelOpen = useUIStore((state) => state.rightPanelOpen);
+  const [composerFeedback, setComposerFeedback] = useState<ComposerFeedback | null>(null);
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     stopTitleFlash();
   }, [chatId]);
 
+  useEffect(() => {
+    return () => {
+      if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+    };
+  }, []);
+
   if (!chat) return null;
+
+  const showComposerFeedback = (feedback: ComposerFeedback) => {
+    if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+    setComposerFeedback(feedback);
+    feedbackTimerRef.current = setTimeout(() => setComposerFeedback(null), 4000);
+  };
 
   const handleSend = async (content: string) => {
     const command = parseChatCommand(content);
+    const taskCommand = prepareTaskCommand({
+      command,
+      chatId,
+      chatOrganizationId: chat.organizationId,
+      currentOrganizationId: currentOrg?.id,
+      hasAttachments: staging.staged.length > 0,
+    });
 
-    if (command.kind === 'invalid') {
-      window.alert('Используйте: /task Название задачи');
+    if (taskCommand.kind === 'error') {
+      showComposerFeedback({ tone: 'error', message: taskCommand.message });
       return false;
     }
 
-    if (command.kind === 'task') {
-      if (!currentOrg) {
-        window.alert('Не выбрана организация');
-        return false;
-      }
-
-      if (staging.staged.length > 0) {
-        window.alert('Команда /task создаёт только текстовую задачу. Отправьте файлы отдельно.');
-        return false;
-      }
+    if (taskCommand.kind === 'ready') {
+      const title = taskCommand.title;
 
       try {
         await createTask({
-          title: command.title,
-          organizationId: currentOrg.id,
-          chatId,
+          title,
+          organizationId: taskCommand.organizationId,
+          chatId: taskCommand.chatId,
           priority: TaskPriority.MEDIUM,
         });
-        window.alert('Задача создана');
+        showComposerFeedback({ tone: 'success', message: `Задача создана: ${title}` });
         return true;
       } catch (err) {
         console.warn('Failed to create task from chat command', err);
-        window.alert('Не удалось создать задачу из чата');
+        showComposerFeedback({ tone: 'error', message: 'Не удалось создать задачу из чата' });
         return false;
       }
     }
@@ -156,6 +174,7 @@ export function ChatView({ chatId }: ChatViewProps) {
             stagedFiles={staging.staged}
             onRemoveStaged={staging.remove}
             disableSend={staging.isUploading}
+            feedback={composerFeedback}
           />
         </div>
       </section>
