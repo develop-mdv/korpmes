@@ -37,7 +37,26 @@ const linking = {
             },
           },
           CallsTab: 'calls',
-          SettingsTab: 'settings',
+          FilesTab: 'files',
+          MoreTab: {
+            screens: {
+              MoreHome: 'more',
+              Notifications: 'notifications',
+              Search: 'search',
+              OrganizationHome: 'organization',
+              Members: 'organization/members',
+              Departments: 'organization/departments',
+              Requests: 'organization/requests',
+              Audit: 'audit',
+              SettingsFlow: {
+                screens: {
+                  SettingsRoot: 'settings',
+                  TwoFactorSetup: 'settings/2fa/setup',
+                  TwoFactorDisable: 'settings/2fa/disable',
+                },
+              },
+            },
+          },
         },
       },
       Invite: 'invite/:token',

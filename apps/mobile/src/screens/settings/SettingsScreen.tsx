@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Switch, StyleSheet, Alert, Pressable } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, Switch, StyleSheet, Alert, Pressable, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -18,20 +18,43 @@ const THEME_OPTIONS: { id: ThemePreference; label: string; icon: 'phone-portrait
 export function SettingsScreen() {
   const theme = useTheme();
   const navigation = useNavigation<NativeStackNavigationProp<SettingsStackParamList>>();
-  const { user, logout } = useAuthStore();
+  const { user, logout, setUser } = useAuthStore();
   const soundEnabled = useSettingsStore((s) => s.soundEnabled);
   const setSoundEnabled = useSettingsStore((s) => s.setSoundEnabled);
   const themePreference = useSettingsStore((s) => s.themePreference);
   const setThemePreference = useSettingsStore((s) => s.setThemePreference);
   const [pushEnabled, setPushEnabled] = useState(true);
   const [emailEnabled, setEmailEnabled] = useState(false);
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [profileMessage, setProfileMessage] = useState('');
   const twoFactorEnabled = !!user?.twoFactorEnabled;
+
+  useEffect(() => {
+    setFirstName(user?.firstName ?? '');
+    setLastName(user?.lastName ?? '');
+    setPhone(user?.phone ?? '');
+  }, [user]);
 
   const handleLogout = () => {
     Alert.alert('Выйти', 'Выйти из аккаунта?', [
       { text: 'Отмена', style: 'cancel' },
       { text: 'Выйти', style: 'destructive', onPress: () => logout() },
     ]);
+  };
+
+  const handleSaveProfile = () => {
+    if (!user) return;
+    setUser({
+      ...user,
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      phone: phone.trim() || undefined,
+    });
+    setEditingProfile(false);
+    setProfileMessage('Профиль обновлен локально.');
   };
 
   return (
@@ -52,9 +75,45 @@ export function SettingsScreen() {
             )}
           </View>
         </View>
-        <TouchableOpacity style={[styles.editButton, { borderColor: theme.colors.borderStrong }]}>
-          <Text style={[styles.editButtonText, { color: theme.colors.primary }]}>Редактировать профиль</Text>
-        </TouchableOpacity>
+        {editingProfile ? (
+          <View style={styles.profileForm}>
+            <TextInput
+              value={firstName}
+              onChangeText={setFirstName}
+              placeholder="Имя"
+              placeholderTextColor={theme.colors.textTertiary}
+              style={[styles.input, { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceStrong, color: theme.colors.textPrimary }]}
+            />
+            <TextInput
+              value={lastName}
+              onChangeText={setLastName}
+              placeholder="Фамилия"
+              placeholderTextColor={theme.colors.textTertiary}
+              style={[styles.input, { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceStrong, color: theme.colors.textPrimary }]}
+            />
+            <TextInput
+              value={phone}
+              onChangeText={setPhone}
+              placeholder="+7 999 000-00-00"
+              keyboardType="phone-pad"
+              placeholderTextColor={theme.colors.textTertiary}
+              style={[styles.input, { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceStrong, color: theme.colors.textPrimary }]}
+            />
+            <View style={styles.profileActions}>
+              <TouchableOpacity style={[styles.editButton, styles.profileAction, { borderColor: theme.colors.borderStrong }]} onPress={() => setEditingProfile(false)}>
+                <Text style={[styles.editButtonText, { color: theme.colors.primary }]}>Отмена</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.saveButton, styles.profileAction, { backgroundColor: theme.colors.primary }]} onPress={handleSaveProfile}>
+                <Text style={[styles.saveButtonText, { color: theme.colors.onPrimary }]}>Сохранить</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <TouchableOpacity style={[styles.editButton, { borderColor: theme.colors.borderStrong }]} onPress={() => setEditingProfile(true)}>
+            <Text style={[styles.editButtonText, { color: theme.colors.primary }]}>Редактировать профиль</Text>
+          </TouchableOpacity>
+        )}
+        {profileMessage ? <Text style={[styles.profileMessage, { color: theme.colors.success }]}>{profileMessage}</Text> : null}
       </View>
 
       <View style={[styles.section, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, ...theme.shadows.sm }]}>
@@ -185,6 +244,13 @@ const styles = StyleSheet.create({
   profilePosition: { fontSize: 13, marginTop: 2 },
   editButton: { marginTop: 14, paddingVertical: 12, borderRadius: 999, borderWidth: 1, alignItems: 'center' },
   editButtonText: { fontSize: 13, fontWeight: '700' },
+  profileForm: { marginTop: 14, gap: 10 },
+  input: { minHeight: 48, borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, fontSize: 14 },
+  profileActions: { flexDirection: 'row', gap: 8 },
+  profileAction: { flex: 1, marginTop: 0 },
+  saveButton: { paddingVertical: 12, borderRadius: 999, alignItems: 'center' },
+  saveButtonText: { fontSize: 13, fontWeight: '700' },
+  profileMessage: { marginTop: 10, fontSize: 13, fontWeight: '700' },
   themeRow: { flexDirection: 'row', gap: 8 },
   themeOption: {
     flex: 1,

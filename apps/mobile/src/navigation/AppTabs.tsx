@@ -7,7 +7,7 @@ import { TaskDetailScreen } from '../screens/tasks/TaskDetailScreen';
 import { CreateTaskScreen } from '../screens/tasks/CreateTaskScreen';
 import { CallsScreen } from '../screens/calls/CallsScreen';
 import { FilesScreen } from '../screens/files/FilesScreen';
-import { SettingsStack } from './SettingsStack';
+import { MoreStack } from './MoreStack';
 import { useChatStore } from '../stores/chat.store';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useTheme, tabIcons } from '../theme';
@@ -103,12 +103,12 @@ export function AppTabs() {
         }}
       />
       <Tab.Screen
-        name="SettingsTab"
-        component={SettingsStack}
+        name="MoreTab"
+        component={MoreStack}
         options={{
-          title: 'Настройки',
+          title: 'Еще',
           tabBarIcon: ({ focused, color, size }) => (
-            <Ionicons name={focused ? tabIcons.settings.active : tabIcons.settings.inactive} color={color} size={size} />
+            <Ionicons name={focused ? tabIcons.more.active : tabIcons.more.inactive} color={color} size={size} />
           ),
         }}
       />

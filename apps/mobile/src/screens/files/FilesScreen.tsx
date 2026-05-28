@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Linking, ScrollView } from 'react-native';
+import { Alert, View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Linking, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { apiClient } from '../../api/client';
 import { EmptyState } from '../../components/EmptyState';
+import { useOrganizationStore } from '../../stores/organization.store';
 import { useTheme } from '../../theme';
 
 interface FileInfo {
@@ -53,6 +54,7 @@ function FileTypeIcon({ mimeType, color }: { mimeType: string; color: string }) 
 
 export function FilesScreen() {
   const theme = useTheme();
+  const currentOrg = useOrganizationStore((state) => state.currentOrg);
   const [files, setFiles] = useState<FileInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState('all');
@@ -60,14 +62,16 @@ export function FilesScreen() {
   const fetchFiles = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await apiClient.get<FileInfo[]>('/files');
+      const { data } = await apiClient.get<FileInfo[]>('/files', {
+        params: currentOrg?.id ? { orgId: currentOrg.id } : undefined,
+      });
       setFiles(data);
     } catch (err) {
       console.error('Failed to fetch files:', err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentOrg?.id]);
 
   useEffect(() => {
     fetchFiles();
@@ -83,6 +87,24 @@ export function FilesScreen() {
     } catch (err) {
       console.error('Failed to get download URL:', err);
     }
+  }, []);
+
+  const handleDelete = useCallback((id: string) => {
+    Alert.alert('Удалить файл?', 'Файл исчезнет из общего хранилища.', [
+      { text: 'Отмена', style: 'cancel' },
+      {
+        text: 'Удалить',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await apiClient.delete(`/files/${id}`);
+            setFiles((prev) => prev.filter((file) => file.id !== id));
+          } catch (err) {
+            console.error('Failed to delete file:', err);
+          }
+        },
+      },
+    ]);
   }, []);
 
   return (
@@ -148,6 +170,13 @@ export function FilesScreen() {
                 activeOpacity={0.85}
               >
                 <Ionicons name="cloud-download-outline" size={20} color={theme.colors.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.downloadBtn, { backgroundColor: 'rgba(212,98,98,0.14)' }]}
+                onPress={() => handleDelete(item.id)}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="trash-outline" size={19} color={theme.colors.error} />
               </TouchableOpacity>
             </View>
           )}

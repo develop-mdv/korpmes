@@ -20,13 +20,25 @@ export type AppTabParamList = {
   TasksTab: NavigatorScreenParams<TaskStackParamList>;
   CallsTab: undefined;
   FilesTab: undefined;
-  SettingsTab: NavigatorScreenParams<SettingsStackParamList>;
+  MoreTab: NavigatorScreenParams<MoreStackParamList>;
 };
 
 export type SettingsStackParamList = {
   SettingsRoot: undefined;
   TwoFactorSetup: undefined;
   TwoFactorDisable: undefined;
+};
+
+export type MoreStackParamList = {
+  MoreHome: undefined;
+  Notifications: undefined;
+  Search: undefined;
+  OrganizationHome: undefined;
+  Members: undefined;
+  Departments: undefined;
+  Requests: undefined;
+  Audit: undefined;
+  SettingsFlow: NavigatorScreenParams<SettingsStackParamList> | undefined;
 };
 
 export type ChatStackParamList = {

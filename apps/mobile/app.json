@@ -1,14 +1,14 @@
 {
   "expo": {
-    "name": "CorpMessenger",
+    "name": "StaffHub",
     "slug": "corpmessenger",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "scheme": "corpmessenger",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "splash": {
       "image": "./assets/splash.png",
-      "backgroundColor": "#4F46E5"
+      "backgroundColor": "#F6F3EC"
     },
     "updates": {
       "fallbackToCacheTimeout": 0
@@ -28,7 +28,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#4F46E5"
+        "backgroundColor": "#F6F3EC"
       },
       "package": "com.corpmessenger.app",
       "intentFilters": [

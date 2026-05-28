@@ -8,6 +8,7 @@ interface User {
   firstName: string;
   lastName: string;
   avatarUrl?: string;
+  phone?: string;
   twoFactorEnabled?: boolean;
 }
 

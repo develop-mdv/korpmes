@@ -4,14 +4,14 @@ import { Ionicons } from '@expo/vector-icons';
 type IonName = ComponentProps<typeof Ionicons>['name'];
 
 export const tabIcons: Record<
-  'chats' | 'tasks' | 'calls' | 'files' | 'settings',
+  'chats' | 'tasks' | 'calls' | 'files' | 'more',
   { active: IonName; inactive: IonName }
 > = {
   chats: { active: 'chatbubble', inactive: 'chatbubble-outline' },
   tasks: { active: 'checkbox', inactive: 'checkbox-outline' },
   calls: { active: 'call', inactive: 'call-outline' },
   files: { active: 'folder', inactive: 'folder-outline' },
-  settings: { active: 'settings', inactive: 'settings-outline' },
+  more: { active: 'grid', inactive: 'grid-outline' },
 };
 
 export const headerIcons = {
