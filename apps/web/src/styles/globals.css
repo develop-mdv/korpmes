@@ -1545,6 +1545,11 @@ button.chat-list-card {
   font-size: 13px;
 }
 
+.chat-rail__copy-title {
+  font-size: 28px;
+  line-height: 1.1;
+}
+
 .chat-rail__search {
   margin-top: 18px;
 }

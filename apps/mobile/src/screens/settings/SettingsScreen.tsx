@@ -8,6 +8,8 @@ import { useAuthStore } from '../../stores/auth.store';
 import { useSettingsStore, type ThemePreference } from '../../stores/settings.store';
 import { useTheme } from '../../theme';
 import type { SettingsStackParamList } from '../../navigation/types';
+import * as usersApi from '../../api/users.api';
+import { normalizeUsername, USERNAME_DESCRIPTION, USERNAME_PATTERN } from '@corp/shared-constants';
 
 const THEME_OPTIONS: { id: ThemePreference; label: string; icon: 'phone-portrait-outline' | 'sunny-outline' | 'moon-outline' }[] = [
   { id: 'auto', label: 'Авто', icon: 'phone-portrait-outline' },
@@ -29,6 +31,10 @@ export function SettingsScreen() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
+  const [username, setUsername] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [profileError, setProfileError] = useState('');
   const [profileMessage, setProfileMessage] = useState('');
   const twoFactorEnabled = !!user?.twoFactorEnabled;
 
@@ -36,7 +42,17 @@ export function SettingsScreen() {
     setFirstName(user?.firstName ?? '');
     setLastName(user?.lastName ?? '');
     setPhone(user?.phone ?? '');
+    setUsername(user?.username ?? '');
   }, [user]);
+
+  useEffect(() => {
+    let active = true;
+    setProfileLoading(true);
+    usersApi.getMe().then((profile) => { if (active) setUser(profile); })
+      .catch(() => { if (active) setProfileError('Не удалось загрузить профиль. Откройте настройки заново.'); })
+      .finally(() => { if (active) setProfileLoading(false); });
+    return () => { active = false; };
+  }, [user?.id, setUser]);
 
   const handleLogout = () => {
     Alert.alert('Выйти', 'Выйти из аккаунта?', [
@@ -45,16 +61,20 @@ export function SettingsScreen() {
     ]);
   };
 
-  const handleSaveProfile = () => {
-    if (!user) return;
-    setUser({
-      ...user,
-      firstName: firstName.trim(),
-      lastName: lastName.trim(),
-      phone: phone.trim() || undefined,
-    });
-    setEditingProfile(false);
-    setProfileMessage('Профиль обновлен локально.');
+  const handleSaveProfile = async () => {
+    if (!user || saving || profileLoading) return;
+    setProfileError(''); setProfileMessage('');
+    if (!USERNAME_PATTERN.test(normalizeUsername(username))) { setProfileError(USERNAME_DESCRIPTION); return; }
+    setSaving(true);
+    try {
+      const profile = await usersApi.updateMe({ username: normalizeUsername(username), firstName: firstName.trim(), lastName: lastName.trim(), phone: phone.trim() || null });
+      setUser(profile);
+      setEditingProfile(false);
+      setProfileMessage(`Профиль сохранён. Ваш ник: @${profile.username}`);
+    } catch (value: any) {
+      const message = value.response?.data?.error?.message;
+      setProfileError(Array.isArray(message) ? message.join('. ') : message || 'Не удалось сохранить профиль. Попробуйте ещё раз.');
+    } finally { setSaving(false); }
   };
 
   return (
@@ -70,6 +90,7 @@ export function SettingsScreen() {
               {user?.firstName} {user?.lastName}
             </Text>
             <Text style={[styles.profileEmail, { color: theme.colors.textSecondary }]}>{user?.email}</Text>
+            {user?.username ? <Text style={[styles.profileEmail, { color: theme.colors.primary }]}>@{user.username}</Text> : null}
             {(user as any)?.position && (
               <Text style={[styles.profilePosition, { color: theme.colors.textTertiary }]}>{(user as any).position}</Text>
             )}
@@ -77,6 +98,9 @@ export function SettingsScreen() {
         </View>
         {editingProfile ? (
           <View style={styles.profileForm}>
+            <TextInput value={username} onChangeText={setUsername} placeholder="@nickname" accessibilityLabel="Никнейм" autoCapitalize="none" autoCorrect={false} editable={!saving && !profileLoading}
+              placeholderTextColor={theme.colors.textTertiary} style={[styles.input, { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceStrong, color: theme.colors.textPrimary }]} />
+            <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>{USERNAME_DESCRIPTION}</Text>
             <TextInput
               value={firstName}
               onChangeText={setFirstName}
@@ -103,8 +127,8 @@ export function SettingsScreen() {
               <TouchableOpacity style={[styles.editButton, styles.profileAction, { borderColor: theme.colors.borderStrong }]} onPress={() => setEditingProfile(false)}>
                 <Text style={[styles.editButtonText, { color: theme.colors.primary }]}>Отмена</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.saveButton, styles.profileAction, { backgroundColor: theme.colors.primary }]} onPress={handleSaveProfile}>
-                <Text style={[styles.saveButtonText, { color: theme.colors.onPrimary }]}>Сохранить</Text>
+              <TouchableOpacity disabled={saving || profileLoading} style={[styles.saveButton, styles.profileAction, { backgroundColor: theme.colors.primary }]} onPress={() => void handleSaveProfile()}>
+                <Text style={[styles.saveButtonText, { color: theme.colors.onPrimary }]}>{saving ? 'Сохраняем...' : 'Сохранить'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -114,6 +138,7 @@ export function SettingsScreen() {
           </TouchableOpacity>
         )}
         {profileMessage ? <Text style={[styles.profileMessage, { color: theme.colors.success }]}>{profileMessage}</Text> : null}
+        {profileError ? <Text accessibilityRole="alert" style={[styles.profileMessage, { color: theme.colors.error }]}>{profileError}</Text> : null}
       </View>
 
       <View style={[styles.section, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, ...theme.shadows.sm }]}>

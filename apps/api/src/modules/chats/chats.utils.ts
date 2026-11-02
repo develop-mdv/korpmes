@@ -5,6 +5,6 @@ export function isSelfChat(
   userId: string,
 ): boolean {
   if (chat.type !== ChatType.PERSONAL) return false;
-  const active = (chat.members ?? []).filter((m) => !m.leftAt);
-  return active.length === 1 && active[0].userId === userId;
+  const members = chat.members ?? [];
+  return members.length === 1 && members[0].userId === userId && !members[0].leftAt;
 }

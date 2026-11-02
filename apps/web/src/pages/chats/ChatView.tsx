@@ -110,7 +110,6 @@ export function ChatView({ chatId }: ChatViewProps) {
   };
 
   const handleSendVoice = async (rec: VoiceRecording) => {
-    if (!currentOrg) return;
     try {
       const ext = rec.mimeType.includes('webm')
         ? 'webm'
@@ -120,7 +119,7 @@ export function ChatView({ chatId }: ChatViewProps) {
       const file = new File([rec.blob], `voice-${Date.now()}.${ext}`, { type: rec.mimeType });
       const info = await filesApi.uploadFile(
         file,
-        currentOrg.id,
+        currentOrg?.id,
         undefined,
         undefined,
         undefined,
@@ -136,16 +135,12 @@ export function ChatView({ chatId }: ChatViewProps) {
   };
 
   const handleSendVideoNote = async (rec: VideoNoteRecording) => {
-    if (!currentOrg) {
-      window.alert('Не выбрана организация');
-      return;
-    }
     try {
       const ext = rec.mimeType.includes('webm') ? 'webm' : 'mp4';
       const file = new File([rec.blob], `video-note-${Date.now()}.${ext}`, { type: rec.mimeType });
       const info = await filesApi.uploadFile(
         file,
-        currentOrg.id,
+        currentOrg?.id,
         undefined,
         undefined,
         undefined,

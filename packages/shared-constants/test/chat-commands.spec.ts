@@ -60,6 +60,17 @@ describe('getChatCommandSuggestions', () => {
 });
 
 describe('prepareTaskCommand', () => {
+  it('keeps an explicitly personal chat out of the selected organization task list', () => {
+    const result = prepareTaskCommand({
+      command: parseChatCommand('/task Personal note'),
+      chatId: 'personal-chat',
+      chatOrganizationId: null,
+      currentOrganizationId: 'selected-work-organization',
+      hasAttachments: false,
+    });
+    expect(result.kind).toBe('error');
+    expect(result).not.toHaveProperty('organizationId');
+  });
   it('uses chat organization when current organization is unavailable', () => {
     expect(
       prepareTaskCommand({

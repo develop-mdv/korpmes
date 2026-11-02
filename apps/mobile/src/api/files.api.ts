@@ -8,7 +8,7 @@ export interface FileInfo {
   originalName: string;
   mimeType: string;
   sizeBytes: number;
-  organizationId: string;
+  organizationId: string | null;
   messageId?: string;
   taskId?: string;
   uploaderId: string;
@@ -24,7 +24,7 @@ export async function uploadFile(params: {
   uri: string;
   name: string;
   mimeType: string;
-  orgId: string;
+  orgId?: string;
   taskId?: string;
   messageId?: string;
   durationMs?: number;
@@ -38,7 +38,8 @@ export async function uploadFile(params: {
   // the web DOM FormData typings — cast via `any` to bypass that mismatch.
   (formData as any).append('file', { uri, name, type: mimeType });
 
-  const queryParams = new URLSearchParams({ orgId });
+  const queryParams = new URLSearchParams();
+  if (orgId) queryParams.set('orgId', orgId);
   if (taskId) queryParams.set('taskId', taskId);
   if (messageId) queryParams.set('messageId', messageId);
   if (durationMs !== undefined && Number.isFinite(durationMs)) {

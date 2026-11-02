@@ -5,7 +5,7 @@ export interface Chat {
   id: string;
   name: string;
   type: 'PERSONAL' | 'GROUP' | 'CHANNEL' | 'PROJECT';
-  organizationId: string;
+  organizationId: string | null;
   avatarUrl?: string;
   isSelf: boolean;
   lastMessage?: {
@@ -24,7 +24,7 @@ export interface CreateChatPayload {
   name?: string;
   type: 'PERSONAL' | 'GROUP';
   memberIds: string[];
-  organizationId: string;
+  organizationId?: string | null;
 }
 
 export interface ChatMemberInfo {
@@ -35,6 +35,7 @@ export interface ChatMemberInfo {
     firstName: string;
     lastName: string;
     email: string;
+    username?: string;
     avatarUrl?: string;
   };
 }
@@ -43,7 +44,7 @@ interface ChatApiResponse {
   id: string;
   name: string | null;
   type: Chat['type'];
-  organizationId: string;
+  organizationId: string | null;
   avatarUrl?: string | null;
   lastMessage?: Chat['lastMessage'];
   members?: ChatMemberInfo[];
@@ -133,7 +134,7 @@ export function normalizeChatFromSocket(chat: ChatApiResponse): Chat {
   return normalizeChat(chat);
 }
 
-export async function getChats(orgId: string): Promise<Chat[]> {
+export async function getChats(orgId?: string): Promise<Chat[]> {
   const { data } = await apiClient.get<ChatApiResponse[]>('/chats', {
     params: { orgId },
   });

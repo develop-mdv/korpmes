@@ -9,6 +9,8 @@ import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { SearchBar } from '@/components/common/SearchBar';
 import * as searchApi from '@/api/search.api';
 import { useOrganizationStore } from '@/stores/organization.store';
+import { createChat } from '@/api/chats.api';
+import { useChatStore } from '@/stores/chat.store';
 
 type SearchResult = searchApi.SearchResult;
 
@@ -27,8 +29,9 @@ const TYPE_MARKS: Record<string, string> = {
 
 function ResultItem({ result }: { result: SearchResult }) {
   const navigate = useNavigate();
+  const currentOrg = useOrganizationStore((state) => state.currentOrg);
 
-  const handleClick = () => {
+  const handleClick = async () => {
     if (result.type === 'message' && result.metadata.chatId) {
       navigate(`/chats/${result.metadata.chatId as string}`);
     } else if (result.type === 'task') {
@@ -36,7 +39,9 @@ function ResultItem({ result }: { result: SearchResult }) {
     } else if (result.type === 'file') {
       navigate('/files');
     } else if (result.type === 'member') {
-      navigate('/organization/members');
+      const chat = await createChat({ type: 'PERSONAL', organizationId: currentOrg?.id, memberIds: [result.id] });
+      useChatStore.getState().addChat(chat as any);
+      navigate(`/chats/${chat.id}`);
     }
   };
 
@@ -84,7 +89,7 @@ export function SearchPage() {
   const [error, setError] = useState('');
 
   const handleSearch = async (q: string, scope: string) => {
-    if (!q.trim() || !currentOrg) return;
+    if (!q.trim()) return;
 
     setQuery(q);
     setLoading(true);
@@ -93,7 +98,7 @@ export function SearchPage() {
       const res = await searchApi.search({
         q,
         scope: scope.toLowerCase() as searchApi.SearchParams['scope'],
-        orgId: currentOrg.id,
+        orgId: currentOrg?.id,
       });
       setResults(res);
     } catch (err: any) {
@@ -128,7 +133,7 @@ export function SearchPage() {
         </section>
 
         <section className="lux-panel" style={styles.searchPanel}>
-          <SearchBar onSearch={handleSearch} placeholder="Поиск..." />
+          <SearchBar onSearch={handleSearch} placeholder={currentOrg ? 'Поиск в организации, @никнейм...' : 'Сообщения, файлы, @никнейм или email'} organization={!!currentOrg} />
         </section>
 
         {error && <div className="lux-alert">{error}</div>}

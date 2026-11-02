@@ -16,6 +16,7 @@ import { OrganizationsController } from './organizations.controller';
 import { MembersController } from './members.controller';
 import { DepartmentsController } from './departments.controller';
 import { JoinRequestsController } from './join-requests.controller';
+import { WebSocketModule } from '../websocket/websocket.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { JoinRequestsController } from './join-requests.controller';
     UsersModule,
     forwardRef(() => ChatsModule),
     NotificationsModule,
+    forwardRef(() => WebSocketModule),
   ],
   controllers: [
     OrganizationsController,

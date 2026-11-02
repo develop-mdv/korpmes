@@ -3,17 +3,12 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import * as authApi from '@/api/auth.api';
 import { AuthShell } from '@/components/layout/AuthShell';
 import { useAuthStore } from '@/stores/auth.store';
-
-function safeNext(next: string | null): string {
-  if (!next) return '/chats';
-  if (next.startsWith('/') && !next.startsWith('//')) return next;
-  return '/chats';
-}
+import { authRedirect } from '@/utils/navigation';
 
 export function LoginPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const next = safeNext(searchParams.get('next'));
+  const next = authRedirect(searchParams.get('next'));
   const { setAuth } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -51,12 +46,12 @@ export function LoginPage() {
   return (
     <AuthShell
       eyebrow="Светлый премиум"
-      title="Коммуникации для команд, которым важны вкус, контроль и скорость."
-      description="StaffHub открывает приватное рабочее пространство с чатами, задачами, звонками и структурой компании в едином светлом премиум-интерфейсе."
+      title="Личное общение и работа с командой в одном месте."
+      description="Войдите в личное пространство или переключитесь на организацию. Для личной переписки приглашение не требуется."
       formEyebrow="Безопасный вход"
       formTitle="Войти в StaffHub"
-      formDescription="Авторизуйтесь и вернитесь в своё рабочее пространство."
-      quote="Когда продукт выглядит уверенно, работать в нём хочется дольше."
+      formDescription="Войдите, чтобы продолжить общение."
+      quote="Один аккаунт для личных диалогов и рабочих пространств."
       stats={[
         { label: 'Скорость', value: '< 1 сек' },
         { label: 'Пространства', value: 'Закрытые' },
@@ -65,7 +60,7 @@ export function LoginPage() {
       footer={
         <>
           <Link to="/forgot-password">Забыли пароль?</Link> {' · '}
-          <Link to="/register">Создать аккаунт</Link>
+          <Link to={`/register?next=${encodeURIComponent(next)}`}>Создать аккаунт</Link>
         </>
       }
     >
@@ -74,7 +69,7 @@ export function LoginPage() {
 
         <div className="field-group">
           <label className="field-group__label">Email</label>
-          <input className="lux-input" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@company.com" autoFocus required />
+          <input className="lux-input" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" autoFocus required />
         </div>
 
         <div className="field-group">

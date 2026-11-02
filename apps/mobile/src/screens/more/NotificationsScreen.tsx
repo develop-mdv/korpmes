@@ -7,6 +7,7 @@ import { ActionRow, AlertMessage, HeroBlock, LoadingBlock, Pill } from '../../co
 import { useTheme } from '../../theme';
 import * as notificationsApi from '../../api/notifications.api';
 import type { MoreStackParamList } from '../../navigation/types';
+import { openChatInWorkspace } from '../../navigation/open-chat';
 
 type Props = NativeStackScreenProps<MoreStackParamList, 'Notifications'>;
 
@@ -73,7 +74,7 @@ export function NotificationsScreen({ navigation }: Props) {
     const taskId = item.data?.taskId;
     const parent = navigation.getParent() as any;
     if (typeof chatId === 'string') {
-      parent?.navigate('ChatsTab', { screen: 'ChatView', params: { chatId } });
+      await openChatInWorkspace(chatId).catch(() => setError('Чат недоступен. Возможно, доступ к организации отозван.'));
     } else if (typeof taskId === 'string') {
       parent?.navigate('TasksTab', { screen: 'TaskDetail', params: { taskId } });
     }

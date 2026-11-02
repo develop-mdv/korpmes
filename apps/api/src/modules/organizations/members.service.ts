@@ -3,9 +3,11 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { OrganizationMember } from './entities/organization-member.entity';
 import { Invite } from './entities/invite.entity';
@@ -15,6 +17,9 @@ import { InviteMemberDto } from './dto/invite-member.dto';
 import { ROLE_HIERARCHY } from '@corp/shared-constants';
 import { INVITE_EXPIRY_HOURS } from '@corp/shared-constants';
 import { OrganizationsService } from './organizations.service';
+import { Chat } from '../chats/entities/chat.entity';
+import { ChatMember } from '../chats/entities/chat-member.entity';
+import { WebSocketService } from '../websocket/websocket.service';
 
 const APPROVAL_ROLES = new Set(['OWNER', 'ADMIN']);
 
@@ -35,6 +40,8 @@ export class MembersService {
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
     private readonly organizationsService: OrganizationsService,
+    @Inject(forwardRef(() => WebSocketService))
+    private readonly wsService: WebSocketService,
   ) {}
 
   async getMembers(
@@ -256,7 +263,14 @@ export class MembersService {
     if (!member) {
       throw new NotFoundException('Member not found');
     }
-    await this.memberRepo.remove(member);
+    const chats = await this.memberRepo.manager.getRepository(Chat).find({ where: { organizationId: orgId }, select: ['id'] });
+    const chatIds = chats.map((chat) => chat.id);
+    await this.memberRepo.manager.transaction(async (manager) => {
+      if (chatIds.length) await manager.getRepository(ChatMember).update({ userId, chatId: In(chatIds), leftAt: IsNull() }, { leftAt: new Date() });
+      await manager.getRepository(OrganizationMember).remove(member);
+    });
+    this.wsService.leaveUserChats(userId, chatIds, orgId);
+    this.wsService.emitToUser(userId, 'organization:removed', { organizationId: orgId });
   }
 
   async getUserRole(orgId: string, userId: string): Promise<string | null> {

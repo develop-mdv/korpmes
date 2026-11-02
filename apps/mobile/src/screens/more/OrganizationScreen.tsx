@@ -6,6 +6,8 @@ import { useOrganizationStore } from '../../stores/organization.store';
 import { useTheme } from '../../theme';
 import * as organizationsApi from '../../api/organizations.api';
 import type { MoreStackParamList } from '../../navigation/types';
+import { OrganizationAccess } from '../../components/OrganizationAccess';
+import { WorkspaceSwitcher } from '../../components/WorkspaceSwitcher';
 
 type Props = NativeStackScreenProps<MoreStackParamList, 'OrganizationHome'>;
 
@@ -53,8 +55,10 @@ export function OrganizationScreen({ navigation }: Props) {
         <HeroBlock
           kicker="Организация"
           title="Рабочее пространство не выбрано."
-          description="Когда аккаунт будет привязан к организации, здесь появятся ее параметры, участники и структура."
+          description="Подключите организацию, когда понадобится рабочее общение. Личные диалоги сохранятся в личном пространстве."
         />
+        <View><WorkspaceSwitcher /></View>
+        <OrganizationAccess />
       </ScreenScroll>
     );
   }

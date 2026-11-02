@@ -34,7 +34,6 @@ export function useAttachmentStaging(orgId: string | undefined) {
 
   const add = useCallback(
     (files: FileList | File[], mode: filesApi.FileDisplayMode = 'file') => {
-      if (!orgId) return;
       const list = Array.from(files);
       const current = stagedRef.current;
       const capacity = MAX_FILE_ATTACHMENTS_PER_MESSAGE - current.length;

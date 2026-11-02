@@ -9,6 +9,8 @@ import { useOrganizationStore } from '../../stores/organization.store';
 import { useTheme } from '../../theme';
 import * as searchApi from '../../api/search.api';
 import type { MoreStackParamList } from '../../navigation/types';
+import { createChat } from '../../api/chats.api';
+import { useChatStore } from '../../stores/chat.store';
 
 type Props = NativeStackScreenProps<MoreStackParamList, 'Search'>;
 type Scope = searchApi.SearchParams['scope'];
@@ -54,11 +56,11 @@ export function SearchScreen({ navigation }: Props) {
   }, [results]);
 
   const handleSearch = useCallback(async () => {
-    if (!query.trim() || !currentOrg) return;
+    if (!query.trim()) return;
     setLoading(true);
     setError('');
     try {
-      const res = await searchApi.search({ q: query.trim(), scope, orgId: currentOrg.id, limit: 40 });
+      const res = await searchApi.search({ q: query.trim(), scope, orgId: currentOrg?.id, limit: 40 });
       setResults(res);
     } catch (err: any) {
       setError(err.response?.data?.error?.message || 'Не удалось выполнить поиск');
@@ -69,7 +71,7 @@ export function SearchScreen({ navigation }: Props) {
   }, [currentOrg, query, scope]);
 
   const handleOpen = useCallback(
-    (result: searchApi.SearchResult) => {
+    async (result: searchApi.SearchResult) => {
       const parent = navigation.getParent() as any;
       if (result.type === 'message' && typeof result.metadata.chatId === 'string') {
         parent?.navigate('ChatsTab', { screen: 'ChatView', params: { chatId: result.metadata.chatId } });
@@ -78,10 +80,12 @@ export function SearchScreen({ navigation }: Props) {
       } else if (result.type === 'file') {
         parent?.navigate('FilesTab');
       } else if (result.type === 'member') {
-        navigation.navigate('Members');
+        const chat = await createChat({ type: 'PERSONAL', organizationId: currentOrg?.id, memberIds: [result.id] });
+        useChatStore.getState().addChat(chat);
+        parent?.navigate('ChatsTab', { screen: 'ChatView', params: { chatId: chat.id } });
       }
     },
-    [navigation],
+    [navigation, currentOrg?.id],
   );
 
   return (
@@ -96,7 +100,7 @@ export function SearchScreen({ navigation }: Props) {
           <HeroBlock
             kicker="Навигация"
             title="Поиск, который не заставляет искать."
-            description="Повторяет веб-поиск по людям, сообщениям, задачам и файлам внутри текущей организации."
+            description={currentOrg ? 'Найдите сотрудников, сообщения, задачи и файлы в выбранной организации.' : 'Найдите сообщения и файлы в личных чатах или собеседника по никнейму или email.'}
           >
             {currentOrg ? <Pill label={currentOrg.name} tone="primary" /> : <Pill label="Нет организации" tone="warning" />}
             {results ? <Pill label={`Найдено: ${results.total}`} /> : null}
@@ -127,7 +131,7 @@ export function SearchScreen({ navigation }: Props) {
             </View>
 
             <View style={styles.scopeRow}>
-              {SCOPES.map((item) => {
+              {SCOPES.filter((item) => currentOrg || item.id !== 'tasks').map((item) => {
                 const active = scope === item.id;
                 return (
                   <Pressable

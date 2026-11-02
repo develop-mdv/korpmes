@@ -24,8 +24,8 @@ export class Chat {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ name: 'organization_id', type: 'uuid' })
-  organizationId: string;
+  @Column({ name: 'organization_id', type: 'uuid', nullable: true })
+  organizationId: string | null;
 
   @Column({ type: 'varchar' })
   type: ChatType;

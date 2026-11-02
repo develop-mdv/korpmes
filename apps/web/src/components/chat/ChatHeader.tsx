@@ -54,7 +54,8 @@ export function ChatHeader({ chatId }: ChatHeaderProps) {
   };
 
   const displayName = getChatDisplayName(chat, userId);
-  const subtitle = chat.type === 'PERSONAL' ? 'Личный диалог' : `${chat.members?.length || 0} участников в комнате`;
+  const peerUsername = chat.members.find((member) => member.userId !== userId)?.user?.username;
+  const subtitle = chat.type === 'PERSONAL' ? `${peerUsername ? `@${peerUsername} · ` : ''}${chat.organizationId ? 'Рабочий диалог' : 'Личный диалог'}` : `${chat.members?.length || 0} участников в комнате`;
 
   return (
     <div className="chat-stage__header">

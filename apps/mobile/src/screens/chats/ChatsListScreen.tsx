@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, TextInput, FlatList, Pressable, StyleSheet, RefreshControl } from 'react-native';
+import { View, Text, TextInput, FlatList, Pressable, StyleSheet, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ChatListItem } from '../../components/ChatListItem';
@@ -9,6 +9,7 @@ import { useOrganizationStore } from '../../stores/organization.store';
 import * as chatsApi from '../../api/chats.api';
 import { useTheme } from '../../theme';
 import type { ChatStackParamList } from '../../navigation/types';
+import { WorkspaceSwitcher } from '../../components/WorkspaceSwitcher';
 
 type Props = NativeStackScreenProps<ChatStackParamList, 'ChatsList'>;
 
@@ -18,35 +19,25 @@ export function ChatsListScreen({ navigation }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const { chats, setChats, setLoading, isLoading } = useChatStore();
   const currentOrg = useOrganizationStore((state) => state.currentOrg);
-  const organizations = useOrganizationStore((state) => state.organizations);
+  const [error, setError] = useState('');
   const isOrganizationLoading = useOrganizationStore((state) => state.isLoading);
 
   const fetchChats = useCallback(async () => {
-    if (!currentOrg?.id) {
-      setChats([]);
-      return;
-    }
-
     try {
       setLoading(true);
-      const data = await chatsApi.getChats(currentOrg.id);
-      setChats(data);
+      setError('');
+      const data = await chatsApi.getChats(currentOrg?.id);
+      if (useOrganizationStore.getState().currentOrg?.id === currentOrg?.id) setChats(data);
     } catch (err) {
       console.error('Failed to fetch chats:', err);
+      setError('Не удалось загрузить чаты. Потяните список вниз, чтобы повторить.');
     } finally {
       setLoading(false);
     }
   }, [currentOrg?.id, setChats, setLoading]);
 
   useEffect(() => {
-    if (currentOrg?.id) {
-      void fetchChats();
-      return;
-    }
-    if (!isOrganizationLoading) {
-      setChats([]);
-      setLoading(false);
-    }
+    if (!isOrganizationLoading) void fetchChats();
   }, [currentOrg?.id, fetchChats, isOrganizationLoading, setChats, setLoading]);
 
   const onRefresh = useCallback(async () => {
@@ -68,6 +59,9 @@ export function ChatsListScreen({ navigation }: Props) {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
+      <View><WorkspaceSwitcher /></View>
+      <Text style={{ color: theme.colors.textSecondary, paddingHorizontal: 16 }}>{currentOrg ? `Рабочие чаты · ${currentOrg.name}` : 'Личные чаты · Общайтесь без организации'}</Text>
+      {error ? <Text accessibilityRole="alert" style={{ color: theme.colors.error, padding: 16 }}>{error}</Text> : null}
       <View style={[styles.searchContainer, { borderBottomColor: theme.colors.border }]}>
         <View style={[styles.searchWrap, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
           <Ionicons name="search-outline" size={18} color={theme.colors.textTertiary} />
@@ -99,12 +93,8 @@ export function ChatsListScreen({ navigation }: Props) {
         ListEmptyComponent={
           !isLoading && !isOrganizationLoading ? (
             <EmptyState
-              title={organizations.length > 0 ? 'Пока нет чатов' : 'Нет рабочего пространства'}
-              description={
-                organizations.length > 0
-                  ? 'Начните новый диалог, нажав кнопку ниже.'
-                  : 'Ваш аккаунт пока не привязан к рабочему пространству.'
-              }
+              title="Пока нет чатов"
+              description="Найдите собеседника по никнейму или email, нажав кнопку ниже."
               icon={<Ionicons name="chatbubble-ellipses-outline" size={56} color={theme.colors.primary} />}
             />
           ) : null

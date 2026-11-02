@@ -1,6 +1,6 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { AuthGuard } from './auth-guard';
-import { OrgGuard } from './org-guard';
+import { OrgGuard, OrganizationRequired } from './org-guard';
 import { PermissionRoute } from './permission-route';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { LoginPage } from '@/pages/auth/LoginPage';
@@ -69,19 +69,21 @@ export const router = createBrowserRouter([
               { path: '/chats', element: <ChatsPage /> },
               { path: '/chats/:chatId', element: <ChatsPage /> },
               { path: '/calls', element: <CallsPage /> },
-              { path: '/tasks', element: <TasksPage /> },
-              { path: '/tasks/:id', element: <TaskDetailPage /> },
               { path: '/files', element: <FilesPage /> },
               { path: '/notifications', element: <NotificationsPage /> },
-              { path: '/organization', element: <OrganizationPage /> },
-              { path: '/organization/members', element: <MembersPage /> },
-              { path: '/organization/requests', element: <RequestsPage /> },
-              { path: '/organization/departments', element: <DepartmentsPage /> },
               { path: '/settings', element: <SettingsPage /> },
               { path: '/search', element: <SearchPage /> },
               {
-                element: <PermissionRoute permission="ORG_VIEW_AUDIT" />,
-                children: [{ path: '/audit', element: <AuditPage /> }],
+                element: <OrganizationRequired />,
+                children: [
+                  { path: '/tasks', element: <TasksPage /> },
+                  { path: '/tasks/:id', element: <TaskDetailPage /> },
+                  { path: '/organization', element: <OrganizationPage /> },
+                  { path: '/organization/members', element: <MembersPage /> },
+                  { path: '/organization/requests', element: <RequestsPage /> },
+                  { path: '/organization/departments', element: <DepartmentsPage /> },
+                  { element: <PermissionRoute permission="ORG_VIEW_AUDIT" />, children: [{ path: '/audit', element: <AuditPage /> }] },
+                ],
               },
             ],
           },

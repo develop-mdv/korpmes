@@ -7,8 +7,10 @@ import { useSocket } from '@/hooks/useSocket';
 import { useUIStore } from '@/stores/ui.store';
 import { useBreakpoint } from '@/hooks/useBreakpoint';
 import { useAppHeight } from '@/hooks/useAppHeight';
+import { useOrganizationStore } from '@/stores/organization.store';
 
 export function AppLayout() {
+  const workspaceKey = useOrganizationStore((state) => state.currentOrg?.id ?? 'personal');
   useSocket();
   useAppHeight();
 
@@ -56,7 +58,7 @@ export function AppLayout() {
 
       <main className="app-shell__main" style={mainStyle}>
         <div className="app-stage">
-          <Outlet />
+          <Outlet key={workspaceKey} />
         </div>
       </main>
 

@@ -6,8 +6,9 @@ import {
   IsArray,
   IsUUID,
   ArrayMinSize,
-  ValidateIf,
-  IsNotEmpty,
+  ArrayUnique,
+  ArrayMaxSize,
+  MaxLength,
 } from 'class-validator';
 import { ChatType } from '../entities/chat.entity';
 
@@ -17,19 +18,21 @@ export class CreateChatDto {
   type: ChatType;
 
   @ApiPropertyOptional({ description: 'Required for GROUP and CHANNEL types' })
-  @ValidateIf((o) => o.type === ChatType.GROUP || o.type === ChatType.CHANNEL)
-  @IsString()
-  @IsNotEmpty({ message: 'Name is required for group and channel chats' })
   @IsOptional()
+  @IsString()
+  @MaxLength(100)
   name?: string;
 
   @ApiProperty({ type: [String], description: 'UUIDs of members to add' })
   @IsArray()
   @IsUUID('4', { each: true })
   @ArrayMinSize(1)
+  @ArrayMaxSize(100)
+  @ArrayUnique()
   memberIds: string[];
 
-  @ApiProperty()
+  @ApiPropertyOptional({ description: 'Omit or use null for personal chats' })
+  @IsOptional()
   @IsUUID()
-  organizationId: string;
+  organizationId?: string | null;
 }

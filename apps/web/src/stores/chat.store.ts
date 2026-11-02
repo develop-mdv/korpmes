@@ -7,6 +7,7 @@ export interface ChatMemberInfo {
     firstName: string;
     lastName: string;
     email: string;
+    username?: string;
     avatarUrl?: string;
   };
   role: string;
@@ -16,7 +17,7 @@ export interface Chat {
   id: string;
   name: string | null;
   type: 'PERSONAL' | 'GROUP' | 'CHANNEL' | 'PROJECT';
-  organizationId: string;
+  organizationId: string | null;
   lastMessage?: {
     content: string;
     senderName: string;
@@ -25,6 +26,7 @@ export interface Chat {
   members: ChatMemberInfo[];
   createdAt: string;
   updatedAt: string;
+  unreadCount?: number;
 }
 
 interface ChatState {
@@ -47,9 +49,9 @@ export const useChatStore = create<ChatState>()((set) => ({
   activeChatId: null,
   unreadCounts: {},
 
-  setChats: (chats) => set({ chats }),
+  setChats: (chats) => set({ chats, unreadCounts: Object.fromEntries(chats.map((chat) => [chat.id, chat.unreadCount ?? 0])) }),
 
-  addChat: (chat) => set((state) => ({ chats: [chat, ...state.chats] })),
+  addChat: (chat) => set((state) => ({ chats: [chat, ...state.chats.filter((item) => item.id !== chat.id)] })),
 
   updateChat: (id, data) =>
     set((state) => ({

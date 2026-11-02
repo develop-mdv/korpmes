@@ -10,19 +10,20 @@ interface ChatListProps {
   activeChatId: string | null;
   onSelectChat: (chatId: string) => void;
   unreadCounts: Record<string, number>;
+  organization?: boolean;
 }
 
-const tabs = ['Все', 'Личные', 'Группы', 'Каналы'] as const;
+const tabs = ['Все', 'Диалоги', 'Группы', 'Каналы'] as const;
 type TabType = (typeof tabs)[number];
 
 const tabMap: Record<TabType, Chat['type'] | null> = {
   Все: null,
-  Личные: 'PERSONAL',
+  Диалоги: 'PERSONAL',
   Группы: 'GROUP',
   Каналы: 'CHANNEL',
 };
 
-export function ChatList({ chats, activeChatId, onSelectChat, unreadCounts }: ChatListProps) {
+export function ChatList({ chats, activeChatId, onSelectChat, unreadCounts, organization = true }: ChatListProps) {
   const [query, setQuery] = useState('');
   const [activeTab, setActiveTab] = useState<TabType>('Все');
   const currentUserId = useAuthStore((state) => state.user?.id);
@@ -45,7 +46,7 @@ export function ChatList({ chats, activeChatId, onSelectChat, unreadCounts }: Ch
       </div>
 
       <div className="chat-rail__tabs">
-        {tabs.map((tab) => (
+        {tabs.filter((tab) => organization || tab !== 'Каналы').map((tab) => (
           <button
             key={tab}
             className={clsx('lux-chip', activeTab === tab && 'is-active')}

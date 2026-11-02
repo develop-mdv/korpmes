@@ -1,8 +1,10 @@
 import { apiClient } from './client';
+import type { User } from '@/stores/auth.store';
 
 export interface UserSearchResult {
   id: string;
   email: string;
+  username: string;
   firstName: string;
   lastName: string;
   avatarUrl?: string;
@@ -10,15 +12,17 @@ export interface UserSearchResult {
   position?: string;
 }
 
-export function searchUsers(query: string, orgId: string): Promise<UserSearchResult[]> {
+export function searchUsers(query: string, orgId?: string): Promise<UserSearchResult[]> {
   return apiClient.get('/users/search', { params: { q: query, orgId } }).then((r) => r.data);
 }
 
-export function getMe(): Promise<UserSearchResult> {
+export function getMe(): Promise<User> {
   return apiClient.get('/users/me').then((r) => r.data);
 }
 
 export interface UpdateMeDto {
+  username?: string;
+  phone?: string | null;
   firstName?: string;
   lastName?: string;
   position?: string;
@@ -26,7 +30,7 @@ export interface UpdateMeDto {
   avatarUrl?: string;
 }
 
-export function updateMe(dto: UpdateMeDto): Promise<UserSearchResult> {
+export function updateMe(dto: UpdateMeDto): Promise<User> {
   return apiClient.patch('/users/me', dto).then((r) => r.data);
 }
 

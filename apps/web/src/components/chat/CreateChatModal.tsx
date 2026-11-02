@@ -28,8 +28,10 @@ export function CreateChatModal({ onClose }: CreateChatModalProps) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
-    if (!query.trim() || !currentOrg) {
+    let active = true;
+    if (!query.trim()) {
       setResults([]);
+      setSearching(false);
       return;
     }
 
@@ -37,17 +39,18 @@ export function CreateChatModal({ onClose }: CreateChatModalProps) {
     timerRef.current = setTimeout(async () => {
       setSearching(true);
       try {
-        const foundUsers = await searchUsers(query, currentOrg.id);
+        const foundUsers = await searchUsers(query.trim(), currentOrg?.id);
+        if (!active) return;
         const selectedIds = new Set(selectedUsers.map((user) => user.id));
         setResults(foundUsers.filter((user) => !selectedIds.has(user.id)));
       } catch {
-        setResults([]);
+        if (active) setResults([]);
       } finally {
-        setSearching(false);
+        if (active) setSearching(false);
       }
     }, 220);
 
-    return () => clearTimeout(timerRef.current);
+    return () => { active = false; clearTimeout(timerRef.current); };
   }, [currentOrg, query, selectedUsers]);
 
   const selectUser = (user: UserSearchResult) => {
@@ -61,7 +64,7 @@ export function CreateChatModal({ onClose }: CreateChatModalProps) {
   };
 
   const handleCreate = async () => {
-    if (!currentOrg || selectedUsers.length === 0) return;
+    if (selectedUsers.length === 0) return;
 
     setCreating(true);
     setError('');
@@ -69,9 +72,9 @@ export function CreateChatModal({ onClose }: CreateChatModalProps) {
     try {
       const chat = await createChat({
         type,
-        organizationId: currentOrg.id,
+        organizationId: currentOrg?.id,
         memberIds: selectedUsers.map((user) => user.id),
-        name: type === 'GROUP' ? name : undefined,
+        name: type === 'GROUP' ? name.trim() : undefined,
       });
       addChat(chat as any);
       navigate(`/chats/${chat.id}`);
@@ -88,6 +91,7 @@ export function CreateChatModal({ onClose }: CreateChatModalProps) {
   return (
     <Modal open title="Новый чат" onClose={onClose}>
       <div className="inline-form">
+        <p className="list-card__subtitle">{currentOrg ? `Рабочий чат · ${currentOrg.name}` : 'Личный чат · Найдите собеседника по нику или полному email. Личная переписка доступна независимо от организации.'}</p>
         <div style={{ display: 'flex', gap: 10 }}>
           <button className={clsx('lux-chip', type === 'PERSONAL' && 'is-active')} onClick={() => { setType('PERSONAL'); setSelectedUsers((prev) => prev.slice(0, 1)); }}>
             Личный
@@ -124,16 +128,16 @@ export function CreateChatModal({ onClose }: CreateChatModalProps) {
             className="lux-input"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Поиск по имени или email"
+            placeholder={currentOrg ? 'Имя, @никнейм или email' : '@никнейм или полный email'}
             autoFocus
           />
         </div>
 
         <div className="lux-panel" style={{ padding: 8, minHeight: 120 }}>
-          {searching && <div className="list-card__subtitle" style={{ padding: 12 }}>Ищем сотрудников...</div>}
+          {searching && <div className="list-card__subtitle" style={{ padding: 12 }}>Ищем собеседника...</div>}
           {!searching && query && results.length === 0 && <div className="list-card__subtitle" style={{ padding: 12 }}>Ничего не найдено</div>}
           {!searching && !query && selectedUsers.length === 0 && (
-            <div className="list-card__subtitle" style={{ padding: 12 }}>Начните вводить имя, чтобы собрать чат.</div>
+            <div className="list-card__subtitle" style={{ padding: 12 }}>{currentOrg ? 'Введите имя, никнейм или email сотрудника.' : 'Введите никнейм (от 3 символов) или полный email собеседника.'}</div>
           )}
           <div className="collection-list">
             {results.map((user) => (
@@ -141,7 +145,7 @@ export function CreateChatModal({ onClose }: CreateChatModalProps) {
                 <Avatar name={`${user.firstName} ${user.lastName}`} size="sm" />
                 <div className="list-card__body">
                   <div className="list-card__title">{user.firstName} {user.lastName}</div>
-                  <div className="list-card__subtitle">{user.email}</div>
+                  <div className="list-card__subtitle">@{user.username} · {user.email}</div>
                 </div>
               </button>
             ))}

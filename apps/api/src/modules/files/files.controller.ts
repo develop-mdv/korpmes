@@ -8,6 +8,7 @@ import {
   UploadedFile,
   UseGuards,
   UseInterceptors,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
@@ -33,7 +34,7 @@ export class FilesController {
   async upload(
     @UploadedFile() file: Express.Multer.File,
     @CurrentUser() user: { id: string },
-    @Query('orgId') orgId: string,
+    @Query('orgId', new ParseUUIDPipe({ optional: true })) orgId?: string,
     @Query('messageId') messageId?: string,
     @Query('taskId') taskId?: string,
     @Query('durationMs') durationMs?: string,
@@ -101,6 +102,6 @@ export class FilesController {
     if (orgId) {
       return this.filesService.findByOrg(orgId, user.id);
     }
-    return [];
+    return this.filesService.findByOrg(null, user.id);
   }
 }

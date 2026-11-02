@@ -57,15 +57,16 @@ export class UsersController {
   }
 
   @Get('search')
-  @ApiOperation({ summary: 'Search users by name or email' })
+  @ApiOperation({ summary: 'Search users by username, name or email' })
   @ApiQuery({ name: 'q', required: true, description: 'Search query' })
-  @ApiQuery({ name: 'orgId', required: true, description: 'Organization ID' })
+  @ApiQuery({ name: 'orgId', required: false, description: 'Organization ID; omit for personal username prefix or exact email lookup' })
   @ApiResponse({ status: 200, description: 'List of matching users', type: [User] })
   async searchUsers(
     @Query('q') query: string,
-    @Query('orgId') orgId: string,
+    @CurrentUser() user: User,
+    @Query('orgId', new ParseUUIDPipe({ optional: true })) orgId?: string,
   ): Promise<User[]> {
-    return this.usersService.search(query, orgId);
+    return this.usersService.search(query, orgId, user.id);
   }
 
   @Get(':id')

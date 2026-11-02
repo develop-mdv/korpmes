@@ -13,6 +13,7 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:e2e": "jest --config ./jest.e2e.config.ts",
+    "test:workspaces": "node --test test/personal-workspaces.e2e.cjs",
     "typecheck": "tsc --noEmit",
     "db:migrate": "ts-node -P tsconfig.json ./node_modules/typeorm/cli.js migration:run -d src/database/typeorm.datasource.ts",
     "db:migrate:revert": "ts-node -P tsconfig.json ./node_modules/typeorm/cli.js migration:revert -d src/database/typeorm.datasource.ts",

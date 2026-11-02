@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Avatar } from '../../components/Avatar';
 import { ActionRow, HeroBlock, Panel, Pill, ScreenScroll, SectionTitle } from '../../components/ScreenPrimitives';
@@ -9,6 +8,7 @@ import { useOrganizationStore } from '../../stores/organization.store';
 import { usePermissions } from '../../hooks/usePermissions';
 import { useTheme } from '../../theme';
 import * as notificationsApi from '../../api/notifications.api';
+import { WorkspaceSwitcher } from '../../components/WorkspaceSwitcher';
 import type { MoreStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<MoreStackParamList, 'MoreHome'>;
@@ -16,9 +16,7 @@ type Props = NativeStackScreenProps<MoreStackParamList, 'MoreHome'>;
 export function MoreScreen({ navigation }: Props) {
   const theme = useTheme();
   const user = useAuthStore((state) => state.user);
-  const organizations = useOrganizationStore((state) => state.organizations);
   const currentOrg = useOrganizationStore((state) => state.currentOrg);
-  const setCurrentOrg = useOrganizationStore((state) => state.setCurrentOrg);
   const { has } = usePermissions();
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -58,8 +56,8 @@ export function MoreScreen({ navigation }: Props) {
       },
       {
         key: 'organization',
-        title: 'Организация',
-        subtitle: currentOrg ? `${currentOrg.memberCount} участников` : 'Рабочее пространство не выбрано',
+        title: currentOrg ? 'Организация' : 'Подключить организацию',
+        subtitle: currentOrg ? `${currentOrg.memberCount} участников` : 'Создать компанию, отправить заявку или открыть приглашение',
         icon: 'business-outline' as const,
         onPress: () => navigation.navigate('OrganizationHome'),
       },
@@ -87,9 +85,9 @@ export function MoreScreen({ navigation }: Props) {
       <HeroBlock
         kicker="Навигация"
         title="Все разделы StaffHub на телефоне."
-        description="Здесь собран мобильный аналог веб-сайдбара: уведомления, поиск, организация, аудит и настройки."
+        description="Переключайтесь между личным общением и организацией. Здесь же находятся поиск, уведомления и настройки."
       >
-        {currentOrg ? <Pill label={currentOrg.name} tone="primary" /> : <Pill label="Нет организации" tone="warning" />}
+        {currentOrg ? <Pill label={currentOrg.name} tone="primary" /> : <Pill label="Личное пространство" tone="primary" />}
         {unreadCount > 0 ? <Pill label={`Новых: ${unreadCount}`} tone="error" /> : <Pill label="Уведомления прочитаны" />}
       </HeroBlock>
 
@@ -108,35 +106,10 @@ export function MoreScreen({ navigation }: Props) {
         </View>
       </Panel>
 
-      {organizations.length > 1 ? (
-        <Panel>
-          <SectionTitle>Рабочие пространства</SectionTitle>
-          <View style={styles.orgList}>
-            {organizations.map((org) => {
-              const active = org.id === currentOrg?.id;
-              return (
-                <Pressable
-                  key={org.id}
-                  onPress={() => setCurrentOrg(org)}
-                  style={({ pressed }) => [
-                    styles.orgChip,
-                    {
-                      borderColor: active ? theme.colors.primary : theme.colors.border,
-                      backgroundColor: active ? theme.colors.primary : theme.colors.surfaceSoft,
-                      opacity: pressed ? 0.82 : 1,
-                    },
-                  ]}
-                >
-                  <Text style={[styles.orgChipText, { color: active ? theme.colors.onPrimary : theme.colors.textPrimary }]}>
-                    {org.name}
-                  </Text>
-                  {active ? <Ionicons name="checkmark" size={15} color={theme.colors.onPrimary} /> : null}
-                </Pressable>
-              );
-            })}
-          </View>
-        </Panel>
-      ) : null}
+      <Panel>
+        <SectionTitle>Личное и организации</SectionTitle>
+        <View><WorkspaceSwitcher /></View>
+      </Panel>
 
       <View style={styles.list}>
         {menuItems

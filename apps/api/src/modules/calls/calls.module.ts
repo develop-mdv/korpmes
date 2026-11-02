@@ -11,6 +11,7 @@ import { WebSocketModule } from '../websocket/websocket.module';
 import { ChatsModule } from '../chats/chats.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { UsersModule } from '../users/users.module';
+import { WorkspaceModule } from '../../common/workspace/workspace.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { UsersModule } from '../users/users.module';
     forwardRef(() => ChatsModule),
     forwardRef(() => NotificationsModule),
     UsersModule,
+    WorkspaceModule,
   ],
   controllers: [CallsController],
   providers: [CallsService, CallsGateway],

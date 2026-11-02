@@ -12,7 +12,7 @@ export type FileDisplayMode = 'media' | 'file';
 export interface FileAttachment {
   id: string;
   uploaderId: string;
-  organizationId: string;
+  organizationId: string | null;
   messageId?: string;
   taskId?: string;
   originalName: string;

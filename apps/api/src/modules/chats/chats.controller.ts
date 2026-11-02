@@ -18,6 +18,7 @@ import { ChatsService } from './chats.service';
 import { AuditService } from '../audit/audit.service';
 import { CreateChatDto } from './dto/create-chat.dto';
 import { UpdateChatDto } from './dto/update-chat.dto';
+import { WebSocketService } from '../websocket/websocket.service';
 
 @ApiTags('Chats')
 @ApiBearerAuth()
@@ -27,12 +28,17 @@ export class ChatsController {
   constructor(
     private readonly chatsService: ChatsService,
     private readonly auditService: AuditService,
+    private readonly wsService: WebSocketService,
   ) {}
 
   @Post()
   @ApiOperation({ summary: 'Create a new chat' })
   async create(@CurrentUser() user: any, @Body() dto: CreateChatDto) {
     const chat = await this.chatsService.create(user.id, dto);
+    for (const member of chat.members.filter((member) => !member.leftAt)) {
+      this.wsService.joinUserToChat(member.userId, chat.id);
+      this.wsService.emitToUser(member.userId, 'chat:created', chat);
+    }
     this.auditService.log({
       userId: user.id,
       userEmail: user.email,
@@ -47,17 +53,18 @@ export class ChatsController {
 
   @Get()
   @ApiOperation({ summary: "List current user's chats" })
-  @ApiQuery({ name: 'orgId', required: true, type: String })
+  @ApiQuery({ name: 'orgId', required: false, type: String, description: 'Omit for personal space' })
   findAll(
     @CurrentUser() user: any,
-    @Query('orgId', ParseUUIDPipe) orgId: string,
+    @Query('orgId', new ParseUUIDPipe({ optional: true })) orgId?: string,
   ) {
-    return this.chatsService.findUserChats(user.id, orgId);
+    return this.chatsService.findUserChats(user.id, orgId ?? null);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get chat by ID' })
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
+  async findOne(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: any) {
+    await this.chatsService.assertMember(id, user.id);
     return this.chatsService.findById(id);
   }
 
@@ -110,6 +117,10 @@ export class ChatsController {
   ) {
     const result = await this.chatsService.addMember(id, userId, user.id);
     const chat = await this.chatsService.findById(id).catch(() => null);
+    if (chat) {
+      this.wsService.joinUserToChat(userId, id);
+      this.wsService.emitToUser(userId, 'chat:created', chat);
+    }
     this.auditService.log({
       userId: user.id,
       userEmail: user.email,
@@ -131,6 +142,8 @@ export class ChatsController {
   ) {
     const chat = await this.chatsService.findById(id).catch(() => null);
     const result = await this.chatsService.removeMember(id, userId, user.id);
+    this.wsService.leaveUserChats(userId, [id]);
+    this.wsService.emitToUser(userId, 'chat:removed', { chatId: id });
     this.auditService.log({
       userId: user.id,
       userEmail: user.email,
@@ -145,7 +158,8 @@ export class ChatsController {
 
   @Get(':id/members')
   @ApiOperation({ summary: 'Get chat members' })
-  getMembers(@Param('id', ParseUUIDPipe) id: string) {
+  async getMembers(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: any) {
+    await this.chatsService.assertMember(id, user.id);
     return this.chatsService.getMembers(id);
   }
 

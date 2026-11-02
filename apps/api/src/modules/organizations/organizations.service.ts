@@ -155,10 +155,6 @@ export class OrganizationsService {
 
   async addUserToDefaultChat(orgId: string, userId: string): Promise<void> {
     const chatId = await this.ensureDefaultChat(orgId);
-    try {
-      await this.chatsService.addMember(chatId, userId, userId);
-    } catch (err: any) {
-      // Already a member — no-op
-    }
+    await this.chatsService.joinDefaultChat(chatId, userId);
   }
 }

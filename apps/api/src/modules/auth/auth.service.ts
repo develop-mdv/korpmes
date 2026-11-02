@@ -43,7 +43,8 @@ export class AuthService {
     const passwordHash = await bcrypt.hash(dto.password, 12);
 
     const user = await this.usersService.create({
-      email: dto.email,
+      email: dto.email.trim().toLowerCase(),
+      username: dto.username,
       phone: dto.phone,
       passwordHash,
       firstName: dto.firstName,
@@ -60,7 +61,7 @@ export class AuthService {
       entityId: user.id,
     });
 
-    const { passwordHash: _, ...safeUser } = user;
+    const { passwordHash: _, twoFactorSecret: _secret, ...safeUser } = user;
     return {
       user: safeUser,
       accessToken: tokens.accessToken,
@@ -104,7 +105,7 @@ export class AuthService {
       entityId: user.id,
     });
 
-    const { passwordHash: _, ...safeUser } = user;
+    const { passwordHash: _, twoFactorSecret: _secret, ...safeUser } = user;
     return {
       user: safeUser,
       accessToken: tokens.accessToken,

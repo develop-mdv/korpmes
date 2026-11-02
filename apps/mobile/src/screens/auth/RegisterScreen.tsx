@@ -7,6 +7,7 @@ import { FormField } from '../../components/auth/FormField';
 import { PrimaryButton } from '../../components/auth/PrimaryButton';
 import { useTheme } from '../../theme';
 import type { AuthStackParamList } from '../../navigation/types';
+import { normalizeUsername, USERNAME_DESCRIPTION, USERNAME_PATTERN } from '@corp/shared-constants';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Register'>;
 
@@ -18,6 +19,7 @@ export function RegisterScreen({ navigation }: Props) {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const { register, isLoading } = useAuth();
@@ -49,9 +51,15 @@ export function RegisterScreen({ navigation }: Props) {
       return;
     }
 
+    if (username.trim() && !USERNAME_PATTERN.test(normalizeUsername(username))) {
+      Alert.alert('Никнейм', USERNAME_DESCRIPTION);
+      return;
+    }
+
     try {
       await register({
         firstName: firstName.trim(),
+        username: username.trim() ? normalizeUsername(username) : undefined,
         lastName: lastName.trim(),
         email: email.trim(),
         phone: phone.trim() || undefined,
@@ -60,13 +68,13 @@ export function RegisterScreen({ navigation }: Props) {
     } catch (err: any) {
       Alert.alert('Не удалось создать аккаунт', err.message);
     }
-  }, [firstName, lastName, email, phone, password, register]);
+  }, [firstName, lastName, email, username, phone, password, register]);
 
   return (
     <AuthLayout
-      kicker="Премиум-контур"
+      kicker="Личное пространство"
       title="Создать аккаунт"
-      description="Присоединитесь к команде в StaffHub за пару минут."
+      description="Начните общаться без приглашения. Организацию можно подключить позже, а личные и рабочие чаты будут в разных пространствах."
       footer={
         <Pressable onPress={() => navigation.goBack()} style={styles.linkRow}>
           <Text style={[styles.linkText, { color: theme.colors.textSecondary }]}>
@@ -102,7 +110,7 @@ export function RegisterScreen({ navigation }: Props) {
         label="Email"
         value={email}
         onChangeText={setEmail}
-        placeholder="you@company.com"
+        placeholder="you@example.com"
         keyboardType="email-address"
         autoCapitalize="none"
         autoCorrect={false}
@@ -116,6 +124,8 @@ export function RegisterScreen({ navigation }: Props) {
         keyboardType="phone-pad"
         editable={!isLoading}
       />
+      <FormField label="Никнейм (необязательно)" value={username} onChangeText={setUsername} placeholder="@nickname" autoCapitalize="none" autoCorrect={false} editable={!isLoading} />
+      <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>{USERNAME_DESCRIPTION} Можно выбрать позже в настройках.</Text>
       <FormField
         label="Пароль"
         value={password}

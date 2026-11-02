@@ -2,13 +2,16 @@ import { z } from 'zod';
 import { uuidSchema } from './common';
 
 export const createChatSchema = z.object({
-  type: z.enum(['DIRECT', 'GROUP', 'CHANNEL']),
+  type: z.enum(['PERSONAL', 'GROUP', 'CHANNEL', 'PROJECT']),
+  organizationId: uuidSchema.nullable().optional(),
   name: z.string().min(1).max(100).optional(),
-  memberIds: z.array(uuidSchema).min(1),
+  memberIds: z.array(uuidSchema).min(1).max(100).refine((ids) => new Set(ids).size === ids.length, 'Members must be unique'),
 }).refine(
-  (data) => data.type !== 'GROUP' || data.name !== undefined,
+  (data) => data.type === 'PERSONAL' || Boolean(data.name?.trim()),
   { message: 'Name is required for group chats', path: ['name'] },
-);
+).refine((data) => Boolean(data.organizationId) || ['PERSONAL', 'GROUP'].includes(data.type), {
+  message: 'Personal spaces support direct and group chats', path: ['type'],
+});
 
 export const updateChatSchema = z.object({
   name: z.string().min(1).max(100).optional(),

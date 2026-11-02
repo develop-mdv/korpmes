@@ -5,6 +5,7 @@ import { useMessageStore } from '../stores/message.store';
 import { useNotificationStore } from '../stores/notification.store';
 import { useCallStore, type ActiveCall } from '../stores/call.store';
 import { useAuthStore } from '../stores/auth.store';
+import { useOrganizationStore } from '../stores/organization.store';
 import { normalizeMessage } from '../api/messages.api';
 import { normalizeChatFromSocket } from '../api/chats.api';
 import { playMessage, startRinging, stopRinging, playCallEnded } from '../services/audio.service';
@@ -76,9 +77,16 @@ export function setupSocketListeners(socket: Socket) {
 
   socket.on(WS_EVENTS.CHAT_CREATED, (chat: any) => {
     if (!chat?.id) return;
+    if (chat.organizationId !== (useOrganizationStore.getState().currentOrg?.id ?? null)) return;
     const existing = useChatStore.getState().chats.find((c) => c.id === chat.id);
     if (existing) return;
     useChatStore.getState().addChat(normalizeChatFromSocket(chat));
+  });
+  socket.on('chat:removed', (data: { chatId: string }) => useChatStore.getState().removeChat(data.chatId));
+  socket.on('organization:removed', (data: { organizationId: string }) => {
+    const store = useOrganizationStore.getState();
+    store.setOrganizations(store.organizations.filter((org) => org.id !== data.organizationId));
+    if (store.currentOrg?.id === data.organizationId) store.setCurrentOrg(null);
   });
 
   // ─── Notifications ─────────────────────────────────────────────────────────
@@ -205,6 +213,8 @@ export function removeSocketListeners(socket: Socket) {
   socket.off(WS_EVENTS.MESSAGE_DELETE);
   socket.off(WS_EVENTS.MESSAGE_READ);
   socket.off(WS_EVENTS.CHAT_CREATED);
+  socket.off('chat:removed');
+  socket.off('organization:removed');
   socket.off(WS_EVENTS.NOTIFICATION_NEW);
   socket.off(WS_EVENTS.TYPING_START);
   socket.off(WS_EVENTS.TYPING_STOP);

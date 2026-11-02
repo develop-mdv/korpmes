@@ -9,6 +9,7 @@ import { CallStatus } from '@corp/shared-types';
 import { Call } from './entities/call.entity';
 import { CallParticipant } from './entities/call-participant.entity';
 import { InitiateCallDto } from './dto/initiate-call.dto';
+import { WorkspaceAccessService } from '../../common/workspace/workspace-access.service';
 
 @Injectable()
 export class CallsService {
@@ -17,9 +18,11 @@ export class CallsService {
     private readonly callRepository: Repository<Call>,
     @InjectRepository(CallParticipant)
     private readonly participantRepository: Repository<CallParticipant>,
+    private readonly workspaceAccess: WorkspaceAccessService,
   ) {}
 
   async initiate(userId: string, dto: InitiateCallDto): Promise<Call> {
+    await this.workspaceAccess.assertChatMember(dto.chatId, userId);
     const call = this.callRepository.create({
       chatId: dto.chatId,
       initiatedBy: userId,
@@ -40,6 +43,7 @@ export class CallsService {
 
   async answer(callId: string, userId: string): Promise<Call> {
     const call = await this.getById(callId);
+    await this.workspaceAccess.assertChatMember(call.chatId, userId);
 
     if (call.status !== CallStatus.RINGING) {
       throw new BadRequestException('Call is not in RINGING state');
@@ -66,6 +70,7 @@ export class CallsService {
 
   async reject(callId: string, userId: string): Promise<Call> {
     const call = await this.getById(callId);
+    await this.workspaceAccess.assertChatMember(call.chatId, userId);
 
     if (call.status !== CallStatus.RINGING) {
       throw new BadRequestException('Call is not in RINGING state');
@@ -86,6 +91,7 @@ export class CallsService {
 
   async hangup(callId: string, userId: string): Promise<Call> {
     const call = await this.getById(callId);
+    await this.workspaceAccess.assertChatMember(call.chatId, userId);
 
     const participant = await this.participantRepository.findOne({
       where: { callId, userId },
@@ -131,7 +137,8 @@ export class CallsService {
     });
   }
 
-  async getHistoryForUser(userId: string, limit = 50): Promise<Call[]> {
+  async getHistoryForUser(userId: string, orgId: string | null = null, limit = 50): Promise<Call[]> {
+    if (orgId) await this.workspaceAccess.assertOrganizationMember(orgId, userId);
     return this.callRepository
       .createQueryBuilder('call')
       .innerJoin(
@@ -141,6 +148,9 @@ export class CallsService {
         { userId },
       )
       .leftJoinAndSelect('call.participants', 'allParticipants')
+      .innerJoin('chats', 'chat', 'chat.id = call.chat_id AND chat.deleted_at IS NULL')
+      .innerJoin('chat_members', 'cm', 'cm.chat_id = chat.id AND cm.user_id = :userId AND cm.left_at IS NULL', { userId })
+      .where(orgId ? 'chat.organization_id = :orgId' : 'chat.organization_id IS NULL', { orgId })
       .orderBy('call.createdAt', 'DESC')
       .take(limit)
       .getMany();

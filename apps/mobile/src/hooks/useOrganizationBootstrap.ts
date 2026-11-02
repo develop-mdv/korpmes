@@ -6,8 +6,7 @@ import { useOrganizationStore } from '../stores/organization.store';
 export function useOrganizationBootstrap() {
   const userId = useAuthStore((state) => state.user?.id);
   const currentOrgId = useOrganizationStore((state) => state.currentOrg?.id);
-  const setOrganizations = useOrganizationStore((state) => state.setOrganizations);
-  const setCurrentOrg = useOrganizationStore((state) => state.setCurrentOrg);
+  const initialize = useOrganizationStore((state) => state.initialize);
   const setMembers = useOrganizationStore((state) => state.setMembers);
   const setLoading = useOrganizationStore((state) => state.setLoading);
   const reset = useOrganizationStore((state) => state.reset);
@@ -21,6 +20,7 @@ export function useOrganizationBootstrap() {
     }
 
     const bootstrapOrganizations = async () => {
+      reset();
       try {
         setLoading(true);
         const organizations = await organizationsApi.getOrganizations();
@@ -29,12 +29,12 @@ export function useOrganizationBootstrap() {
           return;
         }
 
-        setOrganizations(organizations);
-        setCurrentOrg(organizations[0] ?? null);
+        await initialize(userId, organizations);
       } catch (error) {
         if (isActive) {
           console.error('Failed to load organizations:', error);
           reset();
+          await initialize(userId, []);
         }
       } finally {
         if (isActive) {
@@ -48,7 +48,7 @@ export function useOrganizationBootstrap() {
     return () => {
       isActive = false;
     };
-  }, [reset, setCurrentOrg, setLoading, setOrganizations, userId]);
+  }, [reset, initialize, setLoading, userId]);
 
   useEffect(() => {
     let isActive = true;

@@ -25,6 +25,7 @@ export {
   REFRESH_TOKEN_MAX_SESSIONS,
 } from './limits';
 export { WS_EVENTS } from './events';
+export { USERNAME_PATTERN, USERNAME_DESCRIPTION, normalizeUsername } from './username';
 export {
   AUDIT_ACTIONS,
   AUDIT_ACTION_PREFIXES,

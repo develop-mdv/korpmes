@@ -4,6 +4,8 @@ import { useChatStore } from '@/stores/chat.store';
 import { useCallStore } from '@/stores/call.store';
 import { useNotificationStore } from '@/stores/notification.store';
 import { useAuthStore } from '@/stores/auth.store';
+import { useOrganizationStore } from '@/stores/organization.store';
+import type { Chat } from '@/stores/chat.store';
 import type { Message } from '@/stores/message.store';
 import type { Notification } from '@/stores/notification.store';
 import * as callManager from '@/services/call-manager';
@@ -72,6 +74,20 @@ function normalizeMessage(raw: any): Message {
 
 export function setupSocketListeners(socket: Socket): () => void {
   const handlers = {
+    'chat:created': (chat: Chat) => {
+      if (chat.organizationId === (useOrganizationStore.getState().currentOrg?.id ?? null)) useChatStore.getState().addChat(chat);
+    },
+    'chat:removed': (data: { chatId: string }) => {
+      useChatStore.getState().removeChat(data.chatId);
+    },
+    'organization:removed': (data: { organizationId: string }) => {
+      const store = useOrganizationStore.getState();
+      store.setOrganizations(store.organizations.filter((org) => org.id !== data.organizationId));
+      if (store.currentOrg?.id === data.organizationId) {
+        store.setCurrentOrg(null);
+        window.location.assign('/chats');
+      }
+    },
     'message:new': (raw: any) => {
       const message = normalizeMessage(raw);
       useMessageStore.getState().addMessage(message.chatId, message);
@@ -93,7 +109,7 @@ export function setupSocketListeners(socket: Socket): () => void {
       const chatInactive = message.chatId !== activeChatId;
       const tabBlurred = !document.hasFocus();
 
-      if (chatInactive) {
+      if (chatInactive && !isOwn && useChatStore.getState().chats.some((chat) => chat.id === message.chatId)) {
         useChatStore.getState().incrementUnread(message.chatId);
       }
 

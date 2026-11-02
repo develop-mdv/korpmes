@@ -20,7 +20,7 @@ export interface ChatSettings {
 
 export interface Chat {
   id: string;
-  organizationId: string;
+  organizationId: string | null;
   type: ChatType;
   name?: string;
   description?: string;

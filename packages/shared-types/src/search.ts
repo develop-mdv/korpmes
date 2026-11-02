@@ -10,7 +10,7 @@ export enum SearchScope {
 export interface SearchRequest {
   query: string;
   scope: SearchScope;
-  organizationId: string;
+  organizationId?: string | null;
   chatId?: string;
   dateFrom?: string;
   dateTo?: string;

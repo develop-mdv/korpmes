@@ -7,6 +7,7 @@ import {
   Query,
   Body,
   UseGuards,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
@@ -81,15 +82,16 @@ export class CallsController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Get('history')
-  async getHistory(@Query('chatId') chatId: string) {
+  async getHistory(@Query('chatId', ParseUUIDPipe) chatId: string, @CurrentUser() user: { id: string }) {
+    await this.chatsService.assertMember(chatId, user.id);
     return this.callsService.getHistory(chatId);
   }
 
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Get('history/all')
-  async getAllHistory(@CurrentUser() user: { id: string }) {
-    return this.callsService.getHistoryForUser(user.id);
+  async getAllHistory(@CurrentUser() user: { id: string }, @Query('orgId', new ParseUUIDPipe({ optional: true })) orgId?: string) {
+    return this.callsService.getHistoryForUser(user.id, orgId ?? null);
   }
 
   // Public — TURN credentials are not user-specific; no auth needed
@@ -111,8 +113,10 @@ export class CallsController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Get(':id')
-  async getCallInfo(@Param('id') id: string) {
-    return this.callsService.getById(id);
+  async getCallInfo(@Param('id') id: string, @CurrentUser() user: { id: string }) {
+    const call = await this.callsService.getById(id);
+    await this.chatsService.assertMember(call.chatId, user.id);
+    return call;
   }
 
   @UseGuards(JwtAuthGuard)

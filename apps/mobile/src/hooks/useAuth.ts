@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthStore } from '../stores/auth.store';
 import * as authApi from '../api/auth.api';
+import { useOrganizationStore } from '../stores/organization.store';
 
 export function useAuth(): { login: (email: string, password: string, twoFactorCode?: string) => Promise<{ requiresTwoFactor: boolean }>; register: (payload: authApi.RegisterPayload) => Promise<void>; logout: () => Promise<void>; token: string | null; user: any; isLoading: boolean; error: string | null } {
   const { setAuth, setLoading, logout: clearAuth, token, user, isLoading } = useAuthStore();
@@ -46,7 +47,8 @@ export function useAuth(): { login: (email: string, password: string, twoFactorC
         ]);
         setAuth(response.accessToken, response.user, response.refreshToken);
       } catch (err: any) {
-        const message = err.response?.data?.message || 'Registration failed';
+        const serverMessage = err.response?.data?.error?.message ?? err.response?.data?.message;
+        const message = Array.isArray(serverMessage) ? serverMessage.join('. ') : serverMessage || 'Не удалось создать аккаунт';
         setError(message);
         throw new Error(message);
       } finally {
@@ -58,6 +60,7 @@ export function useAuth(): { login: (email: string, password: string, twoFactorC
 
   const logout = useCallback(async () => {
     await AsyncStorage.multiRemove(['auth_token', 'refresh_token']);
+    useOrganizationStore.getState().reset();
     clearAuth();
   }, [clearAuth]);
 

@@ -13,8 +13,8 @@ export class File {
   @Column({ name: 'uploader_id', type: 'uuid' })
   uploaderId: string;
 
-  @Column({ name: 'organization_id', type: 'uuid' })
-  organizationId: string;
+  @Column({ name: 'organization_id', type: 'uuid', nullable: true })
+  organizationId: string | null;
 
   @Column({ name: 'message_id', type: 'uuid', nullable: true })
   messageId: string | null;

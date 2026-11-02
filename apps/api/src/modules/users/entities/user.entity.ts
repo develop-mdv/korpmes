@@ -25,10 +25,13 @@ export class User {
   @Column({ unique: true })
   email: string;
 
+  @Column({ type: 'varchar', length: 32 })
+  username: string;
+
   @Column({ nullable: true })
   phone: string;
 
-  @Column({ name: 'password_hash' })
+  @Column({ name: 'password_hash', select: false })
   passwordHash: string;
 
   @Column({ name: 'first_name' })

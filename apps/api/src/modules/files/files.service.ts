@@ -37,6 +37,8 @@ import {
 } from './storage/storage.service';
 import { AuditService } from '../audit/audit.service';
 import { MembersService } from '../organizations/members.service';
+import { Message } from '../messages/entities/message.entity';
+import { WorkspaceAccessService } from '../../common/workspace/workspace-access.service';
 
 if ((ffmpegInstaller as any)?.path) {
   (ffmpeg as any).setFfmpegPath((ffmpegInstaller as any).path);
@@ -47,6 +49,7 @@ export type DownloadKind = 'file' | 'thumbnail';
 interface DownloadTokenPayload {
   fileId: string;
   kind: DownloadKind;
+  userId: string;
 }
 
 @Injectable()
@@ -66,6 +69,7 @@ export class FilesService {
     private readonly auditService: AuditService,
     @Inject(forwardRef(() => MembersService))
     private readonly membersService: MembersService,
+    private readonly workspaceAccess: WorkspaceAccessService,
   ) {}
 
   private async assertMember(orgId: string, userId: string): Promise<void> {
@@ -73,6 +77,24 @@ export class FilesService {
     if (!member) {
       throw new ForbiddenException('You are not a member of this organization');
     }
+  }
+
+  private async assertFileAccess(file: File, userId: string): Promise<void> {
+    if (file.organizationId) await this.workspaceAccess.assertOrganizationMember(file.organizationId, userId);
+    if (file.messageId) {
+      const message = await this.fileRepository.manager.getRepository(Message).findOneBy({ id: file.messageId });
+      if (!message) throw new ForbiddenException('File is no longer available in a chat');
+      await this.workspaceAccess.assertChatMember(message.chatId, userId);
+    } else if (!file.taskId && file.uploaderId !== userId) {
+      throw new ForbiddenException('This file is private to its uploader');
+    }
+  }
+
+  async authorizeDownload(token: string): Promise<DownloadTokenPayload> {
+    const payload = this.verifyDownloadToken(token);
+    if (!payload.userId) throw new UnauthorizedException('Invalid download token');
+    await this.assertFileAccess(await this.findById(payload.fileId), payload.userId);
+    return payload;
   }
 
   private buildPublicUrl(path: string): string {
@@ -134,13 +156,26 @@ export class FilesService {
   async upload(
     file: Express.Multer.File,
     userId: string,
-    orgId: string,
+    orgId: string | undefined,
     messageId?: string,
     taskId?: string,
     durationMs?: number,
     displayMode?: 'media' | 'file',
   ): Promise<File> {
-    await this.assertMember(orgId, userId);
+    const organizationId = orgId ?? null;
+    if (orgId) await this.workspaceAccess.assertOrganizationMember(orgId, userId);
+    if (messageId) {
+      const message = await this.fileRepository.manager.getRepository(Message).findOneBy({ id: messageId });
+      if (!message || message.senderId !== userId) throw new ForbiddenException('Cannot attach to this message');
+      await this.workspaceAccess.assertChatMember(message.chatId, userId);
+      const chat = await this.chatRepository.findOneByOrFail({ id: message.chatId });
+      if (chat.organizationId !== organizationId) throw new BadRequestException('Message belongs to a different space');
+    }
+    if (taskId) {
+      const task = await this.taskRepository.findOneBy({ id: taskId });
+      if (!orgId || !task || task.organizationId !== orgId) throw new BadRequestException('Task belongs to a different space');
+    }
+    if (!file) throw new BadRequestException('File is required');
 
     // MediaRecorder produces blobs with codec params (e.g. "video/webm;codecs=vp8,opus");
     // strip them so allowlist matches the canonical type.
@@ -188,7 +223,8 @@ export class FilesService {
     // ASCII-only storage key: keep the human filename in the DB column, but
     // strip non-ASCII from the MinIO object key to avoid signed-URL issues.
     const safeKeyName = originalName.replace(/[^\w.\-]+/g, '_');
-    const storageKey = `${orgId}/${fileId}/${safeKeyName}`;
+    const storagePrefix = orgId ?? `personal/${userId}`;
+    const storageKey = `${storagePrefix}/${fileId}/${safeKeyName}`;
 
     const checksum = crypto
       .createHash('sha256')
@@ -211,7 +247,7 @@ export class FilesService {
           .resize(200, 200, { fit: 'inside' })
           .toBuffer();
 
-        thumbnailKey = `${orgId}/${fileId}/thumbnail_${safeKeyName}`;
+        thumbnailKey = `${storagePrefix}/${fileId}/thumbnail_${safeKeyName}`;
         await this.storageService.upload(
           thumbnailKey,
           thumbnailBuffer,
@@ -240,7 +276,7 @@ export class FilesService {
             });
         });
         const thumbBuf = await fs.readFile(thumbPath);
-        thumbnailKey = `${orgId}/${fileId}/thumbnail_${safeKeyName}.jpg`;
+        thumbnailKey = `${storagePrefix}/${fileId}/thumbnail_${safeKeyName}.jpg`;
         await this.storageService.upload(thumbnailKey, thumbBuf, 'image/jpeg');
       } catch (err) {
         this.logger.warn(`Failed to generate video thumbnail: ${err}`);
@@ -255,7 +291,7 @@ export class FilesService {
 
     const entity = this.fileRepository.create({
       uploaderId: userId,
-      organizationId: orgId,
+      organizationId,
       messageId: messageId ?? null,
       taskId: taskId ?? null,
       originalName,
@@ -295,8 +331,8 @@ export class FilesService {
 
   async getDownloadUrl(id: string, userId: string): Promise<string> {
     const file = await this.findById(id);
-    await this.assertMember(file.organizationId, userId);
-    const token = this.signDownloadToken({ fileId: file.id, kind: 'file' });
+    await this.assertFileAccess(file, userId);
+    const token = this.signDownloadToken({ fileId: file.id, kind: 'file', userId });
 
     this.auditService.log({
       userId,
@@ -312,15 +348,15 @@ export class FilesService {
 
   async getThumbnailUrl(id: string, userId: string): Promise<string | null> {
     const file = await this.findById(id);
-    await this.assertMember(file.organizationId, userId);
+    await this.assertFileAccess(file, userId);
     if (!file.thumbnailKey) return null;
-    const token = this.signDownloadToken({ fileId: file.id, kind: 'thumbnail' });
+    const token = this.signDownloadToken({ fileId: file.id, kind: 'thumbnail', userId });
     return this.buildPublicUrl(`/files/${file.id}/thumbnail?token=${token}`);
   }
 
   async delete(id: string, userId: string): Promise<void> {
     const file = await this.findById(id);
-    await this.assertMember(file.organizationId, userId);
+    await this.assertFileAccess(file, userId);
 
     if (file.uploaderId !== userId) {
       throw new ForbiddenException('Only the uploader can delete this file');
@@ -349,12 +385,12 @@ export class FilesService {
     if (!chat) {
       throw new NotFoundException(`Chat with id "${chatId}" not found`);
     }
-    await this.assertMember(chat.organizationId, userId);
+    await this.workspaceAccess.assertChatMember(chatId, userId);
 
     const rows = await this.fileRepository
       .createQueryBuilder('f')
       .innerJoin('messages', 'm', 'm.id = f.message_id')
-      .where('m.chat_id = :chatId', { chatId })
+      .where('m.chat_id = :chatId AND m.deleted_at IS NULL', { chatId })
       .orderBy('f.created_at', 'DESC')
       .getMany();
     return rows.map(fixFileNameInPlace);
@@ -374,13 +410,16 @@ export class FilesService {
     return rows.map(fixFileNameInPlace);
   }
 
-  async findByOrg(orgId: string, userId: string, limit = 100): Promise<File[]> {
-    await this.assertMember(orgId, userId);
-    const rows = await this.fileRepository.find({
-      where: { organizationId: orgId },
-      order: { createdAt: 'DESC' },
-      take: limit,
-    });
+  async findByOrg(orgId: string | null, userId: string, limit = 100): Promise<File[]> {
+    if (orgId) await this.assertMember(orgId, userId);
+    const rows = await this.fileRepository.createQueryBuilder('f')
+      .where(orgId ? 'f.organization_id = :orgId' : 'f.organization_id IS NULL', { orgId })
+      .andWhere(`((f.message_id IS NULL AND (f.uploader_id = :userId OR f.task_id IS NOT NULL)) OR EXISTS (
+        SELECT 1 FROM messages m JOIN chats c ON c.id = m.chat_id
+        JOIN chat_members cm ON cm.chat_id = c.id AND cm.user_id = :userId AND cm.left_at IS NULL
+        WHERE m.id = f.message_id AND m.deleted_at IS NULL AND c.deleted_at IS NULL
+      ))`, { userId })
+      .orderBy('f.created_at', 'DESC').take(limit).getMany();
     return rows.map(fixFileNameInPlace);
   }
 }

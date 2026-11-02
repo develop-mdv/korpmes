@@ -5,6 +5,8 @@ import { useOrganizationStore } from '@/stores/organization.store';
 import { useUIStore } from '@/stores/ui.store';
 import { TwoFactorSetupModal } from '@/components/settings/TwoFactorSetupModal';
 import { TwoFactorDisableModal } from '@/components/settings/TwoFactorDisableModal';
+import * as usersApi from '@/api/users.api';
+import { normalizeUsername, USERNAME_DESCRIPTION, USERNAME_PATTERN } from '@corp/shared-constants';
 
 export function SettingsPage() {
   const user = useAuthStore((state) => state.user);
@@ -17,6 +19,10 @@ export function SettingsPage() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
+  const [username, setUsername] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [error, setError] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [twoFactorSetupOpen, setTwoFactorSetupOpen] = useState(false);
   const [twoFactorDisableOpen, setTwoFactorDisableOpen] = useState(false);
@@ -25,19 +31,33 @@ export function SettingsPage() {
     setFirstName(user?.firstName ?? '');
     setLastName(user?.lastName ?? '');
     setPhone(user?.phone ?? '');
+    setUsername(user?.username ?? '');
   }, [user]);
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!user) return;
+  useEffect(() => {
+    let active = true;
+    setProfileLoading(true);
+    usersApi.getMe().then((profile) => { if (active) setUser(profile); })
+      .catch(() => { if (active) setError('Не удалось загрузить профиль. Попробуйте обновить страницу.'); })
+      .finally(() => { if (active) setProfileLoading(false); });
+    return () => { active = false; };
+  }, [user?.id, setUser]);
 
-    setUser({
-      ...user,
-      firstName: firstName.trim(),
-      lastName: lastName.trim(),
-      phone: phone.trim() || undefined,
-    });
-    setMessage('Локальные настройки профиля обновлены.');
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!user || saving || profileLoading) return;
+    setMessage(null);
+    setError('');
+    if (!USERNAME_PATTERN.test(normalizeUsername(username))) { setError(USERNAME_DESCRIPTION); return; }
+    setSaving(true);
+    try {
+      const profile = await usersApi.updateMe({ username: normalizeUsername(username), firstName: firstName.trim(), lastName: lastName.trim(), phone: phone.trim() || null });
+      setUser(profile);
+      setMessage('Профиль сохранён. Вас можно найти по нику @' + profile.username + '.');
+    } catch (value: any) {
+      const message = value.response?.data?.error?.message;
+      setError(Array.isArray(message) ? message.join('. ') : message || 'Не удалось сохранить профиль. Попробуйте ещё раз.');
+    } finally { setSaving(false); }
   };
 
   return (
@@ -66,6 +86,11 @@ export function SettingsPage() {
             </div>
 
             <form className="inline-form" onSubmit={handleSubmit}>
+              <div className="field-group">
+                <label className="field-group__label" htmlFor="settings-username">Никнейм</label>
+                <input id="settings-username" className="lux-input" value={username} onChange={(event) => setUsername(event.target.value)} placeholder="@nickname" autoCapitalize="none" autoCorrect="off" spellCheck={false} aria-describedby="settings-username-hint" required disabled={profileLoading || saving} />
+                <div id="settings-username-hint" className="list-card__subtitle">Уникальный ник для поиска. {USERNAME_DESCRIPTION}</div>
+              </div>
               <div className="auth-shell__row">
                 <div className="field-group">
                   <label className="field-group__label" htmlFor="settings-first-name">
@@ -113,10 +138,11 @@ export function SettingsPage() {
               </div>
 
               {message && <div className="lux-alert lux-alert--success">{message}</div>}
+              {error && <div className="lux-alert" role="alert">{error}</div>}
 
               <div className="form-actions">
-                <button className="lux-button" type="submit">
-                  Сохранить профиль
+                <button className="lux-button" type="submit" disabled={saving || profileLoading}>
+                  {saving ? 'Сохраняем...' : 'Сохранить профиль'}
                 </button>
               </div>
             </form>

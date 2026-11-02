@@ -8,7 +8,7 @@ export interface FileInfo {
   originalName: string;
   mimeType: string;
   sizeBytes: number;
-  organizationId: string;
+  organizationId: string | null;
   messageId?: string;
   taskId?: string;
   uploaderId: string;
@@ -24,7 +24,7 @@ export interface UploadOptions {
 
 export function uploadFile(
   file: File,
-  orgId: string,
+  orgId: string | undefined,
   messageId?: string,
   onProgress?: (progress: number) => void,
   taskId?: string,
@@ -35,7 +35,8 @@ export function uploadFile(
     const formData = new FormData();
     formData.append('file', file);
 
-    const params = new URLSearchParams({ orgId });
+    const params = new URLSearchParams();
+    if (orgId) params.set('orgId', orgId);
     if (messageId) params.set('messageId', messageId);
     if (taskId) params.set('taskId', taskId);
     if (durationMs !== undefined && Number.isFinite(durationMs)) {

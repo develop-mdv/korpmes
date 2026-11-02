@@ -72,14 +72,14 @@ export function VideoNoteRecorderScreen({ route, navigation }: Props) {
   };
 
   const handleSend = async () => {
-    if (!pendingRec || !currentOrg) return;
+    if (!pendingRec) return;
     setSending(true);
     try {
       const fileInfo = await filesApi.uploadFile({
         uri: pendingRec.uri,
         name: `video-note-${Date.now()}.mp4`,
         mimeType: pendingRec.mimeType,
-        orgId: currentOrg.id,
+        orgId: currentOrg?.id,
         durationMs: pendingRec.durationMs,
       });
       const socket = getExistingSocket();

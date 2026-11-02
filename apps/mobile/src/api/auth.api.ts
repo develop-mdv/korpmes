@@ -7,6 +7,7 @@ export interface LoginPayload {
 }
 
 export interface RegisterPayload {
+  username?: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -21,6 +22,8 @@ export interface AuthResponse {
   user: {
     id: string;
     email: string;
+    username: string;
+    phone?: string;
     firstName: string;
     lastName: string;
     avatarUrl?: string;

@@ -3,7 +3,7 @@ import { apiClient } from './client';
 export interface SearchParams {
   q: string;
   scope: 'messages' | 'files' | 'tasks' | 'members' | 'all';
-  orgId: string;
+  orgId?: string;
   chatId?: string;
   dateFrom?: string;
   dateTo?: string;

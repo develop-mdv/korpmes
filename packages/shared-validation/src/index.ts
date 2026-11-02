@@ -53,3 +53,4 @@ export {
 export {
   searchQuerySchema,
 } from './search.schema';
+export { usernameSchema } from './username.schema';

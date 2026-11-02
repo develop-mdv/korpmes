@@ -15,7 +15,7 @@ interface ChatListItemProps {
 }
 
 function getTypeLabel(type: Chat['type']) {
-  return type === 'PERSONAL' ? 'личный' : type === 'GROUP' ? 'группа' : type === 'CHANNEL' ? 'канал' : 'проект';
+  return type === 'PERSONAL' ? 'диалог' : type === 'GROUP' ? 'группа' : type === 'CHANNEL' ? 'канал' : 'проект';
 }
 
 function SelfChatAvatar() {

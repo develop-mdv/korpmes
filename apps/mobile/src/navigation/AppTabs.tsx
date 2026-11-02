@@ -9,6 +9,7 @@ import { CallsScreen } from '../screens/calls/CallsScreen';
 import { FilesScreen } from '../screens/files/FilesScreen';
 import { MoreStack } from './MoreStack';
 import { useChatStore } from '../stores/chat.store';
+import { useOrganizationStore } from '../stores/organization.store';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useTheme, tabIcons } from '../theme';
 import type { AppTabParamList, TaskStackParamList } from './types';
@@ -35,11 +36,13 @@ function TaskStackNavigator() {
 }
 
 export function AppTabs() {
+  const workspaceId = useOrganizationStore((state) => state.currentOrg?.id);
   const unreadCount = useChatStore((state) => state.totalUnread);
   const theme = useTheme();
 
   return (
     <Tab.Navigator
+      key={workspaceId ?? 'personal'}
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: theme.colors.primary,
@@ -70,7 +73,7 @@ export function AppTabs() {
           tabBarBadgeStyle: { backgroundColor: theme.colors.error, color: theme.colors.onPrimary },
         }}
       />
-      <Tab.Screen
+      {workspaceId && <Tab.Screen
         name="TasksTab"
         component={TaskStackNavigator}
         options={{
@@ -79,7 +82,7 @@ export function AppTabs() {
             <Ionicons name={focused ? tabIcons.tasks.active : tabIcons.tasks.inactive} color={color} size={size} />
           ),
         }}
-      />
+      />}
       <Tab.Screen
         name="CallsTab"
         component={CallsScreen}

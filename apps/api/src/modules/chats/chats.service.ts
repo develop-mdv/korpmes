@@ -5,13 +5,15 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull, MoreThan } from 'typeorm';
+import { Repository, IsNull, MoreThan, Not } from 'typeorm';
 import { Chat, ChatType } from './entities/chat.entity';
 import { ChatMember } from './entities/chat-member.entity';
 import { Message } from '../messages/entities/message.entity';
 import { CreateChatDto } from './dto/create-chat.dto';
 import { UpdateChatDto } from './dto/update-chat.dto';
 import { isSelfChat } from './chats.utils';
+import { WorkspaceAccessService } from '../../common/workspace/workspace-access.service';
+import { Organization } from '../organizations/entities/organization.entity';
 
 @Injectable()
 export class ChatsService {
@@ -22,9 +24,31 @@ export class ChatsService {
     private readonly chatMemberRepo: Repository<ChatMember>,
     @InjectRepository(Message)
     private readonly messageRepo: Repository<Message>,
+    private readonly workspaceAccess: WorkspaceAccessService,
   ) {}
 
   async create(userId: string, dto: CreateChatDto): Promise<Chat> {
+    const orgId = dto.organizationId ?? null;
+    if (orgId) await this.workspaceAccess.assertOrganizationMember(orgId, userId);
+    if (!orgId && dto.type !== ChatType.PERSONAL && dto.type !== ChatType.GROUP) {
+      throw new BadRequestException('Personal spaces support direct and group chats');
+    }
+    if (dto.type !== ChatType.PERSONAL && !dto.name?.trim()) {
+      throw new BadRequestException('Chat name is required');
+    }
+    await this.workspaceAccess.assertParticipants([userId, ...dto.memberIds], orgId);
+    return this.chatRepo.manager.transaction(async (manager) => {
+      // Serialise direct/self-chat creation per scope to avoid duplicates from two devices.
+      if (dto.type === ChatType.PERSONAL) {
+        const ids = [...new Set([userId, ...dto.memberIds])].sort();
+        await manager.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [JSON.stringify([orgId, ids])]);
+      }
+      const scoped = new ChatsService(manager.getRepository(Chat), manager.getRepository(ChatMember), manager.getRepository(Message), this.workspaceAccess);
+      return scoped.createInScope(userId, { ...dto, organizationId: orgId });
+    });
+  }
+
+  private async createInScope(userId: string, dto: CreateChatDto): Promise<Chat> {
     const isSelf =
       dto.type === ChatType.PERSONAL &&
       dto.memberIds.length === 1 &&
@@ -32,9 +56,9 @@ export class ChatsService {
 
     if (dto.type === ChatType.PERSONAL) {
       if (isSelf) {
-        const existingSelf = await this.findSelfChat(userId, dto.organizationId);
+        const existingSelf = await this.findSelfChat(userId, dto.organizationId ?? null);
         if (existingSelf) {
-          return existingSelf;
+          return this.findById(existingSelf.id);
         }
       } else {
         if (dto.memberIds.length !== 1) {
@@ -42,9 +66,9 @@ export class ChatsService {
         }
 
         const otherUserId = dto.memberIds[0];
-        const existingChat = await this.findPersonalChat(userId, otherUserId, dto.organizationId);
+        const existingChat = await this.findPersonalChat(userId, otherUserId, dto.organizationId ?? null);
         if (existingChat) {
-          return existingChat;
+          return this.findById(existingChat.id);
         }
       }
     }
@@ -52,7 +76,7 @@ export class ChatsService {
     const chat = this.chatRepo.create({
       organizationId: dto.organizationId,
       type: dto.type,
-      name: dto.name,
+      name: dto.name?.trim(),
       createdBy: userId,
       isPrivate: dto.type === ChatType.PERSONAL || dto.type === ChatType.GROUP,
     });
@@ -89,7 +113,7 @@ export class ChatsService {
   async findById(id: string): Promise<Chat> {
     const chat = await this.chatRepo.findOne({
       where: { id },
-      relations: ['members'],
+      relations: ['members', 'members.user'],
     });
     if (!chat) {
       throw new NotFoundException(`Chat with ID "${id}" not found`);
@@ -99,8 +123,9 @@ export class ChatsService {
 
   async findUserChats(
     userId: string,
-    orgId: string,
+    orgId: string | null = null,
   ): Promise<Array<Chat & { unreadCount: number }>> {
+    if (orgId) await this.workspaceAccess.assertOrganizationMember(orgId, userId);
     await this.ensureSelfChat(userId, orgId);
 
     const memberships = await this.chatMemberRepo.find({
@@ -131,7 +156,13 @@ export class ChatsService {
       chats.map(async (chat) => {
         const membership = membershipByChatId.get(chat.id);
         const unreadCount = await this.countUnreadForMember(chat.id, membership);
-        return Object.assign(chat, { unreadCount });
+        const latest = await this.messageRepo.findOne({ where: { chatId: chat.id }, order: { seq: 'DESC' }, relations: ['sender'] });
+        const lastMessage = latest ? {
+          content: latest.content || (latest.type === 'VOICE' ? 'Голосовое сообщение' : latest.type === 'VIDEO_NOTE' ? 'Видеосообщение' : 'Вложение'),
+          senderName: `${latest.sender.firstName} ${latest.sender.lastName}`.trim(),
+          createdAt: latest.createdAt,
+        } : undefined;
+        return Object.assign(chat, { unreadCount, lastMessage });
       }),
     );
 
@@ -153,7 +184,7 @@ export class ChatsService {
     if (!membership) return 0;
 
     if (!membership.lastReadMessageId) {
-      return this.messageRepo.count({ where: { chatId } });
+      return this.messageRepo.count({ where: { chatId, senderId: Not(membership.userId) } });
     }
 
     const lastRead = await this.messageRepo.findOne({
@@ -161,11 +192,11 @@ export class ChatsService {
       select: ['id', 'createdAt'],
     });
     if (!lastRead) {
-      return this.messageRepo.count({ where: { chatId } });
+      return this.messageRepo.count({ where: { chatId, senderId: Not(membership.userId) } });
     }
 
     return this.messageRepo.count({
-      where: { chatId, createdAt: MoreThan(lastRead.createdAt) },
+      where: { chatId, senderId: Not(membership.userId), createdAt: MoreThan(lastRead.createdAt) },
     });
   }
 
@@ -174,7 +205,8 @@ export class ChatsService {
       where: { userId, leftAt: IsNull() },
       select: ['chatId'],
     });
-    return memberships.map((m) => m.chatId);
+    const accessible = await Promise.all(memberships.map(async (m) => await this.isMember(m.chatId, userId) ? m.chatId : null));
+    return accessible.filter((id): id is string => id !== null);
   }
 
   async update(chatId: string, userId: string, dto: UpdateChatDto): Promise<Chat> {
@@ -191,7 +223,25 @@ export class ChatsService {
   }
 
   async addMember(chatId: string, userId: string, addedBy: string): Promise<ChatMember> {
-    await this.findById(chatId);
+    const chat = await this.findById(chatId);
+    await this.assertMember(chatId, addedBy);
+    await this.verifyAdmin(chatId, addedBy);
+    if (chat.type === ChatType.PERSONAL) throw new BadRequestException('Cannot add members to a direct chat');
+    await this.workspaceAccess.assertParticipants([userId], chat.organizationId);
+    return this.saveChatMember(chatId, userId);
+  }
+
+  async joinDefaultChat(chatId: string, userId: string): Promise<ChatMember> {
+    const chat = await this.findById(chatId);
+    if (!chat.organizationId) throw new ForbiddenException('This is not an organization chat');
+    const org = await this.chatRepo.manager.getRepository(Organization).findOneBy({ id: chat.organizationId });
+    if (org?.settings?.defaultChatId !== chatId) throw new ForbiddenException('This is not the default organization chat');
+    await this.workspaceAccess.assertOrganizationMember(chat.organizationId, userId);
+    const existing = await this.chatMemberRepo.findOneBy({ chatId, userId, leftAt: IsNull() });
+    return existing ?? this.saveChatMember(chatId, userId);
+  }
+
+  private async saveChatMember(chatId: string, userId: string): Promise<ChatMember> {
     const existing = await this.chatMemberRepo.findOne({
       where: { chatId, userId },
     });
@@ -215,6 +265,8 @@ export class ChatsService {
   }
 
   async removeMember(chatId: string, userId: string, removedBy: string): Promise<void> {
+    await this.assertMember(chatId, removedBy);
+    if (userId !== removedBy) await this.verifyAdmin(chatId, removedBy);
     const member = await this.chatMemberRepo.findOne({
       where: { chatId, userId, leftAt: IsNull() },
     });
@@ -246,6 +298,10 @@ export class ChatsService {
     userId: string,
     messageId: string | null,
   ): Promise<void> {
+    await this.assertMember(chatId, userId);
+    if (messageId && !await this.messageRepo.findOneBy({ id: messageId, chatId })) {
+      throw new BadRequestException('Message does not belong to this chat');
+    }
     if (!messageId) {
       // Fallback: treat "mark read" without explicit id as read up to newest.
       const latest = await this.messageRepo.findOne({
@@ -273,38 +329,37 @@ export class ChatsService {
   private async findPersonalChat(
     userId1: string,
     userId2: string,
-    orgId: string,
+    orgId: string | null,
   ): Promise<Chat | null> {
     const qb = this.chatRepo
       .createQueryBuilder('chat')
-      .innerJoin('chat.members', 'm1', 'm1.userId = :userId1', { userId1 })
-      .innerJoin('chat.members', 'm2', 'm2.userId = :userId2', { userId2 })
+      .innerJoin('chat.members', 'm1', 'm1.userId = :userId1 AND m1.leftAt IS NULL', { userId1 })
+      .innerJoin('chat.members', 'm2', 'm2.userId = :userId2 AND m2.leftAt IS NULL', { userId2 })
       .where('chat.type = :type', { type: ChatType.PERSONAL })
-      .andWhere('chat.organizationId = :orgId', { orgId });
+      .andWhere(orgId ? 'chat.organizationId = :orgId' : 'chat.organizationId IS NULL', { orgId });
 
     return qb.getOne();
   }
 
-  private async findSelfChat(userId: string, orgId: string): Promise<Chat | null> {
+  private async findSelfChat(userId: string, orgId: string | null): Promise<Chat | null> {
     const candidates = await this.chatRepo
       .createQueryBuilder('chat')
       .innerJoin('chat.members', 'm', 'm.userId = :userId AND m.leftAt IS NULL', { userId })
       .where('chat.type = :type', { type: ChatType.PERSONAL })
-      .andWhere('chat.organizationId = :orgId', { orgId })
+      .andWhere(orgId ? 'chat.organizationId = :orgId' : 'chat.organizationId IS NULL', { orgId })
       .andWhere('chat.createdBy = :userId', { userId })
       .leftJoinAndSelect('chat.members', 'allMembers')
       .getMany();
 
     for (const chat of candidates) {
-      const active = (chat.members ?? []).filter((m) => !m.leftAt);
-      if (active.length === 1 && active[0].userId === userId) {
+      if (isSelfChat(chat, userId)) {
         return chat;
       }
     }
     return null;
   }
 
-  async ensureSelfChat(userId: string, orgId: string): Promise<Chat> {
+  async ensureSelfChat(userId: string, orgId: string | null): Promise<Chat> {
     const existing = await this.findSelfChat(userId, orgId);
     if (existing) return existing;
     try {
@@ -321,6 +376,7 @@ export class ChatsService {
   }
 
   private async verifyAdmin(chatId: string, userId: string): Promise<void> {
+    await this.assertMember(chatId, userId);
     const member = await this.chatMemberRepo.findOne({
       where: { chatId, userId, leftAt: IsNull() },
     });
@@ -333,11 +389,13 @@ export class ChatsService {
   }
 
   async isMember(chatId: string, userId: string): Promise<boolean> {
-    const member = await this.chatMemberRepo.findOne({
-      where: { chatId, userId, leftAt: IsNull() },
-      select: ['id'],
-    });
-    return !!member;
+    try {
+      await this.workspaceAccess.assertChatMember(chatId, userId);
+      return true;
+    } catch (error) {
+      if (error instanceof ForbiddenException) return false;
+      throw error;
+    }
   }
 
   async assertMember(chatId: string, userId: string): Promise<void> {

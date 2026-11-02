@@ -33,8 +33,8 @@ export function hangupCall(callId: string): Promise<CallData> {
   return apiClient.patch(`/calls/${callId}/hangup`).then((r) => r.data);
 }
 
-export function getAllCallHistory(): Promise<CallData[]> {
-  return apiClient.get('/calls/history/all').then((r) => r.data);
+export function getAllCallHistory(orgId?: string): Promise<CallData[]> {
+  return apiClient.get('/calls/history/all', { params: { orgId } }).then((r) => r.data);
 }
 
 export interface IceServersConfig {

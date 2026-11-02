@@ -11,10 +11,12 @@ import { FilesPublicController } from './files-public.controller';
 import { StorageService } from './storage/storage.service';
 import { MinioStorageService } from './storage/minio-storage.service';
 import { OrganizationsModule } from '../organizations/organizations.module';
+import { WorkspaceModule } from '../../common/workspace/workspace.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([File, Chat, Task]),
+    WorkspaceModule,
     JwtModule.registerAsync({
       useFactory: (configService: ConfigService) => ({
         secret: configService.get<string>('JWT_ACCESS_SECRET'),

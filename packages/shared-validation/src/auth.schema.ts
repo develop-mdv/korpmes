@@ -1,7 +1,9 @@
 import { z } from 'zod';
 import { emailSchema, phoneSchema, passwordSchema } from './common';
+import { usernameSchema } from './username.schema';
 
 export const registerSchema = z.object({
+  username: usernameSchema.optional(),
   email: emailSchema,
   phone: phoneSchema.optional(),
   password: passwordSchema,

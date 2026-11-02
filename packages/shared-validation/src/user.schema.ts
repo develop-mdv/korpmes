@@ -1,7 +1,9 @@
 import { z } from 'zod';
 import { passwordSchema } from './common';
+import { usernameSchema } from './username.schema';
 
 export const updateProfileSchema = z.object({
+  username: usernameSchema.optional(),
   firstName: z.string().min(1).max(50).optional(),
   lastName: z.string().min(1).max(50).optional(),
   avatarUrl: z.string().url().optional(),

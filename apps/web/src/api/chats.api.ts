@@ -4,7 +4,7 @@ export interface Chat {
   id: string;
   name: string;
   type: 'PERSONAL' | 'GROUP' | 'CHANNEL' | 'PROJECT';
-  organizationId: string;
+  organizationId: string | null;
   lastMessage?: Record<string, unknown>;
   members: Array<Record<string, unknown>>;
   createdAt: string;
@@ -14,11 +14,11 @@ export interface Chat {
 export interface CreateChatData {
   name?: string;
   type: 'PERSONAL' | 'GROUP' | 'CHANNEL' | 'PROJECT';
-  organizationId: string;
+  organizationId?: string | null;
   memberIds: string[];
 }
 
-export function getChats(orgId: string): Promise<Chat[]> {
+export function getChats(orgId?: string): Promise<Chat[]> {
   return apiClient.get(`/chats`, { params: { orgId } }).then((r) => r.data);
 }
 

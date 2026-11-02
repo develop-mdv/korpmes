@@ -1,6 +1,6 @@
 import { ReactNode, useState } from 'react';
 import clsx from 'clsx';
-import { NavLink } from 'react-router-dom';
+import { NavLink, Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/auth.store';
 import { useUIStore } from '@/stores/ui.store';
 import { useOrganizationStore } from '@/stores/organization.store';
@@ -130,6 +130,7 @@ const navItems: NavItem[] = [
 ];
 
 export function Sidebar() {
+  const navigate = useNavigate();
   const sidebarOpen = useUIStore((s) => s.sidebarOpen);
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
   const user = useAuthStore((s) => s.user);
@@ -140,7 +141,7 @@ export function Sidebar() {
   const { isMobile } = useBreakpoint();
   const { has } = usePermissions();
   const [orgMenuOpen, setOrgMenuOpen] = useState(false);
-  const visibleNav = navItems.filter((item) => !item.permission || has(item.permission));
+  const visibleNav = navItems.filter((item) => (currentOrg || !['/tasks', '/organization', '/audit'].includes(item.path)) && (!item.permission || has(item.permission)));
 
   const handleNavClick = () => {
     if (isMobile && sidebarOpen) {
@@ -149,9 +150,9 @@ export function Sidebar() {
   };
 
   const handleSelectOrg = (orgId: string) => {
-    const org = organizations.find((item) => item.id === orgId);
-    if (!org) return;
+    const org = organizations.find((item) => item.id === orgId) ?? null;
     setCurrentOrg(org);
+    navigate('/chats');
     setOrgMenuOpen(false);
   };
 
@@ -167,7 +168,7 @@ export function Sidebar() {
         </button>
       </div>
 
-      {organizations.length > 0 && (
+      {(
         <div className="sidebar-shell__org-wrap">
           <div className="org-switcher">
             <button
@@ -176,9 +177,10 @@ export function Sidebar() {
               aria-expanded={orgMenuOpen}
               type="button"
             >
-              <span className="org-switcher__avatar">{currentOrg?.name?.[0] || 'S'}</span>
+              <span className="org-switcher__avatar">{currentOrg?.name?.[0] || 'Я'}</span>
               <span className="org-switcher__text">
-                <span className="org-switcher__name">{currentOrg?.name || 'Выберите пространство'}</span>
+                <span className="org-switcher__name">{currentOrg?.name || 'Личное пространство'}</span>
+                <span className="org-switcher__meta">{currentOrg ? 'Организация' : 'Личный аккаунт'}</span>
               </span>
               <svg className="org-switcher__chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="m6 9 6 6 6-6" />
@@ -187,6 +189,10 @@ export function Sidebar() {
 
             {orgMenuOpen && (
               <div className="org-switcher__menu">
+                <button className={clsx('org-switcher__option', !currentOrg && 'is-active')} onClick={() => handleSelectOrg('personal')} type="button">
+                  <span className="org-switcher__avatar org-switcher__avatar--small">Я</span>
+                  <span><span className="org-switcher__name">Личное пространство</span><span className="org-switcher__meta">Личные диалоги и группы</span></span>
+                </button>
                 {organizations.map((org) => (
                   <button
                     key={org.id}
@@ -201,6 +207,8 @@ export function Sidebar() {
                     </span>
                   </button>
                 ))}
+                <Link className="org-switcher__option" to="/create-organization" onClick={() => setOrgMenuOpen(false)}>Создать организацию</Link>
+                <Link className="org-switcher__option" to="/join-organization" onClick={() => setOrgMenuOpen(false)}>Присоединиться к организации</Link>
               </div>
             )}
           </div>
@@ -218,7 +226,7 @@ export function Sidebar() {
             <span className="sidebar-shell__nav-icon">{item.icon}</span>
             <span className="sidebar-shell__nav-label">
               <span className="sidebar-shell__nav-title">{item.label}</span>
-              <span className="sidebar-shell__nav-caption">{item.caption}</span>
+              <span className="sidebar-shell__nav-caption">{item.path === '/chats' ? (currentOrg ? 'Рабочие диалоги' : 'Личные диалоги') : item.caption}</span>
             </span>
           </NavLink>
         ))}

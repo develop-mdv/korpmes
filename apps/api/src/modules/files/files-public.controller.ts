@@ -74,7 +74,7 @@ export class FilesPublicController {
     asAttachment: boolean,
   ) {
     if (!token) throw new BadRequestException('Missing token');
-    const payload = this.filesService.verifyDownloadToken(token);
+    const payload = await this.filesService.authorizeDownload(token);
     if (payload.fileId !== id || payload.kind !== kind) {
       throw new BadRequestException('Token does not match requested file');
     }

@@ -7,6 +7,7 @@ import { EmptyState } from '../../components/EmptyState';
 import { useAuthStore } from '../../stores/auth.store';
 import { useTheme } from '../../theme';
 import * as callsApi from '../../api/calls.api';
+import { useOrganizationStore } from '../../stores/organization.store';
 
 type CallData = callsApi.CallData;
 
@@ -20,6 +21,7 @@ function formatDuration(startedAt: string | null, endedAt: string | null): strin
 }
 
 export function CallsScreen() {
+  const currentOrg = useOrganizationStore((state) => state.currentOrg);
   const theme = useTheme();
   const currentUserId = useAuthStore((state) => state.user?.id);
   const [calls, setCalls] = useState<CallData[]>([]);
@@ -29,14 +31,14 @@ export function CallsScreen() {
   const fetchCalls = useCallback(async () => {
     try {
       setIsLoading(true);
-      const data = await callsApi.getAllCallHistory();
+      const data = await callsApi.getAllCallHistory(currentOrg?.id);
       setCalls(data);
     } catch (err) {
       console.error('Failed to fetch calls:', err);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [currentOrg?.id]);
 
   useEffect(() => {
     fetchCalls();

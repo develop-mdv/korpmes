@@ -4,6 +4,7 @@ import clsx from 'clsx';
 interface SearchBarProps {
   onSearch: (query: string, scope: string) => void;
   placeholder?: string;
+  organization?: boolean;
 }
 
 const scopes = [
@@ -17,6 +18,7 @@ const scopes = [
 export function SearchBar({
   onSearch,
   placeholder = 'Поиск по рабочему пространству...',
+  organization = true,
 }: SearchBarProps) {
   const [query, setQuery] = useState('');
   const [scope, setScope] = useState('ALL');
@@ -81,7 +83,7 @@ export function SearchBar({
       </div>
 
       <div className="search-shell__scopes">
-        {scopes.map((item) => (
+        {scopes.filter((item) => organization || item.value !== 'TASKS').map((item) => (
           <button
             key={item.value}
             className={clsx('lux-chip', scope === item.value && 'is-active')}

@@ -143,12 +143,11 @@ export function FilesPage() {
   const [previewLoading, setPreviewLoading] = useState(false);
 
   useEffect(() => {
-    if (!currentOrg) return;
 
     setLoading(true);
     setError('');
     filesApi
-      .listFiles({ orgId: currentOrg.id })
+      .listFiles({ orgId: currentOrg?.id })
       .then(setFiles)
       .catch(() => {
         setFiles([]);

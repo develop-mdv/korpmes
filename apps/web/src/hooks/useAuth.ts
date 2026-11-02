@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/auth.store';
 import * as authApi from '@/api/auth.api';
 import { disconnectSocket } from '@/socket/socket';
+import { useOrganizationStore } from '@/stores/organization.store';
 
 export function useAuth() {
   const navigate = useNavigate();
@@ -47,6 +48,7 @@ export function useAuth() {
       // Ignore logout API errors
     } finally {
       disconnectSocket();
+      useOrganizationStore.getState().reset();
       clearAuth();
       navigate('/login');
     }

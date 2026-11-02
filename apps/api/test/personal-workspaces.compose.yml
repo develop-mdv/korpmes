@@ -1,0 +1,24 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: staffhub_test
+      POSTGRES_PASSWORD: staffhub_test
+      POSTGRES_DB: staffhub_personal_test
+    ports: ["127.0.0.1::5432"]
+    tmpfs: [/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U staffhub_test -d staffhub_personal_test"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+  redis:
+    image: redis:7-alpine
+    ports: ["127.0.0.1::6379"]
+  minio:
+    image: minio/minio:latest
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: staffhub_test
+      MINIO_ROOT_PASSWORD: staffhub_test
+    ports: ["127.0.0.1::9000"]

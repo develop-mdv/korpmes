@@ -5,6 +5,7 @@ import Constants from 'expo-constants';
 import { useNotificationStore } from '../stores/notification.store';
 import { apiClient } from '../api/client';
 import { playMessage } from '../services/audio.service';
+import { openChatInWorkspace } from '../navigation/open-chat';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -94,9 +95,8 @@ export function usePushNotifications() {
     responseListener.current =
       Notifications.addNotificationResponseReceivedListener((response) => {
         const data = response.notification.request.content.data;
-        if (data?.chatId) {
-          // Navigation to chat would be handled by the navigation container
-          console.log('Notification tapped, navigate to chat:', data.chatId);
+        if (typeof data?.chatId === 'string') {
+          void openChatInWorkspace(data.chatId).catch((error) => console.warn('Cannot open notification chat:', error));
         }
       });
 

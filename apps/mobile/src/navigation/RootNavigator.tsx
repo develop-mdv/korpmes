@@ -1,10 +1,12 @@
 import React, { useEffect } from 'react';
+import { ActivityIndicator, View } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuthStore } from '../stores/auth.store';
 import { useCallStore } from '../stores/call.store';
 import { useInviteStore } from '../stores/invite.store';
 import { useSocket } from '../hooks/useSocket';
 import { useOrganizationBootstrap } from '../hooks/useOrganizationBootstrap';
+import { useOrganizationStore } from '../stores/organization.store';
 import { AuthStack } from './AuthStack';
 import { AppTabs } from './AppTabs';
 import { ActiveCallScreen } from '../screens/calls/ActiveCallScreen';
@@ -48,6 +50,15 @@ function AppTabsWithCallGuard({ navigation }: { navigation: any }) {
   useSocket(); // Connect socket when authenticated
   useOrganizationBootstrap();
   const activeCall = useCallStore((state) => state.activeCall);
+  const userId = useAuthStore((state) => state.user?.id);
+  const initializedUserId = useOrganizationStore((state) => state.initializedUserId);
+  const pendingChatId = useOrganizationStore((state) => state.pendingChatId);
+  const setPendingChatId = useOrganizationStore((state) => state.setPendingChatId);
+  useEffect(() => {
+    if (!pendingChatId) return;
+    navigation.navigate('App', { screen: 'ChatsTab', params: { screen: 'ChatView', params: { chatId: pendingChatId } } });
+    setPendingChatId(null);
+  }, [navigation, pendingChatId, setPendingChatId]);
   const pendingInviteToken = useInviteStore((state) => state.pendingToken);
   const setPendingToken = useInviteStore((state) => state.setPendingToken);
 
@@ -58,12 +69,13 @@ function AppTabsWithCallGuard({ navigation }: { navigation: any }) {
   }, [activeCall, navigation]);
 
   useEffect(() => {
-    if (pendingInviteToken) {
+    if (pendingInviteToken && initializedUserId === userId) {
       const token = pendingInviteToken;
       setPendingToken(null);
       navigation.navigate('Invite', { token });
     }
-  }, [pendingInviteToken, navigation, setPendingToken]);
+  }, [pendingInviteToken, navigation, setPendingToken, initializedUserId, userId]);
 
+  if (initializedUserId !== userId) return <View style={{ flex: 1, justifyContent: 'center' }}><ActivityIndicator /></View>;
   return <AppTabs />;
 }

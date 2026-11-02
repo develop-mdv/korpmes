@@ -7,6 +7,7 @@ import { useAuthStore } from '../../stores/auth.store';
 import { useInviteStore } from '../../stores/invite.store';
 import { useTheme } from '../../theme';
 import * as orgsApi from '../../api/organizations.api';
+import { useOrganizationStore } from '../../stores/organization.store';
 
 type Props = NativeStackScreenProps<any, 'Invite'>;
 
@@ -47,6 +48,9 @@ export function InviteScreen({ navigation, route }: Props) {
     setAccepting(true);
     try {
       await orgsApi.acceptInvite(token);
+      const organizations = await orgsApi.getOrganizations();
+      useOrganizationStore.getState().setOrganizations(organizations);
+      useOrganizationStore.getState().setCurrentOrg(organizations.find((org) => org.id === info?.organizationId) ?? null);
       setPendingToken(null);
       navigation.reset({ index: 0, routes: [{ name: 'App' as never }] });
     } catch (err: any) {

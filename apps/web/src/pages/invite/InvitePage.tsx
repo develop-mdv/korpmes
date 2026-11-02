@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuthStore } from '@/stores/auth.store';
 import * as orgsApi from '@/api/organizations.api';
+import { useOrganizationStore } from '@/stores/organization.store';
 
 export function InvitePage() {
   const { token = '' } = useParams<{ token: string }>();
@@ -37,6 +38,9 @@ export function InvitePage() {
     setError('');
     try {
       await orgsApi.acceptInvite(token);
+      const organizations = await orgsApi.getOrganizations();
+      useOrganizationStore.getState().setOrganizations(organizations);
+      useOrganizationStore.getState().setCurrentOrg(organizations.find((org) => org.id === info?.organizationId) ?? null);
       navigate('/chats');
     } catch (err: any) {
       setError(err.response?.data?.error?.message || 'Не удалось присоединиться к организации');

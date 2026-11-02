@@ -269,6 +269,7 @@ export class MessagesService {
     dto: EditMessageDto,
   ): Promise<Message> {
     const message = await this.findById(id);
+    await this.chatsService.assertMember(message.chatId, userId);
 
     if (message.senderId !== userId) {
       throw new ForbiddenException('You can only edit your own messages');
@@ -283,6 +284,7 @@ export class MessagesService {
 
   async remove(id: string, userId: string): Promise<void> {
     const message = await this.findById(id);
+    await this.chatsService.assertMember(message.chatId, userId);
 
     if (message.senderId !== userId) {
       throw new ForbiddenException('You can only delete your own messages');

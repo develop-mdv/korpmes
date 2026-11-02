@@ -4,7 +4,7 @@ import { uuidSchema, cursorPaginationSchema } from './common';
 export const searchQuerySchema = z.object({
   q: z.string().min(1).max(200),
   scope: z.enum(['ALL', 'MESSAGES', 'FILES', 'TASKS', 'MEMBERS']).default('ALL'),
-  organizationId: uuidSchema,
+  organizationId: uuidSchema.nullable().optional(),
   chatId: uuidSchema.optional(),
   dateFrom: z.string().datetime().optional(),
   dateTo: z.string().datetime().optional(),

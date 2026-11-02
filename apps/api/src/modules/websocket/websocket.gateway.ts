@@ -323,6 +323,9 @@ export class WebSocketGatewayHandler
         return;
       }
 
+      await this.chatsService.assertMember(payload.chatId, userId);
+      const message = await this.messagesService.findById(payload.messageId);
+      if (message.chatId !== payload.chatId) return;
       await this.messagesService.markAsRead(payload.messageId, userId);
 
       // Emit read receipt to chat room
@@ -338,13 +341,14 @@ export class WebSocketGatewayHandler
   }
 
   @SubscribeMessage(WS_EVENTS.TYPING_START)
-  handleTypingStart(
+  async handleTypingStart(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: { chatId: string },
-  ): void {
+  ): Promise<void> {
     if (!payload.chatId) return;
 
     const userId = client.data.userId;
+    if (!userId || !await this.chatsService.isMember(payload.chatId, userId)) return;
 
     // Emit to room excluding sender
     client.to(`chat:${payload.chatId}`).emit(WS_EVENTS.TYPING_START, {
@@ -358,13 +362,14 @@ export class WebSocketGatewayHandler
   }
 
   @SubscribeMessage(WS_EVENTS.TYPING_STOP)
-  handleTypingStop(
+  async handleTypingStop(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: { chatId: string },
-  ): void {
+  ): Promise<void> {
     if (!payload.chatId) return;
 
     const userId = client.data.userId;
+    if (!userId || !await this.chatsService.isMember(payload.chatId, userId)) return;
 
     client.to(`chat:${payload.chatId}`).emit(WS_EVENTS.TYPING_STOP, {
       chatId: payload.chatId,

@@ -5,10 +5,20 @@ import {
   Matches,
   MinLength,
   MaxLength,
+  ValidateIf,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { normalizeUsername, USERNAME_DESCRIPTION, USERNAME_PATTERN } from '@corp/shared-constants';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class RegisterDto {
+  @ApiPropertyOptional({ example: 'ivan_petrov', description: USERNAME_DESCRIPTION })
+  @Transform(({ obj }) => typeof obj.username === 'string' ? normalizeUsername(obj.username) : obj.username)
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsString()
+  @Matches(USERNAME_PATTERN, { message: USERNAME_DESCRIPTION })
+  username?: string;
+
   @ApiProperty({ example: 'user@example.com' })
   @IsEmail()
   email: string;

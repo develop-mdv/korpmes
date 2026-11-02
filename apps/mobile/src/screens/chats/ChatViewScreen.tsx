@@ -23,6 +23,7 @@ import { useAuthStore } from '../../stores/auth.store';
 import { useChatStore } from '../../stores/chat.store';
 import { useCallStore } from '../../stores/call.store';
 import { useOrganizationStore } from '../../stores/organization.store';
+import { openChatInWorkspace } from '../../navigation/open-chat';
 import { useAttachmentStaging } from '../../hooks/useAttachmentStaging';
 import type { VoiceRecording } from '../../hooks/useVoiceRecorder';
 import * as messagesApi from '../../api/messages.api';
@@ -93,6 +94,15 @@ export function ChatViewScreen({ route, navigation }: Props) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [composerFeedback, setComposerFeedback] = useState<ComposerFeedback | null>(null);
+  useEffect(() => {
+    if (!chat || chat.organizationId !== (currentOrg?.id ?? null)) {
+      void openChatInWorkspace(chatId).catch(() => setLoadError('Чат недоступен. Проверьте доступ к пространству.'));
+    }
+  }, [chatId, chat?.id, currentOrg?.id]);
+  useEffect(() => {
+    useChatStore.getState().setActiveChat(chat ?? null);
+    return () => useChatStore.getState().setActiveChat(null);
+  }, [chat?.id]);
 
   const canStartDirectCall =
     !!chat &&
@@ -329,13 +339,12 @@ export function ChatViewScreen({ route, navigation }: Props) {
 
   const handleSendVoice = useCallback(
     async (rec: VoiceRecording) => {
-      if (!currentOrg) return;
       try {
         const fileInfo = await filesApi.uploadFile({
           uri: rec.uri,
           name: `voice-${Date.now()}.m4a`,
           mimeType: rec.mimeType,
-          orgId: currentOrg.id,
+          orgId: currentOrg?.id,
           durationMs: rec.durationMs,
         });
         const socket = getExistingSocket();

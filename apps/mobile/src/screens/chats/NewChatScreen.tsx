@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, Text, TextInput, FlatList, Pressable, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -17,6 +17,7 @@ interface User {
   firstName: string;
   lastName: string;
   email: string;
+  username: string;
   avatarUrl?: string;
 }
 
@@ -30,23 +31,27 @@ export function NewChatScreen({ navigation }: Props) {
   const [isCreating, setIsCreating] = useState(false);
   const addChat = useChatStore((state) => state.addChat);
   const currentOrg = useOrganizationStore((state) => state.currentOrg);
+  const searchVersion = useRef(0);
+  useEffect(() => () => { searchVersion.current++; }, []);
 
   const handleSearch = useCallback(async (query: string) => {
+    const version = ++searchVersion.current;
     setSearchQuery(query);
     if (query.trim().length < 2) {
       setSearchResults([]);
+      setIsSearching(false);
       return;
     }
     try {
       setIsSearching(true);
-      const { data } = await apiClient.get<User[]>('/users/search', { params: { q: query.trim() } });
-      setSearchResults(data);
+      const { data } = await apiClient.get<User[]>('/users/search', { params: { q: query.trim(), orgId: currentOrg?.id } });
+      if (version === searchVersion.current) setSearchResults(data);
     } catch (err) {
       console.error('Search failed:', err);
     } finally {
-      setIsSearching(false);
+      if (version === searchVersion.current) setIsSearching(false);
     }
-  }, []);
+  }, [currentOrg?.id]);
 
   const toggleMember = useCallback((user: User) => {
     setSelectedMembers((prev) => {
@@ -68,18 +73,13 @@ export function NewChatScreen({ navigation }: Props) {
       return;
     }
 
-    if (!currentOrg?.id) {
-      Alert.alert('Подождите', 'Организация ещё загружается.');
-      return;
-    }
-
     try {
       setIsCreating(true);
       const chat = await chatsApi.createChat({
         type: isGroup ? 'GROUP' : 'PERSONAL',
         name: isGroup ? groupName.trim() : undefined,
         memberIds: selectedMembers.map((m) => m.id),
-        organizationId: currentOrg.id,
+        organizationId: currentOrg?.id,
       });
       addChat(chat);
       navigation.replace('ChatView', { chatId: chat.id });
@@ -97,6 +97,7 @@ export function NewChatScreen({ navigation }: Props) {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
+      <Text style={{ color: theme.colors.textSecondary, padding: 16 }}>{currentOrg ? `Рабочий чат · ${currentOrg.name}` : 'Личный чат. Найдите собеседника по никнейму (от 3 символов) или полному email.'}</Text>
       {selectedMembers.length > 1 && (
         <View style={styles.groupNameContainer}>
           <TextInput
@@ -136,7 +137,9 @@ export function NewChatScreen({ navigation }: Props) {
             style={[styles.searchInput, { color: theme.colors.textPrimary }]}
             value={searchQuery}
             onChangeText={handleSearch}
-            placeholder="Найти участников…"
+            placeholder={currentOrg ? 'Имя, @никнейм или email' : '@никнейм или полный email'}
+            autoCapitalize="none"
+            keyboardType={currentOrg ? 'default' : 'email-address'}
             placeholderTextColor={theme.colors.textTertiary}
             autoFocus
           />
@@ -164,7 +167,7 @@ export function NewChatScreen({ navigation }: Props) {
                 <Text style={[styles.userName, { color: theme.colors.textPrimary }]}>
                   {item.firstName} {item.lastName}
                 </Text>
-                <Text style={[styles.userEmail, { color: theme.colors.textSecondary }]}>{item.email}</Text>
+                <Text style={[styles.userEmail, { color: theme.colors.textSecondary }]}>@{item.username} · {item.email}</Text>
               </View>
               {selected && <Ionicons name="checkmark-circle" size={22} color={theme.colors.primary} />}
             </Pressable>

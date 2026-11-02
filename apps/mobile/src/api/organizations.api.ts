@@ -73,6 +73,15 @@ export async function getOrganizations(): Promise<Organization[]> {
   return data;
 }
 
+export async function searchOrganizations(q: string): Promise<Organization[]> {
+  const { data } = await apiClient.get<Organization[]>('/organizations/search', { params: { q } });
+  return data;
+}
+
+export async function requestJoin(orgId: string): Promise<void> {
+  await apiClient.post(`/organizations/${orgId}/join-request`, {});
+}
+
 export async function createOrganization(input: {
   name: string;
   slug: string;

@@ -5,6 +5,7 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { useAuthStore } from '@/stores/auth.store';
 import * as callsApi from '@/api/calls.api';
+import { useOrganizationStore } from '@/stores/organization.store';
 
 type CallData = callsApi.CallData;
 
@@ -69,6 +70,7 @@ function CallGlyph({ type }: { type: CallData['type'] }) {
 }
 
 export function CallsPage() {
+  const currentOrg = useOrganizationStore((state) => state.currentOrg);
   const currentUserId = useAuthStore((state) => state.user?.id);
   const [calls, setCalls] = useState<CallData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,11 +78,11 @@ export function CallsPage() {
 
   useEffect(() => {
     callsApi
-      .getAllCallHistory()
+      .getAllCallHistory(currentOrg?.id)
       .then(setCalls)
       .catch(() => setError('Не удалось загрузить историю звонков.'))
       .finally(() => setLoading(false));
-  }, []);
+  }, [currentOrg?.id]);
 
   const stats = useMemo(() => {
     const video = calls.filter((call) => call.type === 'VIDEO').length;

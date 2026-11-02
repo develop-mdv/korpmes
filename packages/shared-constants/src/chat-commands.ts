@@ -77,6 +77,9 @@ export function prepareTaskCommand(input: PrepareTaskCommandInput): PreparedTask
     };
   }
 
+  if (input.chatOrganizationId === null) {
+    return { kind: 'error', message: 'Задачи доступны в пространстве организации.' };
+  }
   const organizationId = input.chatOrganizationId || input.currentOrganizationId;
   if (!organizationId) {
     return { kind: 'error', message: 'Не удалось определить организацию чата' };

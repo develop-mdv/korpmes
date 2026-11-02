@@ -34,7 +34,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     set({ chats, totalUnread });
   },
   addChat: (chat) => {
-    const chats = [chat, ...get().chats];
+    const chats = [chat, ...get().chats.filter((item) => item.id !== chat.id)];
     const totalUnread = chats.reduce((sum, c) => sum + (c.unreadCount ?? 0), 0);
     set({ chats, totalUnread });
   },

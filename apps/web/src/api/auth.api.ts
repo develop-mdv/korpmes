@@ -4,6 +4,7 @@ export interface LoginResponse {
   user: {
     id: string;
     email: string;
+    username: string;
     firstName: string;
     lastName: string;
     avatar?: string;
@@ -16,6 +17,7 @@ export interface LoginResponse {
 }
 
 export interface RegisterData {
+  username?: string;
   firstName: string;
   lastName: string;
   email: string;

@@ -20,6 +20,17 @@ export class WebSocketService {
     this.server = server;
   }
 
+  joinUserToChat(userId: string, chatId: string): void {
+    this.server?.in(`user:${userId}`).socketsJoin(`chat:${chatId}`);
+  }
+
+  leaveUserChats(userId: string, chatIds: string[], organizationId?: string): void {
+    if (!this.server) return;
+    const rooms = chatIds.map((id) => `chat:${id}`);
+    if (organizationId) rooms.push(`org:${organizationId}`, `org:${organizationId}:audit`);
+    this.server.in(`user:${userId}`).socketsLeave(rooms);
+  }
+
   emitToChat(chatId: string, event: string, data: any): void {
     if (!this.server) {
       this.logger.warn('WebSocket server not initialized');
